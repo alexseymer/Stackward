@@ -1,2 +1,2 @@
-rootProject.name = "gemma-agent"
+rootProject.name = "stackward"
 include(":app")

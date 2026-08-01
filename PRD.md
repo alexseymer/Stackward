@@ -1,4 +1,4 @@
-# PRD: Gemma Agent — On-Device LLM for Server & Infra Monitoring
+# PRD: Stackward — On-Device LLM for Server & Infra Monitoring
 
 ## 1. Summary
 

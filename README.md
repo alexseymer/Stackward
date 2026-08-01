@@ -1,10 +1,12 @@
-# Gemma Agent
+# Stackward
 
 On-device (Gemma 4 E2B/E4B) Android agent for monitoring and managing
 self-hosted infrastructure — plain Linux hosts, Proxmox, and Docker — over
 SSH, with a tiered, human-confirmed permission model. No credentials,
 logs, or biometric data ever leave the device except over your own
 SSH/API connections to your own infrastructure.
+
+**Stackward** = steward of your stack.
 
 See [PRD.md](PRD.md) for the full product spec, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 for the system design, and [docs/PHASES.md](docs/PHASES.md) for the build
