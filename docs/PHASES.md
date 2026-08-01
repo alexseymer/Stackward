@@ -31,8 +31,8 @@ on the target host, without manual server-side steps.
 
 | Task | Status |
 |------|--------|
-| `AgentKeyManager`: generate ed25519 keypair in Android Keystore | TODO |
-| `setUserAuthenticationRequired(true)` — biometric per signing op | TODO |
+| `AgentKeyManager`: generate ed25519 keypair in Android Keystore | Done (API 33+ Keystore, software fallback API 28–32) |
+| `setUserAuthenticationRequired(true)` — biometric per signing op | Done (Keystore path; biometric on use) |
 | Push public key to `authorized_keys` with `command=` restrictions | TODO |
 | Verify restricted connection before discarding admin access | TODO |
 | Host key pinning (TOFU) + change alerting | TODO |

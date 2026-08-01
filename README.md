@@ -14,8 +14,20 @@ order.
 
 ## Status
 
-Early scaffold. Not yet functional. See open issues / project board for
-current phase.
+Phase 0/1 in progress. Onboarding UI and SSH key generation (AgentKeyManager)
+are implemented. Server provisioning and SSH connection are next.
+
+Early scaffold — not yet end-to-end functional. See [docs/PHASES.md](docs/PHASES.md).
+
+## Build locally
+
+```bash
+# Requires Android SDK (API 35) and JDK 17+
+export ANDROID_HOME=~/Android/Sdk
+./gradlew :app:assembleDebug
+```
+
+Open the project in Android Studio for emulator/device testing.
 
 ## Security model, in short
 

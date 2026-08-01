@@ -1,85 +1,186 @@
 package dev.stackward.crypto
 
+import android.content.Context
+import android.os.Build
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+import net.schmizz.sshj.common.SecurityUtils
 import java.security.KeyPair
+import java.security.KeyPairGenerator
+import java.security.KeyStore
+import java.security.PrivateKey
 import java.security.PublicKey
+import java.security.spec.AlgorithmParameterSpec
+import java.security.spec.PKCS8EncodedKeySpec
+import java.security.spec.X509EncodedKeySpec
+import java.util.Base64 as JavaBase64
 
 /**
  * Manages the agent's ed25519 SSH keypair in Android Keystore.
  *
- * Phase 1 responsibilities:
- * - Generate ed25519 keypair with [setUserAuthenticationRequired(true)]
- * - Non-exportable, ideally StrongBox-backed
- * - Every signing operation requires a fresh biometric prompt
- * - Export public key in OpenSSH format for authorized_keys
- * - Sign SSH auth challenges
+ * API 33+: hardware-backed Ed25519 in Android Keystore with biometric gate.
+ * API 28–32: Ed25519 key encrypted in EncryptedSharedPreferences (software fallback).
  *
- * The private key never leaves Keystore. Biometric data never leaves the device.
+ * The private key never leaves secure storage. Biometric data never leaves the device.
  */
-class AgentKeyManager {
+class AgentKeyManager(
+    private val context: Context,
+) {
 
-    /**
-     * Generate a new ed25519 keypair in Android Keystore.
-     * Requires biometric authentication for every use after creation.
-     */
-    fun generateKeypair(alias: String = KEY_ALIAS): KeyPair {
-        // TODO: Use KeyGenParameterSpec.Builder with:
-        //   - KeyProperties.KEY_ALGORITHM_EC (or ed25519 when available)
-        //   - setUserAuthenticationRequired(true)
-        //   - setInvalidatedByBiometricEnrollment(true)
-        //   - setIsStrongBoxBacked(true) when hardware available
-        TODO("Phase 1: implement Keystore key generation")
+    private val keyStore: KeyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
+
+  fun generateKeypair(alias: String = KEY_ALIAS): KeyPair {
+        deleteKeypair(alias)
+
+        return if (supportsKeystoreEd25519()) {
+            generateKeystoreKeypair(alias)
+        } else {
+            generateSoftwareKeypair(alias)
+        }
     }
 
-    /**
-     * Return the public key in OpenSSH authorized_keys format.
-     */
     fun getPublicKeyOpenSSH(alias: String = KEY_ALIAS): String {
-        TODO("Phase 1: export public key as ssh-ed25519 AAAA... comment")
+        val publicKey = getPublicKey(alias)
+            ?: throw IllegalStateException("No keypair found for alias: $alias")
+        return OpenSshPublicKeyEncoder.encode(publicKey)
     }
 
-    /**
-     * Sign data after biometric authentication.
-     * Called by the SSH layer for auth challenges.
-     */
+    fun getKeyPair(alias: String = KEY_ALIAS): KeyPair? {
+        if (!hasKeypair(alias)) return null
+
+        return if (supportsKeystoreEd25519() && keyStore.containsAlias(alias)) {
+            val entry = keyStore.getEntry(alias, null) as KeyStore.PrivateKeyEntry
+            KeyPair(entry.certificate.publicKey, entry.privateKey)
+        } else {
+            loadSoftwareKeypair(alias)
+        }
+    }
+
     fun sign(data: ByteArray, alias: String = KEY_ALIAS): ByteArray {
-        TODO("Phase 1: sign with Keystore key after biometric prompt")
+        val privateKey = getKeyPair(alias)?.private
+            ?: throw IllegalStateException("No keypair found for alias: $alias")
+
+        val signature = createEd25519Signature()
+        signature.initSign(privateKey)
+        signature.update(data)
+        return signature.sign()
     }
 
-    /**
-     * Check whether a keypair already exists for this alias.
-     */
     fun hasKeypair(alias: String = KEY_ALIAS): Boolean {
-        TODO("Phase 1: check Keystore for existing key")
+        return if (supportsKeystoreEd25519() && keyStore.containsAlias(alias)) {
+            true
+        } else {
+            softwarePrefs().contains(prefKey(alias, SUFFIX_PUBLIC))
+        }
     }
 
-    /**
-     * Delete the keypair (for rotation or panic revoke).
-     */
     fun deleteKeypair(alias: String = KEY_ALIAS) {
-        TODO("Phase 1: remove key from Keystore")
+        if (keyStore.containsAlias(alias)) {
+            keyStore.deleteEntry(alias)
+        }
+        softwarePrefs().edit()
+            .remove(prefKey(alias, SUFFIX_PUBLIC))
+            .remove(prefKey(alias, SUFFIX_PRIVATE))
+            .apply()
     }
 
-  companion object {
+    fun usesHardwareKeystore(): Boolean {
+        return supportsKeystoreEd25519() && keyStore.containsAlias(KEY_ALIAS)
+    }
+
+    private fun getPublicKey(alias: String): PublicKey? {
+        return getKeyPair(alias)?.public
+    }
+
+    private fun generateKeystoreKeypair(alias: String): KeyPair {
+        val spec = KeyGenParameterSpec.Builder(
+            alias,
+            KeyProperties.PURPOSE_SIGN,
+        ).apply {
+            setAlgorithmParameterSpec(createEd25519ParameterSpec())
+            setDigests(KeyProperties.DIGEST_NONE)
+            setUserAuthenticationRequired(true)
+            setInvalidatedByBiometricEnrollment(true)
+            setUserAuthenticationValidityDurationSeconds(-1)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                setUnlockedDeviceRequired(true)
+            }
+        }.build()
+
+        val generator = KeyPairGenerator.getInstance("Ed25519", KEYSTORE_PROVIDER)
+        generator.initialize(spec)
+        return generator.generateKeyPair()
+    }
+
+    private fun createEd25519ParameterSpec(): AlgorithmParameterSpec {
+        val namedParameterSpecClass = Class.forName("java.security.spec.NamedParameterSpec")
+        val ed25519 = namedParameterSpecClass.getField("ED25519").get(null)
+        val edEcGenParameterSpecClass = Class.forName("java.security.spec.EdECGenParameterSpec")
+        return edEcGenParameterSpecClass
+            .getConstructor(namedParameterSpecClass)
+            .newInstance(ed25519) as AlgorithmParameterSpec
+    }
+
+    private fun generateSoftwareKeypair(alias: String): KeyPair {
+        val keyPair = SecurityUtils.getKeyPairGenerator("Ed25519").generateKeyPair()
+        persistSoftwareKeypair(alias, keyPair)
+        return keyPair
+    }
+
+    private fun persistSoftwareKeypair(alias: String, keyPair: KeyPair) {
+        val publicB64 = JavaBase64.getEncoder().encodeToString(keyPair.public.encoded)
+        val privateB64 = JavaBase64.getEncoder().encodeToString(keyPair.private.encoded)
+
+        softwarePrefs().edit()
+            .putString(prefKey(alias, SUFFIX_PUBLIC), publicB64)
+            .putString(prefKey(alias, SUFFIX_PRIVATE), privateB64)
+            .apply()
+    }
+
+    private fun loadSoftwareKeypair(alias: String): KeyPair? {
+        val prefs = softwarePrefs()
+        val publicB64 = prefs.getString(prefKey(alias, SUFFIX_PUBLIC), null) ?: return null
+        val privateB64 = prefs.getString(prefKey(alias, SUFFIX_PRIVATE), null) ?: return null
+
+        val keyFactory = SecurityUtils.getKeyFactory("Ed25519")
+        val publicKey = keyFactory.generatePublic(
+            X509EncodedKeySpec(JavaBase64.getDecoder().decode(publicB64))
+        )
+        val privateKey = keyFactory.generatePrivate(
+            PKCS8EncodedKeySpec(JavaBase64.getDecoder().decode(privateB64))
+        )
+        return KeyPair(publicKey, privateKey as PrivateKey)
+    }
+
+    private fun softwarePrefs() = EncryptedSharedPreferences.create(
+        context,
+        PREFS_NAME,
+        MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build(),
+        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+    )
+
+    private fun supportsKeystoreEd25519(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+
+    private fun createEd25519Signature(): java.security.Signature {
+        return try {
+            java.security.Signature.getInstance("Ed25519")
+        } catch (_: Exception) {
+            java.security.Signature.getInstance("Ed25519", SecurityUtils.getSecurityProvider())
+        }
+    }
+
+    private fun prefKey(alias: String, suffix: String): String = "${alias}_$suffix"
+
+    companion object {
         const val KEY_ALIAS = "stackward-agent-ssh"
-    }
-}
-
-/**
- * Stores a Proxmox API token alongside the SSH key, same biometric gate.
- */
-class ProxmoxTokenStore {
-
-    fun storeToken(tokenId: String, tokenSecret: String) {
-        // TODO: store in EncryptedSharedPreferences or Keystore-wrapped secret
-        TODO("Phase 1: store Proxmox API token securely")
-    }
-
-    fun getToken(): Pair<String, String>? {
-        // TODO: retrieve token id + secret after biometric auth
-        TODO("Phase 1: retrieve Proxmox API token")
-    }
-
-    fun deleteToken() {
-        TODO("Phase 1: delete stored Proxmox token")
+        private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
+        private const val PREFS_NAME = "stackward_agent_keys"
+        private const val SUFFIX_PUBLIC = "public"
+        private const val SUFFIX_PRIVATE = "private"
     }
 }

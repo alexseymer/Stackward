@@ -51,7 +51,7 @@ enum class CredentialType {
  * 7. Pin host key (TOFU)
  */
 class OnboardingFlow(
-    private val keyManager: AgentKeyManager = AgentKeyManager(),
+    private val keyManager: AgentKeyManager,
 ) {
 
     /**
