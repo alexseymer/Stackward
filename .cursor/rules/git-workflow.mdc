@@ -40,3 +40,17 @@ gh pr edit <number> --add-reviewer alexseymer
 - `git push origin main` for feature work
 - Merge PRs yourself unless the user explicitly asks
 - Skip reviewer assignment — **always `alexseymer`**
+
+## One-time: protect `main` on GitHub
+
+The cloud agent cannot change branch protection (token lacks admin scope). A repo
+admin must run this once after clone:
+
+```bash
+gh auth login   # as alexseymer
+./scripts/protect-main-branch.sh
+```
+
+This enables PR + review + CI (`build`) requirements and blocks force-push/delete
+on `main`. Alternative: add secret `GH_ADMIN_TOKEN` and run the
+**Protect main branch** workflow from Actions.

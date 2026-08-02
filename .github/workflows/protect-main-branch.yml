@@ -1,0 +1,32 @@
+name: Protect main branch
+
+# One-time (or occasional) admin setup. Does not run automatically.
+# Add repository secret GH_ADMIN_TOKEN (PAT with repo admin scope), then
+# run this workflow from the Actions tab.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  protect-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply branch protection ruleset
+        env:
+          GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
+        run: |
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "::error::Missing repository secret GH_ADMIN_TOKEN."
+            echo "Create a classic PAT with repo scope (admin) for alexseymer/Stackward,"
+            echo "add it as Settings → Secrets → Actions → GH_ADMIN_TOKEN,"
+            echo "then re-run this workflow."
+            exit 1
+          fi
+          chmod +x scripts/protect-main-branch.sh
+          ./scripts/protect-main-branch.sh
