@@ -37,8 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.fragment.app.FragmentActivity
 import dev.stackward.ui.security.BiometricGate
+import dev.stackward.util.findFragmentActivity
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -53,7 +53,7 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val biometricGate = remember(context) {
-        BiometricGate(context as FragmentActivity)
+        BiometricGate(context.findFragmentActivity())
     }
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json"),

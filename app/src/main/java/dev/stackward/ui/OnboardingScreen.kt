@@ -45,12 +45,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.fragment.app.FragmentActivity
+import dev.stackward.BuildConfig
 import dev.stackward.connection.HostKeyFingerprint
 import dev.stackward.onboarding.HostType
 import dev.stackward.ui.security.BiometricGate
 import dev.stackward.ui.onboarding.OnboardingViewModel
 import dev.stackward.ui.onboarding.ProvisionStep
+import dev.stackward.util.findFragmentActivity
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,7 +65,7 @@ fun OnboardingScreen(
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
     val biometricGate = remember(context) {
-        BiometricGate(context as FragmentActivity)
+        BiometricGate(context.findFragmentActivity())
     }
     val scope = rememberCoroutineScope()
 
@@ -135,6 +136,11 @@ private fun InputContent(
     Text(
         text = "Phase 0/1 — Connect your server and generate a secure SSH identity.",
         style = MaterialTheme.typography.bodyMedium,
+    )
+    Text(
+        text = "Build ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 
     OutlinedTextField(

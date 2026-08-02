@@ -1,8 +1,7 @@
 package dev.stackward.crypto
 
 import android.content.Context
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import dev.stackward.crypto.SecurePrefs
 
 /**
  * Stores a Proxmox API token alongside the SSH key, same biometric gate.
@@ -10,15 +9,7 @@ import androidx.security.crypto.MasterKey
 class ProxmoxTokenStore(
     context: Context,
 ) {
-    private val prefs = EncryptedSharedPreferences.create(
-        context,
-        PREFS_NAME,
-        MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build(),
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    private val prefs = SecurePrefs.create(context, PREFS_NAME)
 
     fun storeToken(tokenId: String, tokenSecret: String) {
         prefs.edit()

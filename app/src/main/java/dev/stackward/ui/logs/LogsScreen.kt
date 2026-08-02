@@ -45,13 +45,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.fragment.app.FragmentActivity
 import dev.stackward.inference.ModelVariant
 import dev.stackward.logs.JournalPriority
 import dev.stackward.logs.JournalSince
 import dev.stackward.permissions.AuditEntry
 import dev.stackward.permissions.PermissionDecision
 import dev.stackward.ui.security.BiometricGate
+import dev.stackward.util.findFragmentActivity
 import java.text.DateFormat
 import java.util.Date
 
@@ -65,7 +65,7 @@ fun LogsScreen(
     val profile = uiState.profile
     val context = LocalContext.current
     val biometricGate = remember(context) {
-        BiometricGate(context as FragmentActivity)
+        BiometricGate(context.findFragmentActivity())
     }
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),

@@ -1,23 +1,14 @@
 package dev.stackward.connection
 
 import android.content.Context
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import dev.stackward.crypto.SecurePrefs
 
 /**
  * Stores TOFU-pinned SSH host key fingerprints per host:port.
  */
 class HostKeyPinStore(context: Context) {
 
-    private val prefs = EncryptedSharedPreferences.create(
-        context,
-        PREFS_NAME,
-        MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build(),
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    private val prefs = SecurePrefs.create(context, PREFS_NAME)
 
     fun getPin(host: String, port: Int): String? {
         return prefs.getString(pinKey(host, port), null)

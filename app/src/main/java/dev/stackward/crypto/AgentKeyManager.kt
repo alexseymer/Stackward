@@ -4,8 +4,7 @@ import android.content.Context
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import dev.stackward.crypto.SecurePrefs
 import net.schmizz.sshj.common.SecurityUtils
 import java.security.KeyPair
 import java.security.KeyPairGenerator
@@ -73,10 +72,15 @@ class AgentKeyManager(
     }
 
     fun hasKeypair(alias: String = KEY_ALIAS): Boolean {
-        return if (supportsKeystoreEd25519() && keyStore.containsAlias(alias)) {
-            true
-        } else {
+        if (supportsKeystoreEd25519() && keyStore.containsAlias(alias)) {
+            return true
+        }
+        // Only touch software prefs when Keystore Ed25519 is unavailable (API < 33)
+        // or when checking for a legacy software key on devices that upgraded.
+        return if (!supportsKeystoreEd25519()) {
             softwarePrefs().contains(prefKey(alias, SUFFIX_PUBLIC))
+        } else {
+            runCatching { softwarePrefs().contains(prefKey(alias, SUFFIX_PUBLIC)) }.getOrDefault(false)
         }
     }
 
@@ -158,15 +162,7 @@ class AgentKeyManager(
         return KeyPair(publicKey, privateKey as PrivateKey)
     }
 
-    private fun softwarePrefs() = EncryptedSharedPreferences.create(
-        context,
-        PREFS_NAME,
-        MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build(),
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    private fun softwarePrefs() = SecurePrefs.create(context, PREFS_NAME)
 
     private fun supportsKeystoreEd25519(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
 

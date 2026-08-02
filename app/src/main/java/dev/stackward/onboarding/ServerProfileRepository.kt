@@ -1,8 +1,7 @@
 package dev.stackward.onboarding
 
 import android.content.Context
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import dev.stackward.crypto.SecurePrefs
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -11,15 +10,7 @@ import org.json.JSONObject
  */
 class ServerProfileRepository(context: Context) {
 
-    private val prefs = EncryptedSharedPreferences.create(
-        context,
-        PREFS_NAME,
-        MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build(),
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    private val prefs = SecurePrefs.create(context, PREFS_NAME)
 
     fun save(profile: ServerProfile) {
         val profiles = loadAll().toMutableList()
