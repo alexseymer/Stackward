@@ -75,10 +75,12 @@ class ProxmoxApiClient(
     ): T {
         return ssh.withProxmoxTunnel(profile) { tunnel ->
             val client = ProxmoxHttpClient(
-                tunnel = tunnel,
+                tunnel = DirectConnectionSocket(tunnel),
                 hostHeader = "${profile.host}:${profile.proxmoxPort}",
                 tokenId = token.first,
                 tokenSecret = token.second,
+                tlsServerName = profile.host,
+                tlsPort = profile.proxmoxPort,
             )
             block(client)
         }

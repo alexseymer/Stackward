@@ -19,6 +19,8 @@ class ProxmoxHttpClient(
     private val hostHeader: String,
     private val tokenId: String,
     private val tokenSecret: String,
+    private val tlsServerName: String,
+    private val tlsPort: Int,
 ) {
 
     fun request(method: String, apiPath: String, body: String? = null): ProxmoxHttpResponse {
@@ -80,7 +82,7 @@ class ProxmoxHttpClient(
         val sslContext = SSLContext.getInstance("TLS")
         sslContext.init(null, arrayOf<TrustManager>(PermissiveTrustManager()), null)
         val factory = sslContext.socketFactory
-        val sslSocket = factory.createSocket(tunnel, hostHeader, 8006, true) as SSLSocket
+        val sslSocket = factory.createSocket(tunnel, tlsServerName, tlsPort, true) as SSLSocket
         sslSocket.soTimeout = 30_000
         sslSocket.startHandshake()
         return sslSocket
