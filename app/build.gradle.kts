@@ -11,8 +11,8 @@ android {
         applicationId = "dev.stackward"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.5.0-proxmox"
+        versionCode = 2
+        versionName = "0.5.1-dogfood"
     }
 
     buildTypes {
@@ -56,6 +56,7 @@ dependencies {
 
     implementation("androidx.core:core-ktx:1.19.0")
     implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
 
