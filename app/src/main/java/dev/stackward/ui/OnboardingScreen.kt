@@ -2,6 +2,7 @@ package dev.stackward.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,6 +29,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -36,6 +38,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -169,6 +172,48 @@ private fun InputContent(
         modifier = Modifier.fillMaxWidth(),
     )
 
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text("Use jump host", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = "Provision bastion as relay, then tunnel to a LAN-only target",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = uiState.useJumpHost,
+            onCheckedChange = viewModel::onUseJumpHostChange,
+        )
+    }
+
+    if (uiState.useJumpHost) {
+        OutlinedTextField(
+            value = uiState.jumpHost,
+            onValueChange = viewModel::onJumpHostChange,
+            label = { Text("Jump host / bastion") },
+            placeholder = { Text("bastion.example.com") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = uiState.jumpHostPort,
+            onValueChange = viewModel::onJumpHostPortChange,
+            label = { Text("Jump SSH port") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = "Same admin user and password are used on bastion and target during bootstrap.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
     Button(
         onClick = viewModel::generateSshKey,
         enabled = !uiState.isGeneratingKey,
@@ -261,6 +306,11 @@ private fun ProvisioningContent() {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         Text("Provisioning server and verifying gemma-agent access…")
+        Text(
+            text = "With a jump host, the bastion is provisioned first, then the target.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         CircularProgressIndicator()
     }
 }
@@ -282,6 +332,9 @@ private fun SuccessContent(
             Icon(Icons.Default.CheckCircle, contentDescription = null)
             Text("Server provisioned", style = MaterialTheme.typography.titleMedium)
             Text("Host: ${profile.host}:${profile.port}")
+            profile.jumpHost?.let { jump ->
+                Text("Jump host: $jump:${profile.jumpHostPort}")
+            }
             Text("Host type: ${profile.hostType.name.lowercase()}")
             Text("Agent user: gemma-agent")
             Text(
@@ -289,6 +342,13 @@ private fun SuccessContent(
                 fontFamily = FontFamily.Monospace,
                 style = MaterialTheme.typography.bodySmall,
             )
+            profile.jumpHostKeyFingerprint?.let { jumpFp ->
+                Text(
+                    text = "Jump key: ${HostKeyFingerprint.openSshLabel(jumpFp)}",
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             uiState.verificationOutput?.let { output ->
                 Text("Verification:", style = MaterialTheme.typography.labelMedium)
                 Text(output, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)

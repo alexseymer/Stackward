@@ -30,6 +30,9 @@ data class OnboardingUiState(
     val port: String = "22",
     val adminUsername: String = "root",
     val adminCredential: String = "",
+    val useJumpHost: Boolean = false,
+    val jumpHost: String = "",
+    val jumpHostPort: String = "22",
     val publicKeyOpenSsh: String? = null,
     val usesHardwareKeystore: Boolean = false,
     val isGeneratingKey: Boolean = false,
@@ -44,12 +47,19 @@ data class OnboardingUiState(
     val message: String? = null,
     val error: String? = null,
 ) {
+    val resolvedJumpHost: String?
+        get() = if (useJumpHost) jumpHost.trim().takeIf { it.isNotEmpty() } else null
+
+    val resolvedJumpHostPort: Int?
+        get() = jumpHostPort.toIntOrNull()
+
     val canPreviewScript: Boolean =
         host.isNotBlank() &&
             port.toIntOrNull() != null &&
             publicKeyOpenSsh != null &&
             adminCredential.isNotBlank() &&
-            adminUsername.isNotBlank()
+            adminUsername.isNotBlank() &&
+            (!useJumpHost || (resolvedJumpHost != null && resolvedJumpHostPort != null))
 
     val canStartBootstrap: Boolean = canPreviewScript && step == ProvisionStep.SCRIPT_PREVIEW
 }
@@ -91,6 +101,9 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 it.copy(
                     host = existing.host,
                     port = existing.port.toString(),
+                    useJumpHost = !existing.jumpHost.isNullOrBlank(),
+                    jumpHost = existing.jumpHost.orEmpty(),
+                    jumpHostPort = existing.jumpHostPort.toString(),
                     provisionedProfile = existing,
                     step = ProvisionStep.SUCCESS,
                     proxmoxTokenPending = existing.hostType == HostType.PROXMOX && !hasProxmoxToken,
@@ -114,6 +127,18 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
 
     fun onAdminCredentialChange(value: String) {
         _uiState.update { it.copy(adminCredential = value, error = null) }
+    }
+
+    fun onUseJumpHostChange(enabled: Boolean) {
+        _uiState.update { it.copy(useJumpHost = enabled, error = null) }
+    }
+
+    fun onJumpHostChange(value: String) {
+        _uiState.update { it.copy(jumpHost = value.trim(), error = null) }
+    }
+
+    fun onJumpHostPortChange(value: String) {
+        _uiState.update { it.copy(jumpHostPort = value.filter { ch -> ch.isDigit() }, error = null) }
     }
 
     fun generateSshKey() {
@@ -148,6 +173,8 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
         if (!state.canPreviewScript) return
 
         viewModelScope.launch {
+            val jumpHost = state.resolvedJumpHost
+            val jumpPort = state.resolvedJumpHostPort ?: 22
             val hostType = runCatching {
                 withContext(Dispatchers.IO) {
                     onboardingFlow.detectHostType(
@@ -158,6 +185,8 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                             type = CredentialType.SSH_PASSWORD,
                             value = state.adminCredential,
                         ),
+                        jumpHost = jumpHost,
+                        jumpHostPort = jumpPort,
                     )
                 }
             }.getOrDefault(HostType.PLAIN_LINUX)
@@ -166,9 +195,17 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 publicKey = state.publicKeyOpenSsh,
                 hostType = hostType,
             )
+            val preview = if (jumpHost != null) {
+                "# Jump host: $jumpHost:$jumpPort (bastion provisioned first as relay)\n" +
+                    "# Target: ${state.host}:${state.port}\n" +
+                    "# Same admin user/password is used on bastion and target during bootstrap.\n\n" +
+                    script
+            } else {
+                script
+            }
             _uiState.update {
                 it.copy(
-                    bootstrapScript = script,
+                    bootstrapScript = preview,
                     step = ProvisionStep.SCRIPT_PREVIEW,
                     error = null,
                 )
@@ -209,6 +246,8 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                             type = CredentialType.SSH_PASSWORD,
                             value = state.adminCredential,
                         ),
+                        jumpHost = state.resolvedJumpHost,
+                        jumpHostPort = state.resolvedJumpHostPort ?: 22,
                     )
                 }
 

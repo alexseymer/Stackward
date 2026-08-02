@@ -11,6 +11,9 @@ import java.util.UUID
 
 /**
  * Onboarding flow: IP/port → review bootstrap script → provision → verify.
+ *
+ * When a jump host is set, the bastion is provisioned first as a pure relay
+ * (agent key only), then the target is bootstrapped and verified through it.
  */
 class OnboardingFlow(
     private val context: Context,
@@ -28,6 +31,8 @@ class OnboardingFlow(
         adminUsername: String,
         adminCredential: AdminCredential,
         hostType: HostType? = null,
+        jumpHost: String? = null,
+        jumpHostPort: Int = 22,
     ): BootstrapResult {
         require(adminCredential.type == CredentialType.SSH_PASSWORD) {
             "Only SSH password bootstrap is supported in Phase 0/1"
@@ -35,24 +40,60 @@ class OnboardingFlow(
         require(keyManager.hasKeypair()) {
             "Generate an SSH key before provisioning"
         }
+        val normalizedJump = jumpHost?.trim()?.takeIf { it.isNotEmpty() }
+        if (normalizedJump != null) {
+            require(jumpHostPort in 1..65535) { "Jump host port must be 1–65535" }
+            require(normalizedJump != host || jumpHostPort != port) {
+                "Jump host must differ from the target host"
+            }
+        }
 
-        val resolvedHostType = hostType ?: detectHostType(host, port, adminUsername, adminCredential)
         val publicKey = keyManager.getPublicKeyOpenSSH()
-        val previewScript = getBootstrapScript(resolvedHostType, publicKey)
         val linuxScript = bootstrapRunner.loadLinuxBootstrapScript()
+        val password = adminCredential.value
 
-        val adminConfig = SshConnectionConfig(
+        var jumpFingerprint: String? = null
+        var bastionBootstrapOutput: String? = null
+
+        if (normalizedJump != null) {
+            val bastion = provisionBastionRelay(
+                jumpHost = normalizedJump,
+                jumpHostPort = jumpHostPort,
+                adminUsername = adminUsername,
+                password = password,
+                publicKey = publicKey,
+                linuxScript = linuxScript,
+            )
+            jumpFingerprint = bastion.fingerprint
+            bastionBootstrapOutput = bastion.output
+        }
+
+        val resolvedHostType = hostType ?: detectHostType(
+            host = host,
+            port = port,
+            adminUsername = adminUsername,
+            adminCredential = adminCredential,
+            jumpHost = normalizedJump,
+            jumpHostPort = jumpHostPort,
+            jumpHostKeyFingerprint = jumpFingerprint,
+        )
+        val previewScript = getBootstrapScript(resolvedHostType, publicKey)
+
+        val targetAdminConfig = SshConnectionConfig(
             host = host,
             port = port,
             username = adminUsername,
-            password = adminCredential.value,
+            password = password,
         )
 
         val bootstrapResult = ssh.runScriptWithSudoPassword(
-            config = adminConfig,
+            config = targetAdminConfig,
             script = linuxScript,
             scriptArgument = publicKey,
-            sudoPassword = adminCredential.value,
+            sudoPassword = password,
+            jumpHost = normalizedJump,
+            jumpHostPort = jumpHostPort,
+            jumpHostKeyFingerprint = jumpFingerprint,
         )
         if (!bootstrapResult.isSuccess) {
             throw SshException(
@@ -67,6 +108,9 @@ class OnboardingFlow(
             host = host,
             port = port,
             expectedFingerprint = fingerprint,
+            jumpHost = normalizedJump,
+            jumpHostPort = jumpHostPort,
+            jumpHostKeyFingerprint = jumpFingerprint,
         )
         if (!verifyResult.isSuccess ||
             !verifyResult.stdout.contains(SshConnectionManager.AGENT_USERNAME)
@@ -78,15 +122,25 @@ class OnboardingFlow(
 
         var proxmoxTokenId: String? = null
         var proxmoxTokenSecret: String? = null
-        var combinedOutput = bootstrapResult.stdout.trim()
+        var combinedOutput = buildString {
+            if (bastionBootstrapOutput != null) {
+                append("=== Bastion (jump) bootstrap ===\n")
+                append(bastionBootstrapOutput.trim())
+                append("\n\n=== Target bootstrap ===\n")
+            }
+            append(bootstrapResult.stdout.trim())
+        }
 
         if (resolvedHostType == HostType.PROXMOX) {
             val proxmoxScript = bootstrapRunner.loadProxmoxBootstrapScript()
             val proxmoxResult = ssh.runScriptWithSudoPassword(
-                config = adminConfig,
+                config = targetAdminConfig,
                 script = proxmoxScript,
                 scriptArgument = "",
-                sudoPassword = adminCredential.value,
+                sudoPassword = password,
+                jumpHost = normalizedJump,
+                jumpHostPort = jumpHostPort,
+                jumpHostKeyFingerprint = jumpFingerprint,
             )
             if (!proxmoxResult.isSuccess) {
                 throw SshException(
@@ -110,6 +164,9 @@ class OnboardingFlow(
             port = port,
             hostType = resolvedHostType,
             hostKeyFingerprint = fingerprint,
+            jumpHost = normalizedJump,
+            jumpHostPort = jumpHostPort,
+            jumpHostKeyFingerprint = jumpFingerprint,
             provisionedAt = System.currentTimeMillis(),
         )
         profileRepository.save(profile)
@@ -125,11 +182,67 @@ class OnboardingFlow(
         )
     }
 
+    /**
+     * Installs the agent identity on the bastion so later connections can
+     * authenticate with the Keystore key (pure relay — not a monitored host).
+     */
+    private suspend fun provisionBastionRelay(
+        jumpHost: String,
+        jumpHostPort: Int,
+        adminUsername: String,
+        password: String,
+        publicKey: String,
+        linuxScript: String,
+    ): BastionProvisionResult {
+        val bastionConfig = SshConnectionConfig(
+            host = jumpHost,
+            port = jumpHostPort,
+            username = adminUsername,
+            password = password,
+        )
+        val result = ssh.runScriptWithSudoPassword(
+            config = bastionConfig,
+            script = linuxScript,
+            scriptArgument = publicKey,
+            sudoPassword = password,
+        )
+        if (!result.isSuccess) {
+            throw SshException(
+                "Jump-host bootstrap failed: ${result.stderr.ifBlank { result.stdout }}",
+            )
+        }
+
+        val fingerprint = pinStore.getPin(jumpHost, jumpHostPort)
+            ?: throw SshException("Jump-host key fingerprint was not pinned during bootstrap")
+
+        val verify = ssh.verifyAgentConnection(
+            host = jumpHost,
+            port = jumpHostPort,
+            expectedFingerprint = fingerprint,
+        )
+        if (!verify.isSuccess ||
+            !verify.stdout.contains(SshConnectionManager.AGENT_USERNAME)
+        ) {
+            throw SshException(
+                "Jump-host agent verification failed: " +
+                    verify.stderr.ifBlank { verify.stdout },
+            )
+        }
+
+        return BastionProvisionResult(
+            fingerprint = fingerprint,
+            output = result.stdout.trim(),
+        )
+    }
+
     suspend fun detectHostType(
         host: String,
         port: Int,
         adminUsername: String,
         adminCredential: AdminCredential,
+        jumpHost: String? = null,
+        jumpHostPort: Int = 22,
+        jumpHostKeyFingerprint: String? = null,
     ): HostType {
         require(adminCredential.type == CredentialType.SSH_PASSWORD) {
             "Host detection requires SSH password auth"
@@ -144,6 +257,9 @@ class OnboardingFlow(
             ),
             command = "command -v pveversion >/dev/null 2>&1 && echo proxmox || " +
                 "(command -v docker >/dev/null 2>&1 && echo docker || echo linux)",
+            jumpHost = jumpHost,
+            jumpHostPort = jumpHostPort,
+            jumpHostKeyFingerprint = jumpHostKeyFingerprint,
         )
 
         return when (probe.outputOrThrow().trim()) {
@@ -184,4 +300,9 @@ class OnboardingFlow(
             "$script\n# Runtime SSH public key argument: $publicKey"
         }
     }
+
+    private data class BastionProvisionResult(
+        val fingerprint: String,
+        val output: String,
+    )
 }
