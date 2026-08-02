@@ -1,5 +1,7 @@
 package dev.stackward.permissions
 
+import dev.stackward.proxmox.ProxmoxCommands
+
 /**
  * Classification of an action proposed by the on-device model.
  */
@@ -79,12 +81,12 @@ class PermissionEngine(
                 }
             }
             PermissionTier.ONE_TIMER -> {
-                if (isValidOneTimerCommand(proposal.command)) {
+                if (isValidOneTimerCommand(proposal)) {
                     PermissionDecision.RequireConfirmation(proposal)
                 } else {
                     PermissionDecision.Deny(
                         proposal,
-                        "Tier 2 command not allowed by server helper: ${proposal.command}",
+                        "Tier 2 command not allowed: ${proposal.command}",
                     )
                 }
             }
@@ -105,12 +107,20 @@ class PermissionEngine(
 
     private fun isAllowedRoutine(proposal: ActionProposal): Boolean {
         if (proposal.action in READ_ONLY_ACTIONS) return true
+        if (proposal.backend == ActionBackend.PROXMOX_API) {
+            return ProxmoxCommands.isTier1Read(proposal.command) &&
+                !ProxmoxCommands.isTier3Blocked(proposal.command)
+        }
         if (proposal.backend != ActionBackend.SSH) return false
         return tier1Rules.any { rule -> proposal.command.startsWith(rule) }
     }
 
-    private fun isValidOneTimerCommand(command: String): Boolean {
-        return ONE_TIMER_PREFIXES.any { prefix -> command.startsWith(prefix) }
+    private fun isValidOneTimerCommand(proposal: ActionProposal): Boolean {
+        if (proposal.backend == ActionBackend.PROXMOX_API) {
+            return ProxmoxCommands.isTier2Power(proposal.command) &&
+                !ProxmoxCommands.isTier3Blocked(proposal.command)
+        }
+        return ONE_TIMER_PREFIXES.any { prefix -> proposal.command.startsWith(prefix) }
     }
 
     companion object {

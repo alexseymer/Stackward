@@ -37,7 +37,7 @@ on the target host, without manual server-side steps.
 | Verify restricted connection before discarding admin access | Done |
 | Host key pinning (TOFU) + change alerting | Done (pin store + verifier) |
 | Jump-host support: provision agent on bastion, tunnel to internal hosts | TODO |
-| Proxmox: run `scripts/bootstrap_proxmox.sh`, store scoped API token | TODO |
+| Proxmox: run `scripts/bootstrap_proxmox.sh`, store scoped API token | Done (auto during onboarding + biometric store) |
 
 **Exit criteria:** App connects to target using Keystore key only; admin
 credential is gone; host key is pinned.
@@ -56,11 +56,11 @@ pipeline before any write capability exists.
 |------|--------|
 | `journalctl` access via `systemd-journal` group (from bootstrap) | Done |
 | Docker log read via file ACL (not docker group) | Done |
-| Proxmox: VM/LXC status + task log via scoped API token | Partial (placeholder in digest) |
+| Proxmox: VM/LXC status + task log via scoped API token | Done (SSH tunnel + API digest) |
 | Pre-filter / truncate output before sending to model | Done (32k char limit) |
 | On-demand log query UI | Done (Journal / Docker / Digest tabs) |
 | Scheduled hourly digest (no confirmation, read-only) | Done (WorkManager) |
-| Reconnect-with-backoff for unattended digests | TODO |
+| Reconnect-with-backoff for unattended digests | Done (WorkManager exponential backoff + SSH retry) |
 
 **Exit criteria:** User gets an hourly digest of anomalies across all three
 log sources; can ask "what's wrong with container X" and get a summary.
@@ -95,7 +95,7 @@ proposals that the permission engine can parse.
 | Tier 2: confirmation UI (literal command + reason) + biometric | Done |
 | Tier 2: temporary single-use sudoers grant (write → execute → delete) | Done (`stackward-onetimer` helper) |
 | Tier 3: draft-only path for sudoers / Proxmox role changes | Done |
-| Proxmox API backend: map tiers to token permissions | TODO |
+| Proxmox API backend: map tiers to token permissions | Done (read Tier 1, power Tier 2, config blocked Tier 3) |
 | Full audit log (command, tier, approval, output, timestamp) | Done |
 
 **Exit criteria:** User can approve a one-time service restart; Tier 3 changes

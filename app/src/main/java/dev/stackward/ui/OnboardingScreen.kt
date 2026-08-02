@@ -38,10 +38,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import dev.stackward.connection.HostKeyFingerprint
+import dev.stackward.onboarding.HostType
+import dev.stackward.ui.security.BiometricGate
 import dev.stackward.ui.onboarding.OnboardingViewModel
 import dev.stackward.ui.onboarding.ProvisionStep
 import kotlinx.coroutines.launch
@@ -55,6 +59,10 @@ fun OnboardingScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+    val biometricGate = remember(context) {
+        BiometricGate(context as FragmentActivity)
+    }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(uiState.message) {
@@ -81,6 +89,8 @@ fun OnboardingScreen(
             when (uiState.step) {
                 ProvisionStep.SUCCESS -> SuccessContent(
                     uiState = uiState,
+                    biometricGate = biometricGate,
+                    viewModel = viewModel,
                     onViewLogs = onProvisioned,
                 )
                 ProvisionStep.PROVISIONING -> ProvisioningContent()
@@ -209,6 +219,13 @@ private fun ScriptPreviewContent(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("bootstrap_linux.sh", style = MaterialTheme.typography.titleSmall)
+            if (uiState.bootstrapScript.orEmpty().contains("bootstrap_proxmox")) {
+                Text(
+                    text = "+ bootstrap_proxmox.sh (Proxmox hosts)",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
             SelectionContainer {
                 Text(
@@ -251,6 +268,8 @@ private fun ProvisioningContent() {
 @Composable
 private fun SuccessContent(
     uiState: dev.stackward.ui.onboarding.OnboardingUiState,
+    biometricGate: BiometricGate,
+    viewModel: OnboardingViewModel,
     onViewLogs: () -> Unit,
 ) {
     val profile = uiState.provisionedProfile ?: return
@@ -263,6 +282,7 @@ private fun SuccessContent(
             Icon(Icons.Default.CheckCircle, contentDescription = null)
             Text("Server provisioned", style = MaterialTheme.typography.titleMedium)
             Text("Host: ${profile.host}:${profile.port}")
+            Text("Host type: ${profile.hostType.name.lowercase()}")
             Text("Agent user: gemma-agent")
             Text(
                 text = "Host key: ${HostKeyFingerprint.openSshLabel(profile.hostKeyFingerprint)}",
@@ -273,8 +293,37 @@ private fun SuccessContent(
                 Text("Verification:", style = MaterialTheme.typography.labelMedium)
                 Text(output, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
             }
+
+            if (profile.hostType == HostType.PROXMOX) {
+                when {
+                    uiState.proxmoxTokenPending -> {
+                        Text(
+                            text = "Proxmox API token ready — store it with biometrics to enable VM/LXC monitoring.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Button(
+                            onClick = { viewModel.storeProxmoxTokenWithBiometric(biometricGate) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("Store Proxmox token")
+                        }
+                    }
+                    uiState.proxmoxTokenStored -> {
+                        Text(
+                            text = "Proxmox API token stored (biometric-gated).",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = onViewLogs, modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = onViewLogs,
+                enabled = !uiState.proxmoxTokenPending,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 Text("View logs")
             }
         }

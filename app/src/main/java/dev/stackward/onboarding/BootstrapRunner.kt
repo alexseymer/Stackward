@@ -14,11 +14,16 @@ class BootstrapRunner(
 ) {
 
     fun loadLinuxBootstrapScript(): String {
-        return context.assets.open(ASSET_PATH).bufferedReader().use { it.readText() }
+        return context.assets.open(LINUX_ASSET_PATH).bufferedReader().use { it.readText() }
+    }
+
+    fun loadProxmoxBootstrapScript(): String {
+        return context.assets.open(PROXMOX_ASSET_PATH).bufferedReader().use { it.readText() }
     }
 
     companion object {
-        const val ASSET_PATH = "scripts/bootstrap_linux.sh"
+        const val LINUX_ASSET_PATH = "scripts/bootstrap_linux.sh"
+        const val PROXMOX_ASSET_PATH = "scripts/bootstrap_proxmox.sh"
     }
 }
 
@@ -28,4 +33,6 @@ data class BootstrapResult(
     val verificationOutput: String,
     val publicKey: String,
     val script: String,
+    val proxmoxTokenId: String? = null,
+    val proxmoxTokenSecret: String? = null,
 )

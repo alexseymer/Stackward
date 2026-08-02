@@ -174,6 +174,43 @@ class SshConnectionManager(
         return profile.hostKeyFingerprint == actualFingerprint
     }
 
+    /**
+     * Opens a direct TCP channel to [remoteHost]:[remotePort] through the pinned SSH
+     * session (used for Proxmox API on localhost:8006).
+     */
+    suspend fun <T> withProxmoxTunnel(
+        profile: ServerProfile,
+        remoteHost: String = "127.0.0.1",
+        remotePort: Int = profile.proxmoxPort,
+        block: (net.schmizz.sshj.connection.channel.direct.DirectConnection) -> T,
+    ): T = withContext(Dispatchers.IO) {
+        val resources = connect(
+            config = SshConnectionConfig(
+                host = profile.host,
+                port = profile.port,
+                username = AGENT_USERNAME,
+                useAgentKey = true,
+            ),
+            expectedFingerprint = profile.hostKeyFingerprint,
+            keyAlias = securitySettings.getActiveKeyAlias(),
+            jumpHost = profile.jumpHost,
+            jumpHostPort = profile.jumpHostPort,
+            jumpHostKeyFingerprint = profile.jumpHostKeyFingerprint,
+        )
+        try {
+            val tunnel = resources.target.newDirectConnection(remoteHost, remotePort)
+            try {
+                block(tunnel)
+            } finally {
+                tunnel.close()
+            }
+        } finally {
+            if (resources.target.isConnected) resources.target.disconnect()
+            resources.tunnel?.close()
+            if (resources.jump?.isConnected == true) resources.jump.disconnect()
+        }
+    }
+
     private fun connect(
         config: SshConnectionConfig,
         expectedFingerprint: String?,

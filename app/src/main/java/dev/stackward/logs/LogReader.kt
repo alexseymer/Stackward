@@ -10,6 +10,7 @@ import dev.stackward.onboarding.ServerProfile
  */
 class LogReader(
     private val ssh: SshConnectionManager,
+    private val proxmoxApi: dev.stackward.proxmox.ProxmoxApiClient? = null,
 ) {
 
     suspend fun readJournal(
@@ -83,7 +84,8 @@ class LogReader(
         }
 
         val proxmoxSection = when (profile.hostType) {
-            HostType.PROXMOX -> "Proxmox API digest not yet implemented."
+            HostType.PROXMOX -> proxmoxApi?.buildDigest(profile)
+                ?: "Proxmox API client not configured."
             else -> ""
         }
 
