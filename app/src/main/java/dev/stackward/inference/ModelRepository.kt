@@ -1,8 +1,7 @@
 package dev.stackward.inference
 
 import android.content.Context
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import dev.stackward.crypto.SecurePrefs
 import java.io.File
 
 /**
@@ -12,15 +11,7 @@ class ModelRepository(context: Context) {
 
     private val appContext = context.applicationContext
 
-    private val prefs = EncryptedSharedPreferences.create(
-        appContext,
-        PREFS_NAME,
-        MasterKey.Builder(appContext)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build(),
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    private val prefs = SecurePrefs.create(appContext, PREFS_NAME)
 
     val modelsDirectory: File
         get() = File(appContext.filesDir, MODELS_DIR).also { it.mkdirs() }
