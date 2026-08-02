@@ -3,7 +3,15 @@ package dev.stackward.ui.onboarding
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.stackward.connection.HostKeyPinStore
+import dev.stackward.connection.SshConnectionManager
 import dev.stackward.crypto.AgentKeyManager
+import dev.stackward.onboarding.AdminCredential
+import dev.stackward.onboarding.BootstrapResult
+import dev.stackward.onboarding.CredentialType
+import dev.stackward.onboarding.OnboardingFlow
+import dev.stackward.onboarding.ServerProfile
+import dev.stackward.onboarding.ServerProfileRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,26 +20,54 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+enum class ProvisionStep {
+    INPUT,
+    SCRIPT_PREVIEW,
+    PROVISIONING,
+    SUCCESS,
+}
+
 data class OnboardingUiState(
     val host: String = "",
     val port: String = "22",
+    val adminUsername: String = "root",
     val adminCredential: String = "",
     val publicKeyOpenSsh: String? = null,
     val usesHardwareKeystore: Boolean = false,
     val isGeneratingKey: Boolean = false,
+    val isProvisioning: Boolean = false,
+    val step: ProvisionStep = ProvisionStep.INPUT,
+    val bootstrapScript: String? = null,
+    val provisionedProfile: ServerProfile? = null,
+    val bootstrapOutput: String? = null,
+    val verificationOutput: String? = null,
     val message: String? = null,
     val error: String? = null,
 ) {
-    val canStartBootstrap: Boolean =
+    val canPreviewScript: Boolean =
         host.isNotBlank() &&
             port.toIntOrNull() != null &&
             publicKeyOpenSsh != null &&
-            adminCredential.isNotBlank()
+            adminCredential.isNotBlank() &&
+            adminUsername.isNotBlank()
+
+    val canStartBootstrap: Boolean = canPreviewScript && step == ProvisionStep.SCRIPT_PREVIEW
 }
 
 class OnboardingViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val keyManager = AgentKeyManager(application.applicationContext)
+    private val appContext = application.applicationContext
+    private val keyManager = AgentKeyManager(appContext)
+    private val pinStore = HostKeyPinStore(appContext)
+    private val profileRepository = ServerProfileRepository(appContext)
+    private val ssh = SshConnectionManager(keyManager, pinStore)
+    private val onboardingFlow = OnboardingFlow(
+        context = appContext,
+        keyManager = keyManager,
+        ssh = ssh,
+        pinStore = pinStore,
+        profileRepository = profileRepository,
+    )
 
     private val _uiState = MutableStateFlow(OnboardingUiState())
     val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
@@ -48,6 +84,18 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 }
             }
         }
+
+        val existing = profileRepository.loadAll().firstOrNull()
+        if (existing != null) {
+            _uiState.update {
+                it.copy(
+                    host = existing.host,
+                    port = existing.port.toString(),
+                    provisionedProfile = existing,
+                    step = ProvisionStep.SUCCESS,
+                )
+            }
+        }
     }
 
     fun onHostChange(value: String) {
@@ -56,6 +104,10 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
 
     fun onPortChange(value: String) {
         _uiState.update { it.copy(port = value.filter { ch -> ch.isDigit() }, error = null) }
+    }
+
+    fun onAdminUsernameChange(value: String) {
+        _uiState.update { it.copy(adminUsername = value.trim(), error = null) }
     }
 
     fun onAdminCredentialChange(value: String) {
@@ -89,9 +141,81 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun startBootstrap() {
+    fun showBootstrapScript() {
+        val state = _uiState.value
+        if (!state.canPreviewScript) return
+
+        val script = onboardingFlow.loadBootstrapScriptPreview(state.publicKeyOpenSsh)
         _uiState.update {
-            it.copy(message = "Server provisioning will be implemented in the next step")
+            it.copy(
+                bootstrapScript = script,
+                step = ProvisionStep.SCRIPT_PREVIEW,
+                error = null,
+            )
+        }
+    }
+
+    fun backToInput() {
+        _uiState.update {
+            it.copy(
+                step = ProvisionStep.INPUT,
+                bootstrapScript = null,
+                error = null,
+            )
+        }
+    }
+
+    fun startBootstrap() {
+        val state = _uiState.value
+        if (!state.canStartBootstrap) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isProvisioning = true,
+                    step = ProvisionStep.PROVISIONING,
+                    error = null,
+                )
+            }
+
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    onboardingFlow.start(
+                        host = state.host,
+                        port = state.port.toInt(),
+                        adminUsername = state.adminUsername,
+                        adminCredential = AdminCredential(
+                            type = CredentialType.SSH_PASSWORD,
+                            value = state.adminCredential,
+                        ),
+                    )
+                }
+
+                applyBootstrapSuccess(result)
+            } catch (error: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isProvisioning = false,
+                        step = ProvisionStep.SCRIPT_PREVIEW,
+                        error = error.message ?: "Provisioning failed",
+                    )
+                }
+            }
+        }
+    }
+
+    private fun applyBootstrapSuccess(result: BootstrapResult) {
+        _uiState.update {
+            it.copy(
+                isProvisioning = false,
+                step = ProvisionStep.SUCCESS,
+                provisionedProfile = result.profile,
+                bootstrapOutput = result.bootstrapOutput,
+                verificationOutput = result.verificationOutput,
+                adminCredential = "",
+                message = "Server provisioned and verified as ${result.profile.host}",
+                error = null,
+            )
         }
     }
 

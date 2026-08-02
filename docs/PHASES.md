@@ -14,7 +14,7 @@ restricted key exists yet.
 
 | Task | Status |
 |------|--------|
-| Onboarding screen: IP/port + one-time admin credential | TODO |
+| Onboarding screen: IP/port + one-time admin credential | Done (Compose UI) |
 | Show bootstrap script to user before execution (auditability) | TODO |
 | Run `scripts/bootstrap_linux.sh` over admin SSH session | TODO |
 | Discard admin credential after successful bootstrap (never store) | TODO |
@@ -33,9 +33,9 @@ on the target host, without manual server-side steps.
 |------|--------|
 | `AgentKeyManager`: generate ed25519 keypair in Android Keystore | Done (API 33+ Keystore, software fallback API 28–32) |
 | `setUserAuthenticationRequired(true)` — biometric per signing op | Done (Keystore path; biometric on use) |
-| Push public key to `authorized_keys` with `command=` restrictions | TODO |
-| Verify restricted connection before discarding admin access | TODO |
-| Host key pinning (TOFU) + change alerting | TODO |
+| Push public key to `authorized_keys` with `command=` restrictions | Done (via bootstrap) |
+| Verify restricted connection before discarding admin access | Done |
+| Host key pinning (TOFU) + change alerting | Done (pin store + verifier) |
 | Jump-host support: provision agent on bastion, tunnel to internal hosts | TODO |
 | Proxmox: run `scripts/bootstrap_proxmox.sh`, store scoped API token | TODO |
 
