@@ -119,7 +119,7 @@ class OnboardingFlow(
             bootstrapOutput = combinedOutput,
             verificationOutput = verifyResult.stdout.trim(),
             publicKey = publicKey,
-            script = script,
+            script = previewScript,
             proxmoxTokenId = proxmoxTokenId,
             proxmoxTokenSecret = proxmoxTokenSecret,
         )
