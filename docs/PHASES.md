@@ -5,6 +5,22 @@ Recommended build order: **0/1 → 4 → 2/3 → 5**
 Each phase is independently testable. Do not skip ahead — later phases depend
 on earlier ones being solid.
 
+## Current stage
+
+**All phases (0/1 → 5) are feature-complete at scaffold level** in the
+`0.5.4-dogfood` build, including Proxmox API integration. Every task table below
+is ✅ Done. The project is **not production-ready** — current focus is dogfooding
+on real hardware and stabilization rather than net-new phases (see
+[Beyond Phase 5](#beyond-phase-5--current-focus)).
+
+| Phase | Focus | State |
+|-------|-------|-------|
+| 0 / 1 | Bootstrap & credential provisioning (SSH + Proxmox, jump-host) | ✅ Done |
+| 2 | On-device Gemma integration | ✅ Done |
+| 3 | Tiered permission engine | ✅ Done |
+| 4 | MVP: unified log reading | ✅ Done |
+| 5 | Hardening | ✅ Done |
+
 ---
 
 ## Phase 0 — Bootstrap Problem
@@ -140,3 +156,22 @@ Phase 0 ──▶ Phase 1 ──▶ Phase 4 (MVP)
 Phase 4 can start as soon as Phase 1 provides a working SSH connection —
 it does not require the on-device model (log fetching + display works without
 AI; summarization layers on in Phase 2).
+
+---
+
+## Beyond Phase 5 — current focus
+
+With all phases feature-complete at scaffold level, work now shifts from building
+new phases to hardening the existing ones through real-world use:
+
+- **Dogfooding on real hardware** — validate the full loop (bootstrap → log digest
+  → Tier 2 confirmation → audit) against live Linux/Proxmox/Docker hosts and a
+  physical device running Gemma.
+- **Model integration polish** — tune E2B/E4B selection, prompt/context budgeting,
+  and proposal-parsing robustness against real model output.
+- **Stability & recovery** — exercise reconnect/backoff, tunnel-drop recovery, and
+  host-key-change alerting under flaky-network conditions.
+- **Test coverage** — grow the JVM unit suite around the permission engine, proposal
+  parser, and Proxmox command gating; add instrumented tests where feasible.
+- **Toward production-ready** — resolve the [Open Decisions in the PRD](../PRD.md#10-open-decisions)
+  and close the exit-criteria gaps observed during dogfooding.
