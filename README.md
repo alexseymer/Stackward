@@ -14,9 +14,10 @@ order.
 
 ## Status
 
-Phase 0/1, Phase 4 MVP, Phase 2 (on-device Gemma summarization), and
-Phase 3 (tiered permission engine with biometric Tier 2 approval) are
-implemented. See [docs/MODEL_SETUP.md](docs/MODEL_SETUP.md) for model import.
+Phase 0/1, Phase 4 MVP, Phase 2 (on-device Gemma summarization), Phase 3
+(tiered permission engine), and Phase 5 (hardening: key rotation, panic revoke,
+audit export, Tier 1 review) are implemented. See
+[docs/MODEL_SETUP.md](docs/MODEL_SETUP.md) for model import.
 
 Early scaffold — not yet production-ready. See [docs/PHASES.md](docs/PHASES.md).
 

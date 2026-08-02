@@ -31,8 +31,12 @@ class AgentKeyManager(
 
     private val keyStore: KeyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
 
-  fun generateKeypair(alias: String = KEY_ALIAS): KeyPair {
-        deleteKeypair(alias)
+  fun generateKeypair(alias: String = KEY_ALIAS, replaceExisting: Boolean = true): KeyPair {
+        if (replaceExisting) {
+            deleteKeypair(alias)
+        } else if (hasKeypair(alias)) {
+            throw IllegalStateException("Keypair already exists for alias: $alias")
+        }
 
         return if (supportsKeystoreEd25519()) {
             generateKeystoreKeypair(alias)
@@ -178,6 +182,7 @@ class AgentKeyManager(
 
     companion object {
         const val KEY_ALIAS = "stackward-agent-ssh"
+        const val KEY_ALIAS_ALT = "stackward-agent-ssh-alt"
         private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
         private const val PREFS_NAME = "stackward_agent_keys"
         private const val SUFFIX_PUBLIC = "public"

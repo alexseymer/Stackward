@@ -1,6 +1,7 @@
 package dev.stackward.logs
 
 import android.content.Context
+import androidx.work.BackoffPolicy
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -33,6 +34,7 @@ class LogDigestWorker(
 
         fun schedule(context: Context) {
             val request = PeriodicWorkRequestBuilder<LogDigestWorker>(1, TimeUnit.HOURS)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.MINUTES)
                 .build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(

@@ -93,6 +93,10 @@ cat > "${SUDOERS_FILE}" << 'SUDOERS_EOF'
 # gemma-agent ALL=(root) NOPASSWD: /usr/bin/systemctl restart nginx
 #
 gemma-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-onetimer
+gemma-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-push-key *
+gemma-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-revoke-key *
+gemma-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-panic-revoke
+gemma-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-sudoers-snapshot
 SUDOERS_EOF
 chmod 440 "${SUDOERS_FILE}"
 visudo -c -f "${SUDOERS_FILE}"

@@ -12,10 +12,13 @@ import dev.stackward.ui.logs.LogsScreen
 import dev.stackward.ui.logs.LogsViewModel
 import dev.stackward.ui.onboarding.OnboardingViewModel
 import dev.stackward.ui.onboarding.ProvisionStep
+import dev.stackward.ui.settings.SettingsScreen
+import dev.stackward.ui.settings.SettingsViewModel
 
 private enum class AppDestination {
     ONBOARDING,
     LOGS,
+    SETTINGS,
 }
 
 @Composable
@@ -23,6 +26,7 @@ fun StackwardApp() {
     var destination by rememberSaveable { mutableStateOf<AppDestination?>(null) }
     val onboardingViewModel: OnboardingViewModel = viewModel()
     val logsViewModel: LogsViewModel = viewModel()
+    val settingsViewModel: SettingsViewModel = viewModel()
     val onboardingState by onboardingViewModel.uiState.collectAsState()
 
     if (destination == null) {
@@ -34,15 +38,25 @@ fun StackwardApp() {
     }
 
     LaunchedEffect(destination) {
-        if (destination == AppDestination.LOGS) {
-            logsViewModel.reloadProfile()
+        when (destination) {
+            AppDestination.LOGS -> logsViewModel.reloadProfile()
+            AppDestination.SETTINGS -> settingsViewModel.refresh()
+            else -> Unit
         }
     }
 
     when (destination) {
         AppDestination.LOGS -> LogsScreen(
             viewModel = logsViewModel,
-            onOpenSettings = { destination = AppDestination.ONBOARDING },
+            onOpenSettings = { destination = AppDestination.SETTINGS },
+        )
+        AppDestination.SETTINGS -> SettingsScreen(
+            viewModel = settingsViewModel,
+            onBack = { destination = AppDestination.LOGS },
+            onPanicRevoked = {
+                onboardingViewModel.resetAfterRevoke()
+                destination = AppDestination.ONBOARDING
+            },
         )
         AppDestination.ONBOARDING -> OnboardingScreen(
             viewModel = onboardingViewModel,

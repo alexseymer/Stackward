@@ -23,6 +23,13 @@ object OpenSshPublicKeyEncoder {
         return "$KEY_TYPE $encoded $comment"
     }
 
+    /** Unique portion of the public key line used to revoke a specific authorized_keys entry. */
+    fun keyMarker(publicKeyLine: String): String {
+        val parts = publicKeyLine.trim().split(Regex("\\s+"))
+        require(parts.size >= 2) { "Invalid OpenSSH public key line" }
+        return parts[1]
+    }
+
     /**
      * Ed25519 public keys in X.509 SPKI encoding end with 32 raw bytes.
      */
