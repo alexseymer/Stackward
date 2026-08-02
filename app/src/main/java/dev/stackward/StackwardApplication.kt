@@ -1,6 +1,7 @@
 package dev.stackward
 
 import android.app.Application
+import dev.stackward.crypto.CryptoProviders
 import dev.stackward.di.AppContainer
 
 class StackwardApplication : Application() {
@@ -10,6 +11,7 @@ class StackwardApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CryptoProviders.install()
         container = AppContainer(applicationContext)
     }
 }
