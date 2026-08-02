@@ -36,7 +36,7 @@ on the target host, without manual server-side steps.
 | Push public key to `authorized_keys` with `command=` restrictions | Done (via bootstrap) |
 | Verify restricted connection before discarding admin access | Done |
 | Host key pinning (TOFU) + change alerting | Done (pin store + verifier) |
-| Jump-host support: provision agent on bastion, tunnel to internal hosts | TODO |
+| Jump-host support: provision agent on bastion, tunnel to internal hosts | Done (onboarding UI + bastion relay provision + per-hop TOFU) |
 | Proxmox: run `scripts/bootstrap_proxmox.sh`, store scoped API token | Done (auto during onboarding + biometric store) |
 
 **Exit criteria:** App connects to target using Keystore key only; admin

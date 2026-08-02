@@ -121,12 +121,17 @@ class SshConnectionManager(
         scriptArgument: String,
         sudoPassword: String,
         expectedFingerprint: String? = null,
+        jumpHost: String? = null,
+        jumpHostPort: Int = 22,
+        jumpHostKeyFingerprint: String? = null,
     ): SshCommandResult = withContext(Dispatchers.IO) {
         val resources = connect(
             config = config,
             expectedFingerprint = expectedFingerprint,
             keyAlias = null,
-            jumpHost = null,
+            jumpHost = jumpHost,
+            jumpHostPort = jumpHostPort,
+            jumpHostKeyFingerprint = jumpHostKeyFingerprint,
         )
         try {
             resources.target.startSession().use { session ->

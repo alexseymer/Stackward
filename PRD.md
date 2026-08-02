@@ -135,4 +135,6 @@ See [docs/PHASES.md](docs/PHASES.md) for full detail.
 - Whether Tier 3 changes should be *draftable* by the agent (for human
   review) or entirely outside its action space from day one.
 - Whether jump hosts get their own full agent identity (monitored target
-  too) or act as pure relays.
+  too) or act as pure relays. **Decided:** pure relay — bastion gets the
+  agent key for ProxyJump auth only; it is not registered as a monitored
+  ServerProfile.
