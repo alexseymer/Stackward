@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,19 +32,24 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import dev.stackward.inference.ModelVariant
 import dev.stackward.logs.JournalPriority
 import dev.stackward.logs.JournalSince
-import dev.stackward.permissions.ActionProposal
-import dev.stackward.permissions.PermissionTier
+import dev.stackward.permissions.AuditEntry
+import dev.stackward.permissions.PermissionDecision
+import dev.stackward.ui.security.BiometricGate
 import java.text.DateFormat
 import java.util.Date
 
@@ -55,12 +61,25 @@ fun LogsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val profile = uiState.profile
+    val context = LocalContext.current
+    val biometricGate = remember(context) {
+        BiometricGate(context as FragmentActivity)
+    }
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
             viewModel.importModel(uri)
         }
+    }
+
+    uiState.pendingConfirmation?.let { proposal ->
+        Tier2ConfirmationDialog(
+            proposal = proposal,
+            isExecuting = uiState.isExecutingProposal,
+            onDismiss = viewModel::dismissConfirmation,
+            onConfirm = { viewModel.confirmPendingProposal(biometricGate) },
+        )
     }
 
     Scaffold(
@@ -157,7 +176,7 @@ fun LogsScreen(
                     )
                 }
 
-                if (uiState.isLoading) {
+                if (uiState.isLoading || uiState.isExecutingProposal) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center,
@@ -191,7 +210,30 @@ fun LogsScreen(
                 }
 
                 uiState.aiSummary?.let { summary ->
-                    AiSummaryCard(summary = summary, proposals = uiState.actionProposals)
+                    AiSummaryCard(
+                        summary = summary,
+                        proposalDecisions = uiState.proposalDecisions,
+                        isExecuting = uiState.isExecutingProposal,
+                        onApprove = viewModel::requestApproveProposal,
+                    )
+                }
+
+                uiState.tier3Draft?.let { draft ->
+                    Tier3DraftCard(
+                        draft = draft,
+                        onDismiss = viewModel::clearExecutionMessage,
+                    )
+                }
+
+                uiState.executionMessage?.let { message ->
+                    ExecutionResultCard(
+                        message = message,
+                        onDismiss = viewModel::clearExecutionMessage,
+                    )
+                }
+
+                if (uiState.auditEntries.isNotEmpty()) {
+                    AuditLogCard(entries = uiState.auditEntries)
                 }
 
                 uiState.error?.let { error ->
@@ -218,6 +260,50 @@ fun LogsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun Tier2ConfirmationDialog(
+    proposal: dev.stackward.permissions.ActionProposal,
+    isExecuting: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Confirm Tier 2 action") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = proposal.reason,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = proposal.command,
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = "This runs once via stackward-onetimer after biometric approval.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = !isExecuting,
+            ) {
+                Text(if (isExecuting) "Running…" else "Approve")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isExecuting) {
+                Text("Cancel")
+            }
+        },
+    )
 }
 
 @Composable
@@ -294,7 +380,9 @@ private fun ModelStatusCard(
 @Composable
 private fun AiSummaryCard(
     summary: String,
-    proposals: List<ActionProposal>,
+    proposalDecisions: List<ProposalWithDecision>,
+    isExecuting: Boolean,
+    onApprove: (dev.stackward.permissions.ActionProposal) -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -303,24 +391,197 @@ private fun AiSummaryCard(
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Gemma summary", style = MaterialTheme.typography.titleSmall)
             Text(summary, style = MaterialTheme.typography.bodyMedium)
-            if (proposals.isNotEmpty()) {
+            if (proposalDecisions.isNotEmpty()) {
                 Text("Proposed actions", style = MaterialTheme.typography.labelMedium)
-                proposals.forEach { proposal ->
+                proposalDecisions.forEach { item ->
+                    ProposalRow(
+                        item = item,
+                        isExecuting = isExecuting,
+                        onApprove = onApprove,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProposalRow(
+    item: ProposalWithDecision,
+    isExecuting: Boolean,
+    onApprove: (dev.stackward.permissions.ActionProposal) -> Unit,
+) {
+    val proposal = item.proposal
+    val decision = item.decision
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = "[${proposal.tier.name}] ${proposal.action}",
+                style = MaterialTheme.typography.labelMedium,
+            )
+            Text(
+                text = proposal.command,
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                text = proposal.reason,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            when (decision) {
+                is PermissionDecision.Allow -> {
                     Text(
-                        text = "[${proposal.tier.name}] ${proposal.action}: ${proposal.command}",
+                        text = "Tier 1 — allowed without confirmation",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Button(
+                        onClick = { onApprove(proposal) },
+                        enabled = !isExecuting,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Run")
+                    }
+                }
+                is PermissionDecision.RequireConfirmation -> {
+                    Text(
+                        text = "Tier 2 — requires confirmation + biometric",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                    Button(
+                        onClick = { onApprove(proposal) },
+                        enabled = !isExecuting,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Review & approve")
+                    }
+                }
+                is PermissionDecision.DraftOnly -> {
+                    Text(
+                        text = "Tier 3 — draft only, not auto-executed",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    OutlinedButton(
+                        onClick = { onApprove(proposal) },
+                        enabled = !isExecuting,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("View sudoers draft")
+                    }
+                }
+                is PermissionDecision.Deny -> {
+                    Text(
+                        text = "Blocked: ${decision.reason}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Tier3DraftCard(
+    draft: String,
+    onDismiss: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Tier 3 sudoers draft", style = MaterialTheme.typography.titleSmall)
+            Text(
+                text = "Apply manually on the server with visudo. Stackward will not execute this.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            SelectionContainer {
+                Text(
+                    text = draft,
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            TextButton(onClick = onDismiss) {
+                Text("Dismiss")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExecutionResultCard(
+    message: String,
+    onDismiss: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Execution result", style = MaterialTheme.typography.titleSmall)
+            SelectionContainer {
+                Text(
+                    text = message,
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            TextButton(onClick = onDismiss) {
+                Text("Dismiss")
+            }
+        }
+    }
+}
+
+@Composable
+private fun AuditLogCard(entries: List<AuditEntry>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Audit log (recent)", style = MaterialTheme.typography.titleSmall)
+            entries.take(8).forEach { entry ->
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = buildString {
+                            append(DateFormat.getDateTimeInstance().format(Date(entry.timestamp)))
+                            append(" · ")
+                            append(entry.tier.name)
+                            append(if (entry.approved) " · approved" else " · denied")
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                    Text(
+                        text = entry.command,
                         fontFamily = FontFamily.Monospace,
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    Text(
-                        text = proposal.reason,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (proposal.tier == PermissionTier.BOUNDARY_CHANGE) {
+                    entry.reason?.let { reason ->
                         Text(
-                            text = "Tier 3 — draft only, not auto-executed",
+                            text = reason,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.error,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    entry.output?.let { output ->
+                        Text(
+                            text = output.take(200).let { if (output.length > 200) "$it…" else it },
+                            fontFamily = FontFamily.Monospace,
+                            style = MaterialTheme.typography.labelSmall,
                         )
                     }
                 }

@@ -53,18 +53,13 @@ data class AuditEntry(
 
 /**
  * Central safety gate. Every model proposal passes through here.
- *
- * Tier 1 (ROUTINE): match against sudoers.d rules or read-only tools → allow + log.
- * Tier 2 (ONE_TIMER): block until user confirms literal command + biometric.
- * Tier 3 (BOUNDARY_CHANGE): reject from automated path; draft only.
  */
 class PermissionEngine(
-    private val tier1Rules: List<String> = emptyList(),
+    tier1Rules: List<String> = Tier1RulesRepository.DEFAULT_RULES,
 ) {
 
-    /**
-     * Evaluate a model proposal and return the permission decision.
-     */
+    private val tier1Rules: List<String> = tier1Rules.ifEmpty { Tier1RulesRepository.DEFAULT_RULES }
+
     fun evaluate(proposal: ActionProposal): PermissionDecision {
         return when (proposal.tier) {
             PermissionTier.ROUTINE -> {
@@ -73,45 +68,43 @@ class PermissionEngine(
                 } else {
                     PermissionDecision.Deny(
                         proposal,
-                        "Command not in Tier 1 allowlist: ${proposal.command}"
+                        "Command not in Tier 1 allowlist: ${proposal.command}",
                     )
                 }
             }
-            PermissionTier.ONE_TIMER -> PermissionDecision.RequireConfirmation(proposal)
+            PermissionTier.ONE_TIMER -> {
+                if (isValidOneTimerCommand(proposal.command)) {
+                    PermissionDecision.RequireConfirmation(proposal)
+                } else {
+                    PermissionDecision.Deny(
+                        proposal,
+                        "Tier 2 command not allowed by server helper: ${proposal.command}",
+                    )
+                }
+            }
             PermissionTier.BOUNDARY_CHANGE -> PermissionDecision.DraftOnly(
                 proposal,
-                suggestedDiff = buildSudoersDiff(proposal)
+                suggestedDiff = buildSudoersDiff(proposal),
             )
         }
     }
 
-    /**
-     * Execute a confirmed Tier 2 action with temporary sudoers grant.
-     * Called only after user approval + biometric.
-     */
-    suspend fun executeOneTimer(
-        proposal: ActionProposal,
-        sshExecutor: suspend (command: String) -> String,
-    ): AuditEntry {
-        // TODO: Phase 3
-        // 1. Write temporary single-use sudoers.d rule
-        // 2. Execute command via SSH
-        // 3. Delete sudoers.d rule immediately
-        // 4. Return audit entry
-        TODO("Phase 3: temporary sudoers grant + execute + cleanup")
+    fun buildSudoersDiff(proposal: ActionProposal): String {
+        return buildString {
+            appendLine("# Proposed sudoers.d addition — apply manually via visudo")
+            appendLine("# Reason: ${proposal.reason}")
+            append("gemma-agent ALL=(root) NOPASSWD: ${proposal.command}")
+        }
     }
 
     private fun isAllowedRoutine(proposal: ActionProposal): Boolean {
-        // Read-only actions are always Tier 1
         if (proposal.action in READ_ONLY_ACTIONS) return true
-        // Check against sudoers.d rules
+        if (proposal.backend != ActionBackend.SSH) return false
         return tier1Rules.any { rule -> proposal.command.startsWith(rule) }
     }
 
-    private fun buildSudoersDiff(proposal: ActionProposal): String {
-        // TODO: generate a human-readable diff for Tier 3 draft
-        return "# Proposed sudoers.d addition (apply manually via visudo):\n" +
-            "# ${proposal.command}"
+    private fun isValidOneTimerCommand(command: String): Boolean {
+        return ONE_TIMER_PREFIXES.any { prefix -> command.startsWith(prefix) }
     }
 
     companion object {
@@ -122,6 +115,13 @@ class PermissionEngine(
             "get_vm_status",
             "get_lxc_status",
             "read_proxmox_tasks",
+        )
+
+        private val ONE_TIMER_PREFIXES = listOf(
+            "/usr/bin/systemctl restart ",
+            "/bin/systemctl restart ",
+            "/usr/bin/systemctl status ",
+            "/bin/systemctl status ",
         )
     }
 }
