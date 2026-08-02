@@ -27,7 +27,7 @@ class LogUtilsTest {
 
     @Test
     fun singleQuote_escapesEmbeddedQuotes() {
-        assertEquals("'it''s fine'", ShellEscape.singleQuote("it's fine"))
+        assertEquals("'it'\"'\"'s fine'", ShellEscape.singleQuote("it's fine"))
     }
 
     @Test
