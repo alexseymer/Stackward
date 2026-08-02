@@ -3,15 +3,11 @@ package dev.stackward.ui.onboarding
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import dev.stackward.connection.HostKeyPinStore
-import dev.stackward.connection.SshConnectionManager
-import dev.stackward.crypto.AgentKeyManager
+import dev.stackward.StackwardApplication
 import dev.stackward.onboarding.AdminCredential
 import dev.stackward.onboarding.BootstrapResult
 import dev.stackward.onboarding.CredentialType
-import dev.stackward.onboarding.OnboardingFlow
 import dev.stackward.onboarding.ServerProfile
-import dev.stackward.onboarding.ServerProfileRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -56,18 +52,12 @@ data class OnboardingUiState(
 
 class OnboardingViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val appContext = application.applicationContext
-    private val keyManager = AgentKeyManager(appContext)
-    private val pinStore = HostKeyPinStore(appContext)
-    private val profileRepository = ServerProfileRepository(appContext)
-    private val ssh = SshConnectionManager(keyManager, pinStore)
-    private val onboardingFlow = OnboardingFlow(
-        context = appContext,
-        keyManager = keyManager,
-        ssh = ssh,
-        pinStore = pinStore,
-        profileRepository = profileRepository,
-    )
+    private val container = (application as StackwardApplication).container
+    private val keyManager = container.keyManager
+    private val pinStore = container.pinStore
+    private val profileRepository = container.profileRepository
+    private val ssh = container.ssh
+    private val onboardingFlow = container.onboardingFlow
 
     private val _uiState = MutableStateFlow(OnboardingUiState())
     val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()

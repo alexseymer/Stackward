@@ -14,11 +14,11 @@ restricted key exists yet.
 
 | Task | Status |
 |------|--------|
-| Onboarding screen: IP/port + one-time admin credential | Done (Compose UI) |
-| Show bootstrap script to user before execution (auditability) | TODO |
-| Run `scripts/bootstrap_linux.sh` over admin SSH session | TODO |
-| Discard admin credential after successful bootstrap (never store) | TODO |
-| Detect host type: plain Linux / Proxmox / Docker (probe or user-declared) | TODO |
+| Onboarding screen: IP/port + one-time admin credential | Done (Compose UI + admin user) |
+| Show bootstrap script to user before execution (auditability) | Done (script preview step) |
+| Run `scripts/bootstrap_linux.sh` over admin SSH session | Done |
+| Discard admin credential after successful bootstrap (never store) | Done |
+| Detect host type: plain Linux / Proxmox / Docker (probe or user-declared) | Done (SSH probe) |
 
 **Exit criteria:** User can enter an IP and end up with a `gemma-agent` user
 on the target host, without manual server-side steps.

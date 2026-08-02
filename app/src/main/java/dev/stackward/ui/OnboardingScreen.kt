@@ -48,7 +48,10 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OnboardingScreen(viewModel: OnboardingViewModel) {
+fun OnboardingScreen(
+    viewModel: OnboardingViewModel,
+    onProvisioned: () -> Unit = {},
+) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val clipboardManager = LocalClipboardManager.current
@@ -76,7 +79,10 @@ fun OnboardingScreen(viewModel: OnboardingViewModel) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             when (uiState.step) {
-                ProvisionStep.SUCCESS -> SuccessContent(uiState)
+                ProvisionStep.SUCCESS -> SuccessContent(
+                    uiState = uiState,
+                    onViewLogs = onProvisioned,
+                )
                 ProvisionStep.PROVISIONING -> ProvisioningContent()
                 ProvisionStep.SCRIPT_PREVIEW -> ScriptPreviewContent(
                     uiState = uiState,
@@ -243,7 +249,10 @@ private fun ProvisioningContent() {
 }
 
 @Composable
-private fun SuccessContent(uiState: dev.stackward.ui.onboarding.OnboardingUiState) {
+private fun SuccessContent(
+    uiState: dev.stackward.ui.onboarding.OnboardingUiState,
+    onViewLogs: () -> Unit,
+) {
     val profile = uiState.provisionedProfile ?: return
 
     Card(
@@ -263,6 +272,10 @@ private fun SuccessContent(uiState: dev.stackward.ui.onboarding.OnboardingUiStat
             uiState.verificationOutput?.let { output ->
                 Text("Verification:", style = MaterialTheme.typography.labelMedium)
                 Text(output, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = onViewLogs, modifier = Modifier.fillMaxWidth()) {
+                Text("View logs")
             }
         }
     }

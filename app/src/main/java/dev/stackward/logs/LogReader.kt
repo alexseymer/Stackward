@@ -1,7 +1,8 @@
 package dev.stackward.logs
 
-import dev.stackward.onboarding.ServerProfile
 import dev.stackward.connection.SshConnectionManager
+import dev.stackward.onboarding.HostType
+import dev.stackward.onboarding.ServerProfile
 
 /**
  * Unified log reader for Phase 4 MVP.
@@ -11,48 +12,105 @@ class LogReader(
     private val ssh: SshConnectionManager,
 ) {
 
-    /**
-     * Read systemd journal entries, pre-filtered for model context.
-     */
     suspend fun readJournal(
         profile: ServerProfile,
-        since: String = "1 hour ago",
-        priority: String = "err",
-        maxLines: Int = 200,
-    ): String {
-        val command = "journalctl --since \"$since\" -p $priority -n $maxLines --no-pager"
-        return ssh.execute(profile, command)
+        query: JournalQuery = JournalQuery(),
+    ): LogReadResult {
+        val priorityFlag = query.priority.journalFlag?.let { "-p ${ShellEscape.singleQuote(it)}" } ?: ""
+        val since = ShellEscape.singleQuote(query.since.journalValue)
+        val maxLines = query.maxLines.coerceIn(1, 500)
+        val command = buildString {
+            append("journalctl --since ")
+            append(since)
+            if (priorityFlag.isNotBlank()) {
+                append(' ')
+                append(priorityFlag)
+            }
+            append(" -n $maxLines --no-pager")
+        }
+
+        val raw = ssh.execute(profile, command)
+        val (content, truncated) = LogTruncate.truncate(raw)
+        return LogReadResult(content = content, truncated = truncated, source = LogSource.JOURNAL)
     }
 
-    /**
-     * Read Docker container logs via file ACL (not docker group).
-     */
     suspend fun readDockerLogs(
         profile: ServerProfile,
         containerId: String,
         tail: Int = 200,
-    ): String {
-        val command = "tail -n $tail /var/lib/docker/containers/$containerId/*-json.log 2>/dev/null"
-        return ssh.execute(profile, command)
+    ): LogReadResult {
+        val safeId = ShellEscape.validateContainerId(containerId)
+        val safeTail = tail.coerceIn(1, 500)
+        val command = "tail -n $safeTail /var/lib/docker/containers/$safeId/*-json.log 2>/dev/null"
+        val raw = ssh.execute(profile, command)
+        val (content, truncated) = LogTruncate.truncate(raw)
+        return LogReadResult(content = content, truncated = truncated, source = LogSource.DOCKER)
     }
 
-    /**
-     * List running Docker containers (read-only).
-     */
-    suspend fun listContainers(profile: ServerProfile): String {
-        // Uses docker CLI if available, or parses container log directory
-        val command = "ls -1 /var/lib/docker/containers/ 2>/dev/null"
-        return ssh.execute(profile, command)
+    suspend fun listContainers(profile: ServerProfile): List<DockerContainer> {
+        val output = ssh.execute(profile, "ls -1 /var/lib/docker/containers/ 2>/dev/null || true")
+        return output.lineSequence()
+            .map { it.trim() }
+            .filter { it.matches(ShellEscape.CONTAINER_ID_PATTERN) }
+            .map { DockerContainer(id = it) }
+            .toList()
     }
 
-    /**
-     * Read Proxmox VM/LXC status via scoped API token.
-     */
-    suspend fun readProxmoxStatus(
-        profile: ServerProfile,
-        // proxmoxClient: ProxmoxApiClient,
-    ): String {
-        // TODO: Phase 4 — Proxmox REST API via port-forwarded :8006
-        TODO("Phase 4: Proxmox API status read")
+    suspend fun readDigest(profile: ServerProfile): LogDigest {
+        val journal = readJournal(
+            profile = profile,
+            query = JournalQuery(
+                since = JournalSince.ONE_HOUR,
+                priority = JournalPriority.ERROR,
+                maxLines = 100,
+            ),
+        )
+
+        val dockerSection = runCatching {
+            val containers = listContainers(profile).take(5)
+            if (containers.isEmpty()) {
+                "No Docker container log directories visible."
+            } else {
+                buildString {
+                    appendLine("Docker containers (${containers.size} visible):")
+                    containers.forEach { container ->
+                        appendLine("- ${container.shortId}")
+                    }
+                }
+            }
+        }.getOrElse { error ->
+            "Docker: ${error.message}"
+        }
+
+        val proxmoxSection = when (profile.hostType) {
+            HostType.PROXMOX -> "Proxmox API digest not yet implemented."
+            else -> ""
+        }
+
+        val combined = buildString {
+            appendLine("=== systemd journal (errors, last hour) ===")
+            appendLine(journal.content.ifBlank { "(no entries)" })
+            appendLine()
+            appendLine("=== Docker ===")
+            appendLine(dockerSection)
+            if (proxmoxSection.isNotBlank()) {
+                appendLine()
+                appendLine("=== Proxmox ===")
+                appendLine(proxmoxSection)
+            }
+        }
+
+        val (content, truncated) = LogTruncate.truncate(combined)
+        return LogDigest(
+            content = content,
+            truncated = truncated,
+            generatedAt = System.currentTimeMillis(),
+        )
     }
 }
+
+data class LogDigest(
+    val content: String,
+    val truncated: Boolean,
+    val generatedAt: Long,
+)
