@@ -1,23 +1,36 @@
 ---
-description: Git workflow for Stackward — always use feature branches and PRs with reviewer assignment
+description: Stackward standard — all code changes go through feature branches and PRs; reviewer is always alexseymer
 alwaysApply: true
 ---
 
-# Git workflow (Stackward)
+# Standard Git workflow (Stackward)
 
-## Never push directly to `main`
+**This is the default for every task.** No exceptions unless the user explicitly says otherwise.
 
-All changes must go through a feature branch and pull request.
+## Definition of done
 
-1. Create a descriptive branch from `main`, e.g. `cursor/phase-5-hardening` or `cursor/fix-ssh-retry`.
-2. Commit on the feature branch.
-3. Push the branch to `origin`.
-4. Open a **draft PR** against `main`.
-5. **Always request review from `alexseymer`** so the owner gets GitHub push notifications.
+Work is **not complete** until:
+
+1. Changes are on a **feature branch** (never directly on `main`)
+2. The branch is **pushed** to `origin`
+3. A **draft PR** against `main` exists
+4. **alexseymer** is requested as reviewer (or @mentioned if the API blocks assignment)
+
+Do not push feature commits to `main`. Do not mark tasks finished without an open PR.
+
+## Standard flow
+
+```text
+main → feature branch → commit → push → draft PR → request review from alexseymer
+```
+
+1. Branch from latest `main`: `cursor/<short-description>`
+2. Implement and commit on the branch
+3. `git push -u origin <branch>`
+4. Open draft PR against `main`
+5. Assign reviewer **alexseymer** (required for GitHub push notifications)
 
 ## Creating PRs
-
-Prefer `gh pr create` with reviewer flag:
 
 ```bash
 gh pr create \
@@ -29,14 +42,26 @@ gh pr create \
   --reviewer alexseymer
 ```
 
-If using `ManagePullRequest` with `create_pr`, immediately assign the reviewer afterward:
+Or `ManagePullRequest` with `create_pr`, then:
 
 ```bash
 gh pr edit <number> --add-reviewer alexseymer
 ```
 
+If reviewer assignment fails (integration token), post a PR comment:
+
+```text
+@alexseymer — Review requested.
+```
+
+## Merge policy
+
+- **Do not merge PRs** unless the user explicitly asks
+- User reviews in the GitHub app and merges when ready
+
 ## Do not
 
 - `git push origin main` for feature work
-- Merge PRs yourself unless the user explicitly asks
-- Skip reviewer assignment — **always `alexseymer`**
+- Skip the PR step because changes are “small” or “already discussed”
+- Skip reviewer assignment / @alexseymer mention
+- Create retrospective PRs unless the user asks

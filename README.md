@@ -31,6 +31,9 @@ export ANDROID_HOME=~/Android/Sdk
 
 Open the project in Android Studio for emulator/device testing.
 
+All changes go through **feature branches and pull requests** against `main`.
+Reviewer is always **@alexseymer**. See `.cursor/rules/git-workflow.mdc`.
+
 ## Security model, in short
 
 - **Tier 1 (routine):** read-only or pre-vetted actions, no prompt.
