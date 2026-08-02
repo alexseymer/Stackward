@@ -54,12 +54,12 @@ pipeline before any write capability exists.
 
 | Task | Status |
 |------|--------|
-| `journalctl` access via `systemd-journal` group (from bootstrap) | TODO |
-| Docker log read via file ACL (not docker group) | TODO |
-| Proxmox: VM/LXC status + task log via scoped API token | TODO |
-| Pre-filter / truncate output before sending to model | TODO |
-| On-demand log query UI | TODO |
-| Scheduled hourly digest (no confirmation, read-only) | TODO |
+| `journalctl` access via `systemd-journal` group (from bootstrap) | Done |
+| Docker log read via file ACL (not docker group) | Done |
+| Proxmox: VM/LXC status + task log via scoped API token | Partial (placeholder in digest) |
+| Pre-filter / truncate output before sending to model | Done (32k char limit) |
+| On-demand log query UI | Done (Journal / Docker / Digest tabs) |
+| Scheduled hourly digest (no confirmation, read-only) | Done (WorkManager) |
 | Reconnect-with-backoff for unattended digests | TODO |
 
 **Exit criteria:** User gets an hourly digest of anomalies across all three
@@ -73,11 +73,11 @@ log sources; can ask "what's wrong with container X" and get a summary.
 
 | Task | Status |
 |------|--------|
-| Bundle or download Gemma 4 E2B (quantized) via MediaPipe LLM Inference API | TODO |
-| Device capability check (RAM, NPU/GPU) on first launch | TODO |
-| Auto-select E2B vs E4B based on device | TODO |
-| Structured output schema for tool proposals (JSON / function-calling) | TODO |
-| Graceful degradation: no model → no AI summarization (no cloud fallback) | TODO |
+| Bundle or download Gemma 4 E2B (quantized) via MediaPipe LLM Inference API | Done (user import flow) |
+| Device capability check (RAM, NPU/GPU) on first launch | Done (RAM-based E2B/E4B) |
+| Auto-select E2B vs E4B based on device | Done |
+| Structured output schema for tool proposals (JSON / function-calling) | Done (ActionProposalParser) |
+| Graceful degradation: no model → no AI summarization (no cloud fallback) | Done |
 
 **Exit criteria:** Model summarizes log output and emits structured Tier 1/2
 proposals that the permission engine can parse.

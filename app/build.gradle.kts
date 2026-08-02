@@ -13,7 +13,7 @@ android {
         minSdk = 28
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0-scaffold"
+        versionName = "0.2.0-phase2"
     }
 
     buildTypes {
@@ -64,6 +64,9 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     implementation("androidx.work:work-runtime-ktx:2.10.0")
+
+    // On-device LLM — Phase 2 (MediaPipe LLM Inference API)
+    implementation("com.google.mediapipe:tasks-genai:0.10.27")
 
     // SSH — Phase 1
     implementation("com.hierynomus:sshj:0.39.0")

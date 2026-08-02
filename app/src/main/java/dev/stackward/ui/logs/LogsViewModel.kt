@@ -1,9 +1,12 @@
 package dev.stackward.ui.logs
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.stackward.StackwardApplication
+import dev.stackward.inference.DeviceCapability
+import dev.stackward.inference.ModelVariant
 import dev.stackward.logs.DockerContainer
 import dev.stackward.logs.JournalPriority
 import dev.stackward.logs.JournalQuery
@@ -12,11 +15,15 @@ import dev.stackward.logs.LogDigest
 import dev.stackward.logs.LogDigestWorker
 import dev.stackward.logs.LogReadResult
 import dev.stackward.onboarding.ServerProfile
+import dev.stackward.permissions.ActionProposal
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 enum class LogTab {
     JOURNAL,
@@ -37,6 +44,15 @@ data class LogsUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val lastFetchedAt: Long? = null,
+    val deviceCapability: DeviceCapability? = null,
+    val selectedModelVariant: ModelVariant = ModelVariant.E2B,
+    val modelConfigured: Boolean = false,
+    val modelFileName: String? = null,
+    val isImportingModel: Boolean = false,
+    val isSummarizing: Boolean = false,
+    val aiSummary: String? = null,
+    val actionProposals: List<ActionProposal> = emptyList(),
+    val aiUnavailableReason: String? = null,
 )
 
 class LogsViewModel(application: Application) : AndroidViewModel(application) {
@@ -47,7 +63,84 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<LogsUiState> = _uiState.asStateFlow()
 
     init {
+        refreshModelStatus()
         reloadProfile()
+    }
+
+    fun refreshModelStatus() {
+        val capability = container.deviceCapabilityChecker.assess()
+        val modelPath = container.modelRepository.getConfiguredModelPath()
+        val variant = container.modelRepository.getConfiguredVariant() ?: capability.recommendedVariant
+        _uiState.update {
+            it.copy(
+                deviceCapability = capability,
+                selectedModelVariant = variant,
+                modelConfigured = modelPath != null,
+                modelFileName = modelPath?.let { path -> File(path).name },
+            )
+        }
+    }
+
+    fun onModelVariantSelected(variant: ModelVariant) {
+        _uiState.update { it.copy(selectedModelVariant = variant) }
+    }
+
+    fun importModel(uri: Uri) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isImportingModel = true, error = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    container.modelImporter.importFromUri(
+                        uri = uri,
+                        variant = _uiState.value.selectedModelVariant,
+                    )
+                }
+            }.onSuccess { path ->
+                container.gemmaEngine.unload()
+                refreshModelStatus()
+                _uiState.update {
+                    it.copy(
+                        isImportingModel = false,
+                        aiUnavailableReason = null,
+                        error = null,
+                    )
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isImportingModel = false,
+                        error = error.message ?: "Failed to import model",
+                    )
+                }
+            }
+        }
+    }
+
+    fun summarizeCurrentLogs(userQuestion: String? = null) {
+        val logs = _uiState.value.logOutput
+        if (logs.isNullOrBlank()) {
+            _uiState.update { it.copy(error = "Fetch logs before summarizing") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isSummarizing = true,
+                    error = null,
+                    aiUnavailableReason = null,
+                )
+            }
+            val result = container.logSummarizer.summarize(logs, userQuestion)
+            _uiState.update {
+                it.copy(
+                    isSummarizing = false,
+                    aiSummary = result.summary.takeIf { result.usedOnDeviceModel },
+                    actionProposals = result.proposals,
+                    aiUnavailableReason = result.unavailableReason,
+                )
+            }
+        }
     }
 
     fun reloadProfile() {
@@ -191,6 +284,8 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
                 isLoading = false,
                 lastFetchedAt = System.currentTimeMillis(),
                 error = null,
+                aiSummary = null,
+                actionProposals = emptyList(),
             )
         }
     }

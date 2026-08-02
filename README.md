@@ -14,8 +14,9 @@ order.
 
 ## Status
 
-Phase 0/1 in progress. Onboarding UI and SSH key generation (AgentKeyManager)
-are implemented. Server provisioning and SSH connection are next.
+Phase 0/1 and Phase 4 MVP complete. Phase 2 on-device Gemma summarization
+via MediaPipe is implemented (import model + summarize logs). See
+[docs/MODEL_SETUP.md](docs/MODEL_SETUP.md).
 
 Early scaffold — not yet end-to-end functional. See [docs/PHASES.md](docs/PHASES.md).
 
