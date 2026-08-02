@@ -7,7 +7,9 @@ import dev.stackward.StackwardApplication
 import dev.stackward.onboarding.AdminCredential
 import dev.stackward.onboarding.BootstrapResult
 import dev.stackward.onboarding.CredentialType
+import dev.stackward.onboarding.HostType
 import dev.stackward.onboarding.ServerProfile
+import dev.stackward.ui.security.BiometricGate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +39,8 @@ data class OnboardingUiState(
     val provisionedProfile: ServerProfile? = null,
     val bootstrapOutput: String? = null,
     val verificationOutput: String? = null,
+    val proxmoxTokenPending: Boolean = false,
+    val proxmoxTokenStored: Boolean = false,
     val message: String? = null,
     val error: String? = null,
 ) {
@@ -58,6 +62,11 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     private val profileRepository = container.profileRepository
     private val ssh = container.ssh
     private val onboardingFlow = container.onboardingFlow
+    private val proxmoxTokenStore = container.proxmoxTokenStore
+    private val proxmoxApi = container.proxmoxApi
+
+    private var pendingProxmoxTokenId: String? = null
+    private var pendingProxmoxTokenSecret: String? = null
 
     private val _uiState = MutableStateFlow(OnboardingUiState())
     val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
@@ -77,12 +86,15 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
 
         val existing = profileRepository.loadAll().firstOrNull()
         if (existing != null) {
+            val hasProxmoxToken = proxmoxTokenStore.getToken() != null
             _uiState.update {
                 it.copy(
                     host = existing.host,
                     port = existing.port.toString(),
                     provisionedProfile = existing,
                     step = ProvisionStep.SUCCESS,
+                    proxmoxTokenPending = existing.hostType == HostType.PROXMOX && !hasProxmoxToken,
+                    proxmoxTokenStored = existing.hostType != HostType.PROXMOX || hasProxmoxToken,
                 )
             }
         }
@@ -135,13 +147,32 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
         val state = _uiState.value
         if (!state.canPreviewScript) return
 
-        val script = onboardingFlow.loadBootstrapScriptPreview(state.publicKeyOpenSsh)
-        _uiState.update {
-            it.copy(
-                bootstrapScript = script,
-                step = ProvisionStep.SCRIPT_PREVIEW,
-                error = null,
+        viewModelScope.launch {
+            val hostType = runCatching {
+                withContext(Dispatchers.IO) {
+                    onboardingFlow.detectHostType(
+                        host = state.host,
+                        port = state.port.toInt(),
+                        adminUsername = state.adminUsername,
+                        adminCredential = AdminCredential(
+                            type = CredentialType.SSH_PASSWORD,
+                            value = state.adminCredential,
+                        ),
+                    )
+                }
+            }.getOrDefault(HostType.PLAIN_LINUX)
+
+            val script = onboardingFlow.loadBootstrapScriptPreview(
+                publicKey = state.publicKeyOpenSsh,
+                hostType = hostType,
             )
+            _uiState.update {
+                it.copy(
+                    bootstrapScript = script,
+                    step = ProvisionStep.SCRIPT_PREVIEW,
+                    error = null,
+                )
+            }
         }
     }
 
@@ -195,6 +226,10 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     private fun applyBootstrapSuccess(result: BootstrapResult) {
+        pendingProxmoxTokenId = result.proxmoxTokenId
+        pendingProxmoxTokenSecret = result.proxmoxTokenSecret
+        val needsProxmoxToken = result.proxmoxTokenId != null && result.proxmoxTokenSecret != null
+
         _uiState.update {
             it.copy(
                 isProvisioning = false,
@@ -203,9 +238,55 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 bootstrapOutput = result.bootstrapOutput,
                 verificationOutput = result.verificationOutput,
                 adminCredential = "",
-                message = "Server provisioned and verified as ${result.profile.host}",
+                proxmoxTokenPending = needsProxmoxToken,
+                proxmoxTokenStored = !needsProxmoxToken,
+                message = if (needsProxmoxToken) {
+                    "Server provisioned — secure the Proxmox API token with biometrics"
+                } else {
+                    "Server provisioned and verified as ${result.profile.host}"
+                },
                 error = null,
             )
+        }
+    }
+
+    fun storeProxmoxTokenWithBiometric(biometricGate: BiometricGate) {
+        val tokenId = pendingProxmoxTokenId ?: return
+        val tokenSecret = pendingProxmoxTokenSecret ?: return
+        val profile = _uiState.value.provisionedProfile ?: return
+
+        viewModelScope.launch {
+            val authed = biometricGate.authenticate(
+                title = "Store Proxmox API token",
+                subtitle = "Biometric required to save the scoped API token",
+            )
+            if (!authed) {
+                _uiState.update {
+                    it.copy(error = "Biometric authentication failed or cancelled")
+                }
+                return@launch
+            }
+
+            try {
+                withContext(Dispatchers.IO) {
+                    proxmoxTokenStore.storeToken(tokenId, tokenSecret)
+                    proxmoxApi.verifyConnection(profile)
+                }
+                pendingProxmoxTokenId = null
+                pendingProxmoxTokenSecret = null
+                _uiState.update {
+                    it.copy(
+                        proxmoxTokenPending = false,
+                        proxmoxTokenStored = true,
+                        message = "Proxmox API token stored and verified",
+                        error = null,
+                    )
+                }
+            } catch (error: Exception) {
+                _uiState.update {
+                    it.copy(error = error.message ?: "Failed to store Proxmox token")
+                }
+            }
         }
     }
 
@@ -214,6 +295,8 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun resetAfterRevoke() {
+        pendingProxmoxTokenId = null
+        pendingProxmoxTokenSecret = null
         _uiState.value = OnboardingUiState()
     }
 }

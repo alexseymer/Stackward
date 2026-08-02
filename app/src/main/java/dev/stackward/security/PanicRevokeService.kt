@@ -4,6 +4,7 @@ import dev.stackward.connection.ConnectionHealthRepository
 import dev.stackward.connection.HostKeyPinStore
 import dev.stackward.connection.SshConnectionManager
 import dev.stackward.crypto.AgentKeyManager
+import dev.stackward.crypto.ProxmoxTokenStore
 import dev.stackward.onboarding.ServerProfile
 import dev.stackward.onboarding.ServerProfileRepository
 import dev.stackward.permissions.AuditEntry
@@ -28,6 +29,7 @@ class PanicRevokeService(
     private val auditLog: AuditLogRepository,
     private val tier1RulesRepository: Tier1RulesRepository,
     private val connectionHealth: ConnectionHealthRepository,
+    private val proxmoxTokenStore: ProxmoxTokenStore,
 ) {
 
     suspend fun revoke(profile: ServerProfile): PanicRevokeResult {
@@ -69,6 +71,7 @@ class PanicRevokeService(
         tier1RulesRepository.resetToDefaults()
         connectionHealth.clearAll()
         securitySettings.clear()
+        proxmoxTokenStore.deleteToken()
         auditLog.clear()
     }
 }

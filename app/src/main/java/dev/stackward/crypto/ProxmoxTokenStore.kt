@@ -21,7 +21,6 @@ class ProxmoxTokenStore(
     )
 
     fun storeToken(tokenId: String, tokenSecret: String) {
-        // TODO: Phase 1 — gate writes behind biometric prompt
         prefs.edit()
             .putString(KEY_TOKEN_ID, tokenId)
             .putString(KEY_TOKEN_SECRET, tokenSecret)

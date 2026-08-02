@@ -5,6 +5,7 @@ import dev.stackward.connection.ConnectionHealthRepository
 import dev.stackward.connection.HostKeyPinStore
 import dev.stackward.connection.SshConnectionManager
 import dev.stackward.crypto.AgentKeyManager
+import dev.stackward.crypto.ProxmoxTokenStore
 import dev.stackward.inference.DeviceCapabilityChecker
 import dev.stackward.inference.GemmaInferenceEngine
 import dev.stackward.inference.LogSummarizer
@@ -18,6 +19,7 @@ import dev.stackward.permissions.AuditLogRepository
 import dev.stackward.permissions.PermissionEngine
 import dev.stackward.permissions.PermissionExecutor
 import dev.stackward.permissions.Tier1RulesRepository
+import dev.stackward.proxmox.ProxmoxApiClient
 import dev.stackward.security.KeyRotationService
 import dev.stackward.security.PanicRevokeService
 import dev.stackward.security.SecuritySettingsRepository
@@ -32,8 +34,10 @@ class AppContainer(context: Context) {
     val pinStore = HostKeyPinStore(appContext)
     val connectionHealth = ConnectionHealthRepository(appContext)
     val profileRepository = ServerProfileRepository(appContext)
+    val proxmoxTokenStore = ProxmoxTokenStore(appContext)
     val ssh = SshConnectionManager(keyManager, pinStore, securitySettings, connectionHealth)
-    val logReader = LogReader(ssh)
+    val proxmoxApi = ProxmoxApiClient(ssh, proxmoxTokenStore)
+    val logReader = LogReader(ssh, proxmoxApi)
     val logDigestStore = LogDigestStore(appContext)
     val modelRepository = ModelRepository(appContext)
     val deviceCapabilityChecker = DeviceCapabilityChecker(appContext)
@@ -43,7 +47,11 @@ class AppContainer(context: Context) {
     val tier1RulesRepository = Tier1RulesRepository(appContext)
     val auditLogRepository = AuditLogRepository(appContext)
     val permissionEngine = PermissionEngine(tier1RulesRepository.loadRules())
-    val permissionExecutor = PermissionExecutor(permissionEngine, auditLogRepository)
+    val permissionExecutor = PermissionExecutor(
+        engine = permissionEngine,
+        auditLog = auditLogRepository,
+        proxmoxApi = proxmoxApi,
+    )
     val tier1RulesSyncer = Tier1RulesSyncer(
         ssh = ssh,
         tier1RulesRepository = tier1RulesRepository,
@@ -65,6 +73,7 @@ class AppContainer(context: Context) {
         auditLog = auditLogRepository,
         tier1RulesRepository = tier1RulesRepository,
         connectionHealth = connectionHealth,
+        proxmoxTokenStore = proxmoxTokenStore,
     )
     val onboardingFlow = OnboardingFlow(
         context = appContext,

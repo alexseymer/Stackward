@@ -1,5 +1,9 @@
 package dev.stackward.permissions
 
+import dev.stackward.onboarding.ServerProfile
+import dev.stackward.proxmox.ProxmoxApiClient
+import dev.stackward.proxmox.ProxmoxCommands
+
 data class ExecutionResult(
     val success: Boolean,
     val output: String,
@@ -7,11 +11,12 @@ data class ExecutionResult(
 )
 
 /**
- * Executes approved proposals over SSH with tier-appropriate controls.
+ * Executes approved proposals over SSH or Proxmox API with tier-appropriate controls.
  */
 class PermissionExecutor(
     private val engine: PermissionEngine,
     private val auditLog: AuditLogRepository,
+    private val proxmoxApi: ProxmoxApiClient? = null,
 ) {
 
     fun evaluate(proposal: ActionProposal): PermissionDecision {
@@ -19,7 +24,7 @@ class PermissionExecutor(
     }
 
     suspend fun executeApproved(
-        profile: dev.stackward.onboarding.ServerProfile,
+        profile: ServerProfile,
         proposal: ActionProposal,
         sshExecutor: suspend (command: String) -> String,
     ): ExecutionResult {
@@ -33,19 +38,58 @@ class PermissionExecutor(
             return ExecutionResult(success = false, output = decision.suggestedDiff, auditEntry = entry)
         }
 
-        return when (proposal.tier) {
-            PermissionTier.ROUTINE -> executeTier1(profile, proposal, sshExecutor)
-            PermissionTier.ONE_TIMER -> executeTier2(profile, proposal, sshExecutor)
-            PermissionTier.BOUNDARY_CHANGE -> {
-                val diff = engine.buildSudoersDiff(proposal)
-                val entry = auditDenied(proposal, "Tier 3 blocked")
-                ExecutionResult(success = false, output = diff, auditEntry = entry)
+        return when (proposal.backend) {
+            ActionBackend.PROXMOX_API -> executeProxmox(profile, proposal)
+            ActionBackend.SSH -> when (proposal.tier) {
+                PermissionTier.ROUTINE -> executeTier1(profile, proposal, sshExecutor)
+                PermissionTier.ONE_TIMER -> executeTier2(profile, proposal, sshExecutor)
+                PermissionTier.BOUNDARY_CHANGE -> {
+                    val diff = engine.buildSudoersDiff(proposal)
+                    val entry = auditDenied(proposal, "Tier 3 blocked")
+                    ExecutionResult(success = false, output = diff, auditEntry = entry)
+                }
             }
         }
     }
 
+    private suspend fun executeProxmox(
+        profile: ServerProfile,
+        proposal: ActionProposal,
+    ): ExecutionResult {
+        val client = proxmoxApi
+            ?: return deniedExecution(proposal, "Proxmox API client not configured")
+
+        if (proposal.tier == PermissionTier.BOUNDARY_CHANGE ||
+            ProxmoxCommands.isTier3Blocked(proposal.command)
+        ) {
+            return deniedExecution(proposal, "Tier 3 Proxmox changes are draft-only")
+        }
+
+        if (proposal.tier == PermissionTier.ROUTINE) {
+            if (proposal.action in PermissionEngine.READ_ONLY_ACTIONS) {
+                val entry = auditDenied(proposal, "Read-only Proxmox action — logged only")
+                return ExecutionResult(
+                    success = true,
+                    output = "Read-only Proxmox proposal logged; use digest or on-demand query.",
+                    auditEntry = entry,
+                )
+            }
+        }
+
+        val parsed = ProxmoxCommands.parse(proposal.command)
+            ?: return deniedExecution(proposal, "Invalid Proxmox API command: ${proposal.command}")
+
+        return runRemote(
+            proposal = proposal,
+            remoteCommand = proposal.command,
+            approved = true,
+        ) {
+            client.execute(profile, parsed.first, parsed.second)
+        }
+    }
+
     private suspend fun executeTier1(
-        profile: dev.stackward.onboarding.ServerProfile,
+        profile: ServerProfile,
         proposal: ActionProposal,
         sshExecutor: suspend (command: String) -> String,
     ): ExecutionResult {
@@ -67,7 +111,7 @@ class PermissionExecutor(
     }
 
     private suspend fun executeTier2(
-        profile: dev.stackward.onboarding.ServerProfile,
+        profile: ServerProfile,
         proposal: ActionProposal,
         sshExecutor: suspend (command: String) -> String,
     ): ExecutionResult {
@@ -87,8 +131,17 @@ class PermissionExecutor(
         sshExecutor: suspend (command: String) -> String,
         approved: Boolean,
     ): ExecutionResult {
+        return runRemote(proposal, remoteCommand, approved) { sshExecutor(remoteCommand) }
+    }
+
+    private suspend fun runRemote(
+        proposal: ActionProposal,
+        remoteCommand: String,
+        approved: Boolean,
+        executor: suspend () -> String,
+    ): ExecutionResult {
         return try {
-            val output = sshExecutor(remoteCommand)
+            val output = executor()
             val entry = AuditEntry(
                 timestamp = System.currentTimeMillis(),
                 tier = proposal.tier,
@@ -111,6 +164,11 @@ class PermissionExecutor(
             auditLog.append(entry)
             ExecutionResult(success = false, output = error.message ?: "Execution failed", auditEntry = entry)
         }
+    }
+
+    private fun deniedExecution(proposal: ActionProposal, reason: String): ExecutionResult {
+        val entry = auditDenied(proposal, reason)
+        return ExecutionResult(success = false, output = reason, auditEntry = entry)
     }
 
     private fun auditDenied(proposal: ActionProposal, reason: String): AuditEntry {

@@ -6,6 +6,7 @@ import dev.stackward.connection.SshConnectionConfig
 import dev.stackward.connection.SshConnectionManager
 import dev.stackward.connection.SshException
 import dev.stackward.crypto.AgentKeyManager
+import dev.stackward.proxmox.ProxmoxBootstrapParser
 import java.util.UUID
 
 /**
@@ -37,7 +38,8 @@ class OnboardingFlow(
 
         val resolvedHostType = hostType ?: detectHostType(host, port, adminUsername, adminCredential)
         val publicKey = keyManager.getPublicKeyOpenSSH()
-        val script = bootstrapRunner.loadLinuxBootstrapScript()
+        val previewScript = getBootstrapScript(resolvedHostType, publicKey)
+        val linuxScript = bootstrapRunner.loadLinuxBootstrapScript()
 
         val adminConfig = SshConnectionConfig(
             host = host,
@@ -48,7 +50,7 @@ class OnboardingFlow(
 
         val bootstrapResult = ssh.runScriptWithSudoPassword(
             config = adminConfig,
-            script = script,
+            script = linuxScript,
             scriptArgument = publicKey,
             sudoPassword = adminCredential.value,
         )
@@ -74,6 +76,34 @@ class OnboardingFlow(
             )
         }
 
+        var proxmoxTokenId: String? = null
+        var proxmoxTokenSecret: String? = null
+        var combinedOutput = bootstrapResult.stdout.trim()
+
+        if (resolvedHostType == HostType.PROXMOX) {
+            val proxmoxScript = bootstrapRunner.loadProxmoxBootstrapScript()
+            val proxmoxResult = ssh.runScriptWithSudoPassword(
+                config = adminConfig,
+                script = proxmoxScript,
+                scriptArgument = "",
+                sudoPassword = adminCredential.value,
+            )
+            if (!proxmoxResult.isSuccess) {
+                throw SshException(
+                    "Proxmox bootstrap failed: " +
+                        proxmoxResult.stderr.ifBlank { proxmoxResult.stdout },
+                )
+            }
+            combinedOutput += "\n\n=== Proxmox bootstrap ===\n${proxmoxResult.stdout.trim()}"
+            val credentials = ProxmoxBootstrapParser.parse(proxmoxResult.stdout)
+                ?: throw SshException(
+                    "Proxmox bootstrap succeeded but token output was not captured. " +
+                        "Check pveum supports --output-format json.",
+                )
+            proxmoxTokenId = credentials.tokenId
+            proxmoxTokenSecret = credentials.tokenSecret
+        }
+
         val profile = ServerProfile(
             id = UUID.randomUUID().toString(),
             host = host,
@@ -86,10 +116,12 @@ class OnboardingFlow(
 
         return BootstrapResult(
             profile = profile,
-            bootstrapOutput = bootstrapResult.stdout.trim(),
+            bootstrapOutput = combinedOutput,
             verificationOutput = verifyResult.stdout.trim(),
             publicKey = publicKey,
             script = script,
+            proxmoxTokenId = proxmoxTokenId,
+            proxmoxTokenSecret = proxmoxTokenSecret,
         )
     }
 
@@ -122,24 +154,34 @@ class OnboardingFlow(
     }
 
     fun getBootstrapScript(hostType: HostType, publicKey: String): String {
-        return when (hostType) {
+        val linuxScript = bootstrapRunner.loadLinuxBootstrapScript()
+        val script = when (hostType) {
             HostType.PROXMOX -> {
-                bootstrapRunner.loadLinuxBootstrapScript() +
-                    "\n\n# Next step (manual for now): scripts/bootstrap_proxmox.sh\n"
+                val proxmoxScript = bootstrapRunner.loadProxmoxBootstrapScript()
+                "$linuxScript\n\n# --- Proxmox API token (runs after Linux bootstrap) ---\n$proxmoxScript"
             }
-            else -> bootstrapRunner.loadLinuxBootstrapScript()
-        }.replace(
+            else -> linuxScript
+        }
+        return script.replace(
             "# Public key: (injected at runtime)",
             "# Public key: $publicKey",
         )
     }
 
-    fun loadBootstrapScriptPreview(publicKey: String?): String {
-        val script = bootstrapRunner.loadLinuxBootstrapScript()
+    fun loadBootstrapScriptPreview(publicKey: String?, hostType: HostType? = null): String {
+        val resolvedType = hostType ?: HostType.PLAIN_LINUX
+        val script = if (publicKey.isNullOrBlank()) {
+            when (resolvedType) {
+                HostType.PROXMOX -> getBootstrapScript(resolvedType, "(generated at runtime)")
+                else -> bootstrapRunner.loadLinuxBootstrapScript()
+            }
+        } else {
+            getBootstrapScript(resolvedType, publicKey)
+        }
         return if (publicKey.isNullOrBlank()) {
             script
         } else {
-            "$script\n# Runtime argument: $publicKey"
+            "$script\n# Runtime SSH public key argument: $publicKey"
         }
     }
 }
