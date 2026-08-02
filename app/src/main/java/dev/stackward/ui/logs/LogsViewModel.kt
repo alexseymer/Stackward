@@ -16,6 +16,9 @@ import dev.stackward.logs.LogDigestWorker
 import dev.stackward.logs.LogReadResult
 import dev.stackward.onboarding.ServerProfile
 import dev.stackward.permissions.ActionProposal
+import dev.stackward.permissions.AuditEntry
+import dev.stackward.permissions.PermissionDecision
+import dev.stackward.ui.security.BiometricGate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,6 +55,12 @@ data class LogsUiState(
     val isSummarizing: Boolean = false,
     val aiSummary: String? = null,
     val actionProposals: List<ActionProposal> = emptyList(),
+    val proposalDecisions: List<ProposalWithDecision> = emptyList(),
+    val pendingConfirmation: ActionProposal? = null,
+    val tier3Draft: String? = null,
+    val isExecutingProposal: Boolean = false,
+    val executionMessage: String? = null,
+    val auditEntries: List<AuditEntry> = emptyList(),
     val aiUnavailableReason: String? = null,
 )
 
@@ -65,6 +74,7 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
     init {
         refreshModelStatus()
         reloadProfile()
+        refreshAuditLog()
     }
 
     fun refreshModelStatus() {
@@ -132,15 +142,95 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             val result = container.logSummarizer.summarize(logs, userQuestion)
+            val decisions = result.proposals.map { proposal ->
+                ProposalWithDecision(proposal, container.permissionExecutor.evaluate(proposal))
+            }
             _uiState.update {
                 it.copy(
                     isSummarizing = false,
                     aiSummary = result.summary.takeIf { result.usedOnDeviceModel },
                     actionProposals = result.proposals,
+                    proposalDecisions = decisions,
                     aiUnavailableReason = result.unavailableReason,
                 )
             }
         }
+    }
+
+    fun refreshAuditLog() {
+        _uiState.update {
+            it.copy(auditEntries = container.auditLogRepository.loadAll().takeLast(20).reversed())
+        }
+    }
+
+    fun requestApproveProposal(proposal: ActionProposal) {
+        when (val decision = container.permissionExecutor.evaluate(proposal)) {
+            is PermissionDecision.RequireConfirmation -> {
+                _uiState.update { it.copy(pendingConfirmation = proposal, tier3Draft = null) }
+            }
+            is PermissionDecision.Allow -> executeProposal(proposal, biometricGate = null)
+            is PermissionDecision.DraftOnly -> {
+                _uiState.update {
+                    it.copy(tier3Draft = decision.suggestedDiff, pendingConfirmation = null)
+                }
+            }
+            is PermissionDecision.Deny -> {
+                _uiState.update { it.copy(error = decision.reason) }
+            }
+        }
+    }
+
+    fun dismissConfirmation() {
+        _uiState.update { it.copy(pendingConfirmation = null) }
+    }
+
+    fun confirmPendingProposal(biometricGate: BiometricGate) {
+        val proposal = _uiState.value.pendingConfirmation ?: return
+        viewModelScope.launch {
+            val authed = biometricGate.authenticate(
+                title = "Approve Tier 2 action",
+                subtitle = proposal.command,
+            )
+            if (!authed) {
+                _uiState.update { it.copy(error = "Biometric authentication failed or cancelled") }
+                return@launch
+            }
+            executeProposal(proposal, biometricGate)
+        }
+    }
+
+    private fun executeProposal(proposal: ActionProposal, biometricGate: BiometricGate?) {
+        val profile = _uiState.value.profile ?: return
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(isExecutingProposal = true, pendingConfirmation = null, error = null)
+            }
+            runCatching {
+                container.permissionExecutor.executeApproved(profile, proposal) { command ->
+                    container.ssh.execute(profile, command)
+                }
+            }.onSuccess { result ->
+                _uiState.update {
+                    it.copy(
+                        isExecutingProposal = false,
+                        executionMessage = result.output,
+                        error = if (result.success) null else result.output,
+                    )
+                }
+                refreshAuditLog()
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isExecutingProposal = false,
+                        error = error.message ?: "Execution failed",
+                    )
+                }
+            }
+        }
+    }
+
+    fun clearExecutionMessage() {
+        _uiState.update { it.copy(executionMessage = null, tier3Draft = null) }
     }
 
     fun reloadProfile() {
@@ -286,6 +376,10 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
                 error = null,
                 aiSummary = null,
                 actionProposals = emptyList(),
+                proposalDecisions = emptyList(),
+                pendingConfirmation = null,
+                tier3Draft = null,
+                executionMessage = null,
             )
         }
     }

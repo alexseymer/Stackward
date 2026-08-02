@@ -14,11 +14,11 @@ order.
 
 ## Status
 
-Phase 0/1 and Phase 4 MVP complete. Phase 2 on-device Gemma summarization
-via MediaPipe is implemented (import model + summarize logs). See
-[docs/MODEL_SETUP.md](docs/MODEL_SETUP.md).
+Phase 0/1, Phase 4 MVP, Phase 2 (on-device Gemma summarization), and
+Phase 3 (tiered permission engine with biometric Tier 2 approval) are
+implemented. See [docs/MODEL_SETUP.md](docs/MODEL_SETUP.md) for model import.
 
-Early scaffold — not yet end-to-end functional. See [docs/PHASES.md](docs/PHASES.md).
+Early scaffold — not yet production-ready. See [docs/PHASES.md](docs/PHASES.md).
 
 ## Build locally
 

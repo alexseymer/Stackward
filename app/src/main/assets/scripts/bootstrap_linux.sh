@@ -87,14 +87,51 @@ cat > "${SUDOERS_FILE}" << 'SUDOERS_EOF'
 # Stackward agent sudoers — Tier 1 routine commands only.
 # Managed by Stackward app. Do not add wildcards.
 #
-# Example (uncomment and adjust after review):
+# Tier 2 one-timers go through /usr/local/sbin/stackward-onetimer (installed by bootstrap).
+# Example Tier 1 (uncomment and adjust after review):
 # gemma-agent ALL=(root) NOPASSWD: /usr/bin/systemctl status *
 # gemma-agent ALL=(root) NOPASSWD: /usr/bin/systemctl restart nginx
 #
-# Tier 2 one-timers are written temporarily by the app and removed immediately.
+gemma-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-onetimer
 SUDOERS_EOF
 chmod 440 "${SUDOERS_FILE}"
 visudo -c -f "${SUDOERS_FILE}"
+
+echo "==> Installing Stackward Tier 2 helper (stackward-onetimer)"
+cat > /usr/local/sbin/stackward-onetimer << 'HELPER_EOF'
+#!/usr/bin/env bash
+# stackward-onetimer — execute a single validated command as root (Tier 2).
+# Usage: stackward-onetimer <base64-encoded-command>
+set -euo pipefail
+
+if [[ $EUID -ne 0 ]]; then
+    echo "stackward-onetimer must run as root via sudo" >&2
+    exit 1
+fi
+
+if [[ $# -lt 1 ]]; then
+    echo "usage: stackward-onetimer <base64-command>" >&2
+    exit 1
+fi
+
+CMD="$(printf '%s' "$1" | base64 -d 2>/dev/null || true)"
+if [[ -z "${CMD}" ]]; then
+    echo "invalid base64 command" >&2
+    exit 1
+fi
+
+case "${CMD}" in
+    /usr/bin/systemctl\ status\ *|/bin/systemctl\ status\ *)
+    /usr/bin/systemctl\ restart\ *|/bin/systemctl\ restart\ *)
+        bash -c "${CMD}"
+        ;;
+    *)
+        echo "command not in Tier 2 allowlist: ${CMD}" >&2
+        exit 1
+        ;;
+esac
+HELPER_EOF
+chmod 755 /usr/local/sbin/stackward-onetimer
 
 echo "==> Bootstrap complete for ${AGENT_USER}"
 echo "    Home:       ${AGENT_HOME}"

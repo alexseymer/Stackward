@@ -90,16 +90,19 @@ proposals that the permission engine can parse.
 
 | Task | Status |
 |------|--------|
-| `PermissionEngine`: classify proposals into Tier 1/2/3 | TODO |
-| Tier 1: match against `sudoers.d/gemma-agent` rules, log + execute | TODO |
-| Tier 2: confirmation UI (literal command + reason) + biometric | TODO |
-| Tier 2: temporary single-use sudoers grant (write → execute → delete) | TODO |
-| Tier 3: draft-only path for sudoers / Proxmox role changes | TODO |
+| `PermissionEngine`: classify proposals into Tier 1/2/3 | Done |
+| Tier 1: match against `sudoers.d/gemma-agent` rules, log + execute | Done |
+| Tier 2: confirmation UI (literal command + reason) + biometric | Done |
+| Tier 2: temporary single-use sudoers grant (write → execute → delete) | Done (`stackward-onetimer` helper) |
+| Tier 3: draft-only path for sudoers / Proxmox role changes | Done |
 | Proxmox API backend: map tiers to token permissions | TODO |
-| Full audit log (command, tier, approval, output, timestamp) | TODO |
+| Full audit log (command, tier, approval, output, timestamp) | Done |
 
 **Exit criteria:** User can approve a one-time service restart; Tier 3 changes
 are blocked from automated execution.
+
+> **Re-bootstrap note:** Hosts provisioned before Phase 3 need a fresh bootstrap
+> (or manual install of `/usr/local/sbin/stackward-onetimer`) for Tier 2.
 
 ---
 
