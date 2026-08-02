@@ -1,0 +1,42 @@
+---
+description: Git workflow for Stackward — always use feature branches and PRs with reviewer assignment
+alwaysApply: true
+---
+
+# Git workflow (Stackward)
+
+## Never push directly to `main`
+
+All changes must go through a feature branch and pull request.
+
+1. Create a descriptive branch from `main`, e.g. `cursor/phase-5-hardening` or `cursor/fix-ssh-retry`.
+2. Commit on the feature branch.
+3. Push the branch to `origin`.
+4. Open a **draft PR** against `main`.
+5. **Always request review from `alexseymer`** so the owner gets GitHub push notifications.
+
+## Creating PRs
+
+Prefer `gh pr create` with reviewer flag:
+
+```bash
+gh pr create \
+  --base main \
+  --head <branch> \
+  --title "<title>" \
+  --body "<body>" \
+  --draft \
+  --reviewer alexseymer
+```
+
+If using `ManagePullRequest` with `create_pr`, immediately assign the reviewer afterward:
+
+```bash
+gh pr edit <number> --add-reviewer alexseymer
+```
+
+## Do not
+
+- `git push origin main` for feature work
+- Merge PRs yourself unless the user explicitly asks
+- Skip reviewer assignment — **always `alexseymer`**
