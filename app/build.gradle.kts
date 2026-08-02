@@ -70,7 +70,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     // On-device LLM — Phase 2 (MediaPipe LLM Inference API)
-    implementation("com.google.mediapipe:tasks-genai:0.10.27")
+    implementation("com.google.mediapipe:tasks-genai:0.10.35")
 
     // SSH — Phase 1
     implementation("com.hierynomus:sshj:0.40.0")
