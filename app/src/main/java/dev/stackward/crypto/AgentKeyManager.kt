@@ -134,7 +134,11 @@ class AgentKeyManager(
     }
 
     private fun generateSoftwareKeypair(alias: String): KeyPair {
-        val keyPair = SecurityUtils.getKeyPairGenerator("Ed25519").generateKeyPair()
+        val keyPair = try {
+            KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+        } catch (_: Exception) {
+            SecurityUtils.getKeyPairGenerator("Ed25519").generateKeyPair()
+        }
         persistSoftwareKeypair(alias, keyPair)
         return keyPair
     }

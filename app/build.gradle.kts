@@ -11,8 +11,8 @@ android {
         applicationId = "dev.stackward"
         minSdk = 28
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.5.3-dogfood"
+        versionCode = 5
+        versionName = "0.5.4-dogfood"
     }
 
     buildTypes {
@@ -75,8 +75,10 @@ dependencies {
     // On-device LLM — Phase 2 (MediaPipe LLM Inference API)
     implementation("com.google.mediapipe:tasks-genai:0.10.35")
 
-    // SSH — Phase 1
+    // SSH — Phase 1 (full BC replaces Android's stripped provider for X25519/Ed25519)
     implementation("com.hierynomus:sshj:0.40.0")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.78.1")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
