@@ -11,7 +11,7 @@ import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PrivateKey
 import java.security.PublicKey
-import java.security.spec.AlgorithmParameterSpec
+import java.security.spec.ECGenParameterSpec
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64 as JavaBase64
@@ -37,11 +37,16 @@ class AgentKeyManager(
             throw IllegalStateException("Keypair already exists for alias: $alias")
         }
 
-        return if (supportsKeystoreEd25519()) {
-            generateKeystoreKeypair(alias)
-        } else {
-            generateSoftwareKeypair(alias)
+        if (supportsKeystoreEd25519()) {
+            try {
+                return generateKeystoreKeypair(alias)
+            } catch (error: Exception) {
+                // Fall back so onboarding still works if Keystore Ed25519 is unavailable.
+                android.util.Log.w(TAG, "Keystore Ed25519 failed, using software key", error)
+                deleteKeypair(alias)
+            }
         }
+        return generateSoftwareKeypair(alias)
     }
 
     fun getPublicKeyOpenSSH(alias: String = KEY_ALIAS): String {
@@ -105,30 +110,27 @@ class AgentKeyManager(
     private fun generateKeystoreKeypair(alias: String): KeyPair {
         val spec = KeyGenParameterSpec.Builder(
             alias,
-            KeyProperties.PURPOSE_SIGN,
+            KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY,
         ).apply {
-            setAlgorithmParameterSpec(createEd25519ParameterSpec())
+            // Android Keystore Ed25519 uses EC + ECGenParameterSpec("ed25519")
+            // (not EdECGenParameterSpec — that class is not on Android).
+            setAlgorithmParameterSpec(ECGenParameterSpec("ed25519"))
             setDigests(KeyProperties.DIGEST_NONE)
             setUserAuthenticationRequired(true)
             setInvalidatedByBiometricEnrollment(true)
+            // -1 = every use requires authentication (API 30+)
             setUserAuthenticationValidityDurationSeconds(-1)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 setUnlockedDeviceRequired(true)
             }
         }.build()
 
-        val generator = KeyPairGenerator.getInstance("Ed25519", KEYSTORE_PROVIDER)
+        val generator = KeyPairGenerator.getInstance(
+            KeyProperties.KEY_ALGORITHM_EC,
+            KEYSTORE_PROVIDER,
+        )
         generator.initialize(spec)
         return generator.generateKeyPair()
-    }
-
-    private fun createEd25519ParameterSpec(): AlgorithmParameterSpec {
-        val namedParameterSpecClass = Class.forName("java.security.spec.NamedParameterSpec")
-        val ed25519 = namedParameterSpecClass.getField("ED25519").get(null)
-        val edEcGenParameterSpecClass = Class.forName("java.security.spec.EdECGenParameterSpec")
-        return edEcGenParameterSpecClass
-            .getConstructor(namedParameterSpecClass)
-            .newInstance(ed25519) as AlgorithmParameterSpec
     }
 
     private fun generateSoftwareKeypair(alias: String): KeyPair {
@@ -177,6 +179,7 @@ class AgentKeyManager(
     private fun prefKey(alias: String, suffix: String): String = "${alias}_$suffix"
 
     companion object {
+        private const val TAG = "AgentKeyManager"
         const val KEY_ALIAS = "stackward-agent-ssh"
         const val KEY_ALIAS_ALT = "stackward-agent-ssh-alt"
         private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
