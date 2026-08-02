@@ -40,6 +40,10 @@ class ServerProfileRepository(context: Context) {
 
     fun hasProvisionedHost(): Boolean = loadAll().isNotEmpty()
 
+    fun clearAll() {
+        prefs.edit().remove(KEY_PROFILES).apply()
+    }
+
     private fun persist(profiles: List<ServerProfile>) {
         val array = JSONArray()
         profiles.forEach { profile -> array.put(profile.toJson()) }
@@ -55,6 +59,8 @@ class ServerProfileRepository(context: Context) {
         put("hostType", hostType.name)
         put("hostKeyFingerprint", hostKeyFingerprint)
         put("jumpHost", jumpHost)
+        put("jumpHostPort", jumpHostPort)
+        put("jumpHostKeyFingerprint", jumpHostKeyFingerprint)
         put("proxmoxPort", proxmoxPort)
         put("provisionedAt", provisionedAt)
     }
@@ -66,6 +72,8 @@ class ServerProfileRepository(context: Context) {
         hostType = HostType.valueOf(getString("hostType")),
         hostKeyFingerprint = getString("hostKeyFingerprint"),
         jumpHost = optString("jumpHost").ifBlank { null },
+        jumpHostPort = optInt("jumpHostPort", 22),
+        jumpHostKeyFingerprint = optString("jumpHostKeyFingerprint").ifBlank { null },
         proxmoxPort = optInt("proxmoxPort", 8006),
         provisionedAt = getLong("provisionedAt"),
     )

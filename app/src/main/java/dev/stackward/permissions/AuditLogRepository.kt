@@ -38,6 +38,20 @@ class AuditLogRepository(context: Context) {
         }
     }
 
+    fun exportJson(): String {
+        val array = JSONArray()
+        loadAll().forEach { entry -> array.put(entry.toJson()) }
+        return array.toString(2)
+    }
+
+    fun exportNdjson(): String {
+        return loadAll().joinToString("\n") { entry -> entry.toJson().toString() }
+    }
+
+    fun clear() {
+        prefs.edit().remove(KEY_ENTRIES).apply()
+    }
+
     private fun persist(entries: List<AuditEntry>) {
         val array = JSONArray()
         entries.forEach { entry -> array.put(entry.toJson()) }

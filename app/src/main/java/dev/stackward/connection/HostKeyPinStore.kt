@@ -35,6 +35,10 @@ class HostKeyPinStore(context: Context) {
             .apply()
     }
 
+    fun clearAll() {
+        prefs.edit().clear().apply()
+    }
+
     private fun pinKey(host: String, port: Int): String = "$host:$port"
 
     companion object {

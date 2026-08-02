@@ -212,4 +212,8 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     fun clearMessage() {
         _uiState.update { it.copy(message = null) }
     }
+
+    fun resetAfterRevoke() {
+        _uiState.value = OnboardingUiState()
+    }
 }

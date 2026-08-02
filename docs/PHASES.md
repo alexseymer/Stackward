@@ -112,15 +112,19 @@ are blocked from automated execution.
 
 | Task | Status |
 |------|--------|
-| Audit log export / optional sync to durable storage | TODO |
-| Key rotation flow (regenerate + push new key, revoke old) | TODO |
-| Panic revoke: one tap removes `authorized_keys` entry | TODO |
-| Tier 1 rule review UI (periodic reminder to audit sudoers.d) | TODO |
-| Multi-hop host key pinning verification | TODO |
-| Network change / tunnel drop recovery | TODO |
+| Audit log export / optional sync to durable storage | Done (JSON export via Settings) |
+| Key rotation flow (regenerate + push new key, revoke old) | Done |
+| Panic revoke: one tap removes `authorized_keys` entry | Done |
+| Tier 1 rule review UI (periodic reminder to audit sudoers.d) | Done (30-day reminder + server sync) |
+| Multi-hop host key pinning verification | Done (SSHJ jump + per-hop TOFU) |
+| Network change / tunnel drop recovery | Done (SSH retry + WorkManager backoff) |
 
 **Exit criteria:** Lost phone scenario is recoverable; audit trail is complete;
 operator can rotate credentials without re-bootstrap.
+
+> **Re-bootstrap note:** Hosts provisioned before Phase 5 need a fresh bootstrap
+> (or manual install of `stackward-push-key`, `stackward-revoke-key`,
+> `stackward-panic-revoke`, `stackward-sudoers-snapshot`) for hardening helpers.
 
 ---
 

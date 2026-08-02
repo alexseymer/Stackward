@@ -58,7 +58,13 @@ class PermissionEngine(
     tier1Rules: List<String> = Tier1RulesRepository.DEFAULT_RULES,
 ) {
 
-    private val tier1Rules: List<String> = tier1Rules.ifEmpty { Tier1RulesRepository.DEFAULT_RULES }
+    private var tier1Rules: List<String> = tier1Rules.ifEmpty { Tier1RulesRepository.DEFAULT_RULES }
+
+    fun updateRules(rules: List<String>) {
+        tier1Rules = rules.ifEmpty { Tier1RulesRepository.DEFAULT_RULES }
+    }
+
+    fun currentTier1Rules(): List<String> = tier1Rules
 
     fun evaluate(proposal: ActionProposal): PermissionDecision {
         return when (proposal.tier) {

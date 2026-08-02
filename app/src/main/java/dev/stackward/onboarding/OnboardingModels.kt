@@ -19,6 +19,8 @@ data class ServerProfile(
     val hostType: HostType,
     val hostKeyFingerprint: String,
     val jumpHost: String? = null,
+    val jumpHostPort: Int = 22,
+    val jumpHostKeyFingerprint: String? = null,
     val proxmoxPort: Int = 8006,
     val provisionedAt: Long = System.currentTimeMillis(),
 )

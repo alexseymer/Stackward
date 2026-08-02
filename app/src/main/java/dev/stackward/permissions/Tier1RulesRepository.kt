@@ -31,6 +31,10 @@ class Tier1RulesRepository(context: Context) {
             .apply()
     }
 
+    fun resetToDefaults() {
+        prefs.edit().remove(KEY_RULES).apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "stackward_tier1_rules"
         private const val KEY_RULES = "rules"
