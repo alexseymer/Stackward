@@ -23,8 +23,8 @@ android {
         applicationId = "dev.stackward"
         minSdk = 28
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.5.4-dogfood"
+        versionCode = 10
+        versionName = "0.5.9-dogfood"
     }
 
     signingConfigs {
@@ -33,6 +33,9 @@ android {
             storePassword = signingProp("dogfood.storePassword", "DOGFOOD_STORE_PASSWORD", "dogfood")
             keyAlias = signingProp("dogfood.keyAlias", "DOGFOOD_KEY_ALIAS", "dogfood")
             keyPassword = signingProp("dogfood.keyPassword", "DOGFOOD_KEY_PASSWORD", "dogfood")
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = false
         }
     }
 
@@ -50,7 +53,22 @@ android {
         }
         create("dogfood") {
             initWith(getByName("release"))
-            isDebuggable = true
+            // Separate package ID avoids signature conflicts with older installs.
+            applicationIdSuffix = ".dogfood"
+            isDebuggable = false
+            ndk {
+                abiFilters.clear()
+                abiFilters += "arm64-v8a"
+            }
+            matchingFallbacks += listOf("release")
+            signingConfig = signingConfigs.getByName("dogfood")
+        }
+        // Tiny install-probe APK (no native libs) to diagnose sideload failures.
+        create("smoke") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".smoke"
+            versionNameSuffix = "-smoke"
+            isDebuggable = false
             matchingFallbacks += listOf("release")
             signingConfig = signingConfigs.getByName("dogfood")
         }
@@ -67,6 +85,9 @@ android {
     }
 
     packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
         resources {
             excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
         }
@@ -74,6 +95,13 @@ android {
 
     testOptions {
         unitTests.isIncludeAndroidResources = false
+    }
+}
+
+androidComponents {
+    onVariants(selector().withBuildType("smoke")) { variant ->
+        // Strip every .so so the probe APK is small and has no 16 KB / ELF concerns.
+        variant.packaging.jniLibs.excludes.add("**/*.so")
     }
 }
 
