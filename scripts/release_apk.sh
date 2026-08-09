@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# release_apk.sh — Bump version, build debug APK, and publish a GitHub Release.
+# release_apk.sh — Bump version, build signed dogfood APK, and publish a GitHub Release.
 #
 # Pushes only to the `builds` branch (never `main`). Creates the branch from
 # origin/main on first run; subsequent runs reset `builds` to latest main, bump
@@ -19,7 +19,8 @@ set -euo pipefail
 SOURCE_REF="${SOURCE_REF:-origin/main}"
 BUILDS_BRANCH="builds"
 BUILD_FILE="app/build.gradle.kts"
-APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+APK_PATH="app/build/outputs/apk/dogfood/app-dogfood.apk"
+APK_ASSET_NAME="app-dogfood.apk"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cd "${REPO_ROOT}"
@@ -31,6 +32,41 @@ die() {
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "${1} is required"
+}
+
+find_apksigner() {
+  local sdk_dir build_tools
+
+  if [[ -n "${ANDROID_HOME:-}" ]]; then
+    sdk_dir="${ANDROID_HOME}"
+  elif [[ -f local.properties ]]; then
+    sdk_dir="$(grep '^sdk.dir=' local.properties | cut -d= -f2- | tr -d '\r' | sed 's/\\:/:/g' | sed 's/^"//;s/"$//')"
+  fi
+
+  if [[ -n "${sdk_dir}" && -d "${sdk_dir}/build-tools" ]]; then
+    build_tools="$(find "${sdk_dir}/build-tools" -maxdepth 1 -mindepth 1 -type d | sort -V | tail -n 1)"
+    if [[ -x "${build_tools}/apksigner" ]]; then
+      echo "${build_tools}/apksigner"
+      return
+    fi
+  fi
+
+  if command -v apksigner >/dev/null 2>&1; then
+    echo apksigner
+    return
+  fi
+
+  die "apksigner not found (set ANDROID_HOME or install Android SDK build-tools)"
+}
+
+verify_apk_signed() {
+  local apksigner
+  apksigner="$(find_apksigner)"
+
+  echo "==> Verifying APK signature"
+  if ! "${apksigner}" verify --verbose "${APK_PATH}"; then
+    die "APK failed signature verification — release aborted"
+  fi
 }
 
 read_version_fields() {
@@ -107,8 +143,8 @@ print_download_url() {
   local repo url
   repo="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
   url="$(gh release view "${TAG}" --json assets \
-    --jq ".assets[] | select(.name == \"app-debug.apk\") | .url")"
-  [[ -n "${url}" ]] || die "could not find app-debug.apk on release ${TAG}"
+    --jq ".assets[] | select(.name == \"${APK_ASSET_NAME}\") | .url")"
+  [[ -n "${url}" ]] || die "could not find ${APK_ASSET_NAME} on release ${TAG}"
 
   echo ""
   echo "==> Release ready"
@@ -147,13 +183,14 @@ main() {
 
   write_version_fields
 
-  echo "==> Building debug APK"
-  if ! ./gradlew :app:assembleDebug; then
+  echo "==> Building signed dogfood APK"
+  if ! ./gradlew :app:assembleDogfood; then
     restore_version_fields
     die "Gradle build failed — version bump reverted, no release created"
   fi
 
   [[ -f "${APK_PATH}" ]] || die "expected APK at ${APK_PATH} after build"
+  verify_apk_signed
 
   local summary notes
   summary="$(summarize_changes)"
