@@ -23,8 +23,8 @@ android {
         applicationId = "dev.stackward"
         minSdk = 28
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.5.6-dogfood"
+        versionCode = 8
+        versionName = "0.5.7-dogfood"
     }
 
     signingConfigs {
@@ -35,7 +35,7 @@ android {
             keyPassword = signingProp("dogfood.keyPassword", "DOGFOOD_KEY_PASSWORD", "dogfood")
             enableV1Signing = true
             enableV2Signing = true
-            enableV3Signing = true
+            enableV3Signing = false
         }
     }
 
@@ -53,6 +53,9 @@ android {
         }
         create("dogfood") {
             initWith(getByName("release"))
+            // Separate package ID avoids "App not installed" when an older
+            // dev.stackward build with a different signing key is still present.
+            applicationIdSuffix = ".dogfood"
             // Non-debuggable so Pixel/Play Protect allows sideload installs.
             isDebuggable = false
             matchingFallbacks += listOf("release")

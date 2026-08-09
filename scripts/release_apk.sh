@@ -70,13 +70,33 @@ verify_apk_signed() {
   }
   echo "${verify_output}"
 
-  if ! grep -qE 'Verified using v[123] scheme.*: true' <<<"${verify_output}"; then
-    die "APK must be signed with v1, v2, or v3 scheme"
+  if ! grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' <<<"${verify_output}"; then
+    die "APK must include v2 signing (required for targetSdk 35 sideload installs)"
   fi
 
   if find_aapt | xargs -I{} {} dump badging "${APK_PATH}" 2>/dev/null | grep -q 'application-debuggable'; then
     die "APK is debuggable — sideload installs are often blocked on Pixel devices"
   fi
+}
+
+resign_apk() {
+  local apksigner keystore
+  apksigner="$(find_apksigner)"
+  keystore="app/dogfood.keystore"
+  [[ -f "${keystore}" ]] || die "missing ${keystore} for APK signing"
+
+  echo "==> Re-signing APK with v1+v2 schemes"
+  "${apksigner}" sign \
+    --ks "${keystore}" \
+    --ks-pass pass:dogfood \
+    --key-pass pass:dogfood \
+    --ks-key-alias dogfood \
+    --v1-signing-enabled true \
+    --v2-signing-enabled true \
+    --v3-signing-enabled false \
+    --out "${APK_PATH}.signed" \
+    "${APK_PATH}"
+  mv "${APK_PATH}.signed" "${APK_PATH}"
 }
 
 find_aapt() {
@@ -183,9 +203,10 @@ print_download_url() {
   echo "  https://github.com/${repo}/releases/tag/${TAG}"
   echo ""
   echo "Install tips (Pixel):"
-  echo "  1. Uninstall any existing Stackward build first (older releases used a different signing key)."
+  echo "  1. This build installs as package dev.stackward.dogfood (label: Stackward)."
   echo "  2. Download in Chrome, open the .apk from Downloads, and tap Install."
   echo "  3. If Play Protect warns, tap Install anyway (or More details → Install anyway)."
+  echo "  4. You can uninstall any older failed Stackward installs afterward."
 }
 
 main() {
@@ -222,6 +243,7 @@ main() {
   fi
 
   [[ -f "${APK_PATH}" ]] || die "expected APK at ${APK_PATH} after build"
+  resign_apk
   verify_apk_signed
 
   local summary notes
