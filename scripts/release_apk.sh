@@ -13,14 +13,36 @@
 #   DRY_RUN=1    Print planned actions without mutating git or creating a release
 #
 # Agent trigger phrase: "cut a new build" (runs this script end-to-end).
+# Install probe: BUILD_TYPE=smoke ./scripts/release_apk.sh
+#
+# Optional environment variables:
+#   SOURCE_REF   Git ref to build from (default: origin/main)
+#   BUILD_TYPE   dogfood (default) or smoke
+#   DRY_RUN=1    Print planned actions without mutating git or creating a release
 
 set -euo pipefail
 
 SOURCE_REF="${SOURCE_REF:-origin/main}"
 BUILDS_BRANCH="builds"
 BUILD_FILE="app/build.gradle.kts"
-APK_PATH="app/build/outputs/apk/dogfood/app-dogfood.apk"
-APK_ASSET_NAME="Stackward-arm64.apk"
+# dogfood (default) or smoke — smoke is a tiny no-native-libs install probe.
+BUILD_TYPE="${BUILD_TYPE:-dogfood}"
+case "${BUILD_TYPE}" in
+  dogfood)
+    GRADLE_TASK=":app:assembleDogfood"
+    APK_PATH="app/build/outputs/apk/dogfood/app-dogfood.apk"
+    APK_ASSET_NAME="app-dogfood.apk"
+    ;;
+  smoke)
+    GRADLE_TASK=":app:assembleSmoke"
+    APK_PATH="app/build/outputs/apk/smoke/app-smoke.apk"
+    APK_ASSET_NAME="app-smoke.apk"
+    ;;
+  *)
+    echo "error: BUILD_TYPE must be dogfood or smoke (got ${BUILD_TYPE})" >&2
+    exit 1
+    ;;
+esac
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cd "${REPO_ROOT}"
@@ -184,12 +206,17 @@ print_download_url() {
   echo "Open on your phone:"
   echo "  https://github.com/${repo}/releases/tag/${TAG}"
   echo ""
-  echo "Install tips (Pixel):"
-  echo "  1. This build installs as dev.stackward.dogfood (label: Stackward), arm64 only."
-  echo "  2. In Chrome: long-press the download link → Download link. Do NOT use the GitHub app."
-  echo "  3. After download, confirm file size is ${APK_BYTES} bytes in Files → Downloads."
-  echo "  4. Tap the .apk → Install. If Play Protect warns → Install anyway."
-  echo "  5. With USB debugging: adb install -r ${APK_ASSET_NAME} shows the real error code."
+  echo "Install tips (Pixel / Android 2026):"
+  echo "  Preferred — USB debugging:"
+  echo "    adb install -r ${APK_ASSET_NAME}"
+  echo "  That prints the real PackageManager error if install fails."
+  echo ""
+  echo "  Sideload:"
+  echo "    1. Download in Chrome (not GitHub app); confirm size = ${APK_BYTES} bytes."
+  echo "    2. Settings → Apps → Special access → Install unknown apps → Chrome → Allow."
+  echo "    3. Temporarily turn off Play Protect scanning (Play Store → profile → Play Protect → Settings)."
+  echo "    4. Tap the APK → Install. If blocked as unverified developer, enable Developer options"
+  echo "       and use the advanced sideload / ADB path (Google's Aug 2026 verification rollout)."
 }
 
 main() {
@@ -206,6 +233,7 @@ main() {
   echo "    versionCode: ${VERSION_CODE} -> ${NEW_VERSION_CODE}"
   echo "    versionName: ${VERSION_NAME} -> ${NEW_VERSION_NAME}"
   echo "    tag:         ${TAG}"
+  echo "    build:       ${BUILD_TYPE}"
   echo "    source:      ${SOURCE_REF}"
   echo "    branch:      ${BUILDS_BRANCH}"
 
@@ -219,8 +247,8 @@ main() {
 
   write_version_fields
 
-  echo "==> Building signed dogfood APK"
-  if ! ./gradlew :app:assembleDogfood; then
+  echo "==> Building signed ${BUILD_TYPE} APK"
+  if ! ./gradlew "${GRADLE_TASK}"; then
     restore_version_fields
     die "Gradle build failed — version bump reverted, no release created"
   fi
@@ -233,14 +261,21 @@ main() {
 
   local summary notes
   summary="$(summarize_changes)"
-  notes="${TAG}
+  notes="${TAG} (${BUILD_TYPE})
 
 ${summary}
 
 SHA256: ${APK_SHA256}
-Size: ${APK_BYTES} bytes (verify after download — a truncated file causes \"App not installed\")."
+Size: ${APK_BYTES} bytes
+
+Install with ADB (most reliable on Pixel in 2026):
+  adb install -r ${APK_ASSET_NAME}
+
+If ADB prints an error code, that is the real reason — Chrome's \"App not installed\" hides it."
 
   git add "${BUILD_FILE}"
+  # Also commit keystore if it changed (SHA256 regen).
+  git add -A -- app/dogfood.keystore 2>/dev/null || true
   git commit -m "chore: bump version to ${TAG}"
 
   echo "==> Pushing ${BUILDS_BRANCH}"
@@ -248,7 +283,7 @@ Size: ${APK_BYTES} bytes (verify after download — a truncated file causes \"Ap
 
   echo "==> Creating GitHub release ${TAG}"
   gh release create "${TAG}" \
-    "${APK_PATH}#${APK_ASSET_NAME}" \
+    "${APK_PATH}" \
     --target "${BUILDS_BRANCH}" \
     --title "${TAG}" \
     --notes "${notes}"

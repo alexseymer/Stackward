@@ -23,8 +23,8 @@ android {
         applicationId = "dev.stackward"
         minSdk = 28
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.5.8-dogfood"
+        versionCode = 10
+        versionName = "0.5.9-dogfood"
     }
 
     signingConfigs {
@@ -53,17 +53,22 @@ android {
         }
         create("dogfood") {
             initWith(getByName("release"))
-            // Separate package ID avoids "App not installed" when an older
-            // dev.stackward build with a different signing key is still present.
+            // Separate package ID avoids signature conflicts with older installs.
             applicationIdSuffix = ".dogfood"
-            // Non-debuggable so Pixel/Play Protect allows sideload installs.
             isDebuggable = false
-            // Pixel phones are arm64 — shipping one ABI keeps the APK smaller
-            // and avoids corrupted partial downloads of a 100 MB universal APK.
             ndk {
                 abiFilters.clear()
                 abiFilters += "arm64-v8a"
             }
+            matchingFallbacks += listOf("release")
+            signingConfig = signingConfigs.getByName("dogfood")
+        }
+        // Tiny install-probe APK (no native libs) to diagnose sideload failures.
+        create("smoke") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".smoke"
+            versionNameSuffix = "-smoke"
+            isDebuggable = false
             matchingFallbacks += listOf("release")
             signingConfig = signingConfigs.getByName("dogfood")
         }
@@ -81,7 +86,6 @@ android {
 
     packaging {
         jniLibs {
-            // Uncompressed, 16 KB-aligned native libs for Pixel 8 page size.
             useLegacyPackaging = false
         }
         resources {
@@ -91,6 +95,13 @@ android {
 
     testOptions {
         unitTests.isIncludeAndroidResources = false
+    }
+}
+
+androidComponents {
+    onVariants(selector().withBuildType("smoke")) { variant ->
+        // Strip every .so so the probe APK is small and has no 16 KB / ELF concerns.
+        variant.packaging.jniLibs.excludes.add("**/*.so")
     }
 }
 
