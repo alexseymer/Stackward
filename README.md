@@ -31,7 +31,21 @@ export ANDROID_HOME=~/Android/Sdk
 
 Open the project in Android Studio for emulator/device testing.
 
+### Dev onboarding prefills
+
+To skip retyping SSH credentials while dogfooding, add keys from
+[`local.properties.example`](local.properties.example) to your gitignored
+`local.properties`, set `stackward.dev.prefill=true`, then rebuild debug.
+Release builds never include these values.
+
 ## Security model, in short
+
+**Invariants:** on-device inference; the model proposes, you (or a rule you
+approved) dispose.
+
+**User policy:** how privileged the SSH/API identity is, and which work is
+in scope — safe defaults (`stackward-agent`, read/maintenance), elevated
+accounts and broader scopes only with explicit acknowledgment.
 
 - **Tier 1 (routine):** read-only or pre-vetted actions, no prompt.
 - **Tier 2 (one-timer):** named elevation, explicit confirmation +

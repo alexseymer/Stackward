@@ -9,19 +9,23 @@ on earlier ones being solid.
 
 ## Phase 0 — Bootstrap Problem
 
-**Goal:** Solve the chicken-and-egg of provisioning a restricted user when no
-restricted key exists yet.
+**Goal:** Install this device’s SSH public key into a **user-chosen** account’s
+home directory (recommended: pre-created `stackward-agent`). The app does not
+run host bootstrap scripts; elevated identities need explicit acknowledgment.
 
 | Task | Status |
 |------|--------|
-| Onboarding screen: IP/port + one-time admin credential | Done (Compose UI + admin user) |
-| Show bootstrap script to user before execution (auditability) | Done (script preview step) |
-| Run `scripts/bootstrap_linux.sh` over admin SSH session | Done |
-| Discard admin credential after successful bootstrap (never store) | Done |
-| Detect host type: plain Linux / Proxmox / Docker (probe or user-declared) | Done (SSH probe) |
+| Prep info screen: recommended `sudo adduser stackward-agent` | Done |
+| Onboarding: host/port + SSH-user login (one-time password) | Done |
+| Optional port knock / jump host | Done |
+| Confirm authorized_keys install (ssh-copy-id style) | Done |
+| Detect elevated identity; require acknowledgment (not hard refuse) | Done |
+| Discard password after key install (never store on disk) | Done |
+| Detect host type: plain Linux / Proxmox / Docker (probe) | Done |
 
-**Exit criteria:** User can enter an IP and end up with a `gemma-agent` user
-on the target host, without manual server-side steps.
+**Exit criteria:** User can point the app at a host, install a key for the
+chosen SSH user, and get key-based login; password is wiped afterwards.
+Elevated accounts only proceed after risk acknowledgment.
 
 ---
 
@@ -34,13 +38,13 @@ on the target host, without manual server-side steps.
 | `AgentKeyManager`: generate ed25519 keypair in Android Keystore | Done (API 33+ Keystore, software fallback API 28–32) |
 | `setUserAuthenticationRequired(true)` — biometric per signing op | Done (Keystore path; biometric on use) |
 | Push public key to `authorized_keys` with `command=` restrictions | Done (via bootstrap) |
-| Verify restricted connection before discarding admin access | Done |
+| Verify restricted connection before discarding bootstrap secrets | Done |
 | Host key pinning (TOFU) + change alerting | Done (pin store + verifier) |
 | Jump-host support: provision agent on bastion, tunnel to internal hosts | Done (onboarding UI + bastion relay provision + per-hop TOFU) |
 | Proxmox: run `scripts/bootstrap_proxmox.sh`, store scoped API token | Done (auto during onboarding + biometric store) |
 
-**Exit criteria:** App connects to target using Keystore key only; admin
-credential is gone; host key is pinned.
+**Exit criteria:** App connects to target using Keystore key only; bootstrap
+login/sudo secrets are gone; host key is pinned.
 
 ---
 
@@ -91,7 +95,7 @@ proposals that the permission engine can parse.
 | Task | Status |
 |------|--------|
 | `PermissionEngine`: classify proposals into Tier 1/2/3 | Done |
-| Tier 1: match against `sudoers.d/gemma-agent` rules, log + execute | Done |
+| Tier 1: match against `sudoers.d/stackward-agent` rules, log + execute | Done |
 | Tier 2: confirmation UI (literal command + reason) + biometric | Done |
 | Tier 2: temporary single-use sudoers grant (write → execute → delete) | Done (`stackward-onetimer` helper) |
 | Tier 3: draft-only path for sudoers / Proxmox role changes | Done |

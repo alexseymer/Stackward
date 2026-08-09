@@ -1,24 +1,22 @@
 #!/usr/bin/env bash
-# bootstrap_linux.sh — Provision the gemma-agent identity on a Linux host.
+# bootstrap_linux.sh — OPTIONAL out-of-band admin helpers for stackward-agent.
 #
-# Run once during Stackward onboarding with a one-time admin credential.
-# Review this script before execution; it is shown to the user in the app.
+# The Stackward app does NOT run this script. App onboarding only installs a
+# public key into ~/.ssh/authorized_keys of a user-chosen SSH account
+# (recommended default on Debian: sudo adduser stackward-agent).
 #
-# Usage:
+# This script is for administrators who optionally want journal/Docker ACLs
+# or narrow sudoers helpers on the host. Run as root (or a real admin with
+# sudo) — not as stackward-agent. Review carefully before use.
+#
+# Usage (admin, on the server):
 #   sudo ./bootstrap_linux.sh <ssh-public-key>
 #
-# What it does:
-#   1. Creates gemma-agent user (locked password, SSH-key-only)
-#   2. Installs the provided public key in authorized_keys with restrictions
-#   3. Adds user to systemd-journal group (read journal without sudo)
-#   4. Grants read-only ACL on Docker container log files (not docker group)
-#   5. Creates an empty sudoers.d stub for future Tier 1 rules
-#
-# Requires: root (or passwordless sudo)
+# Requires: root (or passwordless sudo) — never invoked by the mobile app.
 
 set -euo pipefail
 
-AGENT_USER="gemma-agent"
+AGENT_USER="stackward-agent"
 AGENT_HOME="/home/${AGENT_USER}"
 AUTHORIZED_KEYS="${AGENT_HOME}/.ssh/authorized_keys"
 SUDOERS_FILE="/etc/sudoers.d/${AGENT_USER}"
@@ -89,14 +87,14 @@ cat > "${SUDOERS_FILE}" << 'SUDOERS_EOF'
 #
 # Tier 2 one-timers go through /usr/local/sbin/stackward-onetimer (installed by bootstrap).
 # Example Tier 1 (uncomment and adjust after review):
-# gemma-agent ALL=(root) NOPASSWD: /usr/bin/systemctl status *
-# gemma-agent ALL=(root) NOPASSWD: /usr/bin/systemctl restart nginx
+# stackward-agent ALL=(root) NOPASSWD: /usr/bin/systemctl status *
+# stackward-agent ALL=(root) NOPASSWD: /usr/bin/systemctl restart nginx
 #
-gemma-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-onetimer
-gemma-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-push-key *
-gemma-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-revoke-key *
-gemma-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-panic-revoke
-gemma-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-sudoers-snapshot
+stackward-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-onetimer
+stackward-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-push-key *
+stackward-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-revoke-key *
+stackward-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-panic-revoke
+stackward-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-sudoers-snapshot
 SUDOERS_EOF
 chmod 440 "${SUDOERS_FILE}"
 visudo -c -f "${SUDOERS_FILE}"

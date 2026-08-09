@@ -29,7 +29,7 @@ phone **decides** whether each proposal may execute.
                     │  │ Proxmox host │    │ (LAN hosts)      │  │
                     │  └──────┬───────┘    └──────────────────┘  │
                     │         │                                   │
-                    │         ├── SSH  (gemma-agent user)         │
+                    │         ├── SSH  (stackward-agent user)     │
                     │         └── API  (Proxmox :8006, scoped tok)│
                     └─────────────────────────────────────────────┘
 ```
@@ -119,26 +119,36 @@ User: "restart nginx, it's been returning 502s"
 ## Bootstrap Flow (Phase 0/1)
 
 ```
-User enters IP:port + one-time admin credential
+Info screen: recommended default — create restricted user
+  (Debian: sudo adduser stackward-agent)
          │
          ▼
-App shows bootstrap script (bootstrap_linux.sh / bootstrap_proxmox.sh)
-         │
-         ▼  user reviews & approves
-App runs script over SSH with admin credential
-         │
-         ├── creates gemma-agent user (locked password)
-         ├── pushes restricted public key to authorized_keys
-         ├── adds journal + Docker log ACLs
-         ├── creates empty sudoers.d/gemma-agent stub
-         └── (if Proxmox) creates scoped API token + role
+Connect as chosen SSH user with one-time password
+  (default: stackward-agent; elevated accounts allowed with ack)
          │
          ▼
-App verifies connection with new Keystore key
+Login probe: whoami / groups / passwordless sudo?
+  → if elevated: show risk warning, require explicit acknowledgment
          │
          ▼
-Admin credential discarded (never stored)
+Confirm authorized_keys install (ssh-copy-id style, home of that user)
+         │
+         ▼
+App appends device public key to ~/.ssh/authorized_keys
+         │
+         ▼
+App verifies connection with Keystore agent key
+         │
+         ▼
+Password wiped from memory (never written to disk)
 ```
+
+Proxmox `pveum` / privileged host helpers are **out-of-band admin scripts**
+(`scripts/bootstrap_*.sh`) — run as a real admin on the host, not by the
+app and not as a requirement for key-only onboarding.
+
+Remote identity power and capability scope are **user policy**. Product
+invariants remain: on-device inference and human-gated elevation.
 
 ## Log Reading (Phase 4 MVP)
 
@@ -157,6 +167,8 @@ digest runs without confirmation; on-demand queries same path.
 
 1. Model never gets raw shell access.
 2. Biometric data never leaves the device.
-3. Tier 3 (boundary changes) is unreachable from the agent's action space.
+3. Tier 3 (boundary changes) is unreachable from the automated action path.
 4. Docker group membership is opt-in with explicit warning (root-equivalent).
 5. Host key change on any hop triggers alert before reconnecting.
+6. Elevated SSH identities (root / passwordless sudo) require explicit
+   onboarding acknowledgment — never silent.
