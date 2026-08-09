@@ -1,7 +1,19 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+val keystoreProperties = Properties().apply {
+    val propsFile = rootProject.file("keystore.properties")
+    if (propsFile.exists()) {
+        load(propsFile.inputStream())
+    }
+}
+
+fun signingProp(name: String, envVar: String, default: String): String =
+    keystoreProperties.getProperty(name) ?: System.getenv(envVar) ?: default
 
 android {
     namespace = "dev.stackward"
@@ -15,13 +27,32 @@ android {
         versionName = "0.5.4-dogfood"
     }
 
+    signingConfigs {
+        create("dogfood") {
+            storeFile = file(signingProp("dogfood.storeFile", "DOGFOOD_STORE_FILE", "dogfood.keystore"))
+            storePassword = signingProp("dogfood.storePassword", "DOGFOOD_STORE_PASSWORD", "dogfood")
+            keyAlias = signingProp("dogfood.keyAlias", "DOGFOOD_KEY_ALIAS", "dogfood")
+            keyPassword = signingProp("dogfood.keyPassword", "DOGFOOD_KEY_PASSWORD", "dogfood")
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("dogfood")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("dogfood")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        create("dogfood") {
+            initWith(getByName("release"))
+            isDebuggable = true
+            matchingFallbacks += listOf("release")
+            signingConfig = signingConfigs.getByName("dogfood")
         }
     }
 

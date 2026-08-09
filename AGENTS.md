@@ -54,10 +54,14 @@ This script (on the `builds` branch only — never `main`):
 
 1. Resets `builds` to latest `origin/main`
 2. Bumps `versionCode` / `versionName` in `app/build.gradle.kts`
-3. Runs `./gradlew :app:assembleDebug` (aborts with Gradle output on failure)
-4. Commits `chore: bump version to vX.Y.Z`, pushes `builds`, and creates a GitHub
-   Release tagged `vX.Y.Z` with `app-debug.apk` attached
-5. Prints the direct APK download URL
+3. Runs `./gradlew :app:assembleDogfood` (aborts with Gradle output on failure)
+4. Verifies the APK signature with `apksigner` before publishing
+5. Commits `chore: bump version to vX.Y.Z`, pushes `builds`, and creates a GitHub
+   Release tagged `vX.Y.Z` with `app-dogfood.apk` attached
+6. Prints the direct APK download URL
+
+All release APKs are signed with the shared `app/dogfood.keystore` (committed;
+dogfood-only, not for Play Store) so installs upgrade consistently across builds.
 
 Use `DRY_RUN=1 ./scripts/release_apk.sh` to preview the version bump without
 building or publishing. Optional `SOURCE_REF=origin/<branch>` builds from another ref.
