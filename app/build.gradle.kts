@@ -23,8 +23,8 @@ android {
         applicationId = "dev.stackward"
         minSdk = 28
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.5.4-dogfood"
+        versionCode = 7
+        versionName = "0.5.6-dogfood"
     }
 
     signingConfigs {
@@ -33,6 +33,9 @@ android {
             storePassword = signingProp("dogfood.storePassword", "DOGFOOD_STORE_PASSWORD", "dogfood")
             keyAlias = signingProp("dogfood.keyAlias", "DOGFOOD_KEY_ALIAS", "dogfood")
             keyPassword = signingProp("dogfood.keyPassword", "DOGFOOD_KEY_PASSWORD", "dogfood")
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
@@ -50,7 +53,8 @@ android {
         }
         create("dogfood") {
             initWith(getByName("release"))
-            isDebuggable = true
+            // Non-debuggable so Pixel/Play Protect allows sideload installs.
+            isDebuggable = false
             matchingFallbacks += listOf("release")
             signingConfig = signingConfigs.getByName("dogfood")
         }
@@ -67,6 +71,10 @@ android {
     }
 
     packaging {
+        jniLibs {
+            // Compress native libs for reliable sideload installs on Pixel 8 (16 KB page size).
+            useLegacyPackaging = true
+        }
         resources {
             excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
         }

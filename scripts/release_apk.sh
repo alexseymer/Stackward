@@ -60,13 +60,40 @@ find_apksigner() {
 }
 
 verify_apk_signed() {
-  local apksigner
+  local apksigner verify_output
   apksigner="$(find_apksigner)"
 
   echo "==> Verifying APK signature"
-  if ! "${apksigner}" verify --verbose "${APK_PATH}"; then
+  verify_output="$("${apksigner}" verify --verbose "${APK_PATH}" 2>&1)" || {
+    echo "${verify_output}" >&2
     die "APK failed signature verification — release aborted"
+  }
+  echo "${verify_output}"
+
+  if ! grep -qE 'Verified using v[123] scheme.*: true' <<<"${verify_output}"; then
+    die "APK must be signed with v1, v2, or v3 scheme"
   fi
+
+  if find_aapt | xargs -I{} {} dump badging "${APK_PATH}" 2>/dev/null | grep -q 'application-debuggable'; then
+    die "APK is debuggable — sideload installs are often blocked on Pixel devices"
+  fi
+}
+
+find_aapt() {
+  local sdk_dir build_tools
+  if [[ -n "${ANDROID_HOME:-}" ]]; then
+    sdk_dir="${ANDROID_HOME}"
+  elif [[ -f local.properties ]]; then
+    sdk_dir="$(grep '^sdk.dir=' local.properties | cut -d= -f2- | tr -d '\r' | sed 's/\\:/:/g' | sed 's/^"//;s/"$//')"
+  fi
+  if [[ -n "${sdk_dir}" && -d "${sdk_dir}/build-tools" ]]; then
+    build_tools="$(find "${sdk_dir}/build-tools" -maxdepth 1 -mindepth 1 -type d | sort -V | tail -n 1)"
+    if [[ -x "${build_tools}/aapt" ]]; then
+      echo "${build_tools}/aapt"
+      return
+    fi
+  fi
+  command -v aapt 2>/dev/null || true
 }
 
 read_version_fields() {
@@ -154,6 +181,11 @@ print_download_url() {
   echo ""
   echo "Open on your phone:"
   echo "  https://github.com/${repo}/releases/tag/${TAG}"
+  echo ""
+  echo "Install tips (Pixel):"
+  echo "  1. Uninstall any existing Stackward build first (older releases used a different signing key)."
+  echo "  2. Download in Chrome, open the .apk from Downloads, and tap Install."
+  echo "  3. If Play Protect warns, tap Install anyway (or More details → Install anyway)."
 }
 
 main() {
@@ -202,7 +234,7 @@ ${summary}"
   git commit -m "chore: bump version to ${TAG}"
 
   echo "==> Pushing ${BUILDS_BRANCH}"
-  git push -u origin "${BUILDS_BRANCH}"
+  git push --force-with-lease -u origin "${BUILDS_BRANCH}"
 
   echo "==> Creating GitHub release ${TAG}"
   gh release create "${TAG}" \
