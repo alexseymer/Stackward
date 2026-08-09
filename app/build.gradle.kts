@@ -23,8 +23,8 @@ android {
         applicationId = "dev.stackward"
         minSdk = 28
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.5.5-dogfood"
+        versionCode = 7
+        versionName = "0.5.6-dogfood"
     }
 
     signingConfigs {
