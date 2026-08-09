@@ -20,7 +20,7 @@ SOURCE_REF="${SOURCE_REF:-origin/main}"
 BUILDS_BRANCH="builds"
 BUILD_FILE="app/build.gradle.kts"
 APK_PATH="app/build/outputs/apk/dogfood/app-dogfood.apk"
-APK_ASSET_NAME="app-dogfood.apk"
+APK_ASSET_NAME="Stackward-arm64.apk"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cd "${REPO_ROOT}"
@@ -77,26 +77,6 @@ verify_apk_signed() {
   if find_aapt | xargs -I{} {} dump badging "${APK_PATH}" 2>/dev/null | grep -q 'application-debuggable'; then
     die "APK is debuggable — sideload installs are often blocked on Pixel devices"
   fi
-}
-
-resign_apk() {
-  local apksigner keystore
-  apksigner="$(find_apksigner)"
-  keystore="app/dogfood.keystore"
-  [[ -f "${keystore}" ]] || die "missing ${keystore} for APK signing"
-
-  echo "==> Re-signing APK with v1+v2 schemes"
-  "${apksigner}" sign \
-    --ks "${keystore}" \
-    --ks-pass pass:dogfood \
-    --key-pass pass:dogfood \
-    --ks-key-alias dogfood \
-    --v1-signing-enabled true \
-    --v2-signing-enabled true \
-    --v3-signing-enabled false \
-    --out "${APK_PATH}.signed" \
-    "${APK_PATH}"
-  mv "${APK_PATH}.signed" "${APK_PATH}"
 }
 
 find_aapt() {
@@ -198,15 +178,18 @@ print_download_url() {
   echo "    Tag:     ${TAG}"
   echo "    Branch:  ${BUILDS_BRANCH}"
   echo "    APK URL: ${url}"
+  echo "    SHA256:  ${APK_SHA256}"
+  echo "    Size:    ${APK_BYTES} bytes"
   echo ""
   echo "Open on your phone:"
   echo "  https://github.com/${repo}/releases/tag/${TAG}"
   echo ""
   echo "Install tips (Pixel):"
-  echo "  1. This build installs as package dev.stackward.dogfood (label: Stackward)."
-  echo "  2. Download in Chrome, open the .apk from Downloads, and tap Install."
-  echo "  3. If Play Protect warns, tap Install anyway (or More details → Install anyway)."
-  echo "  4. You can uninstall any older failed Stackward installs afterward."
+  echo "  1. This build installs as dev.stackward.dogfood (label: Stackward), arm64 only."
+  echo "  2. In Chrome: long-press the download link → Download link. Do NOT use the GitHub app."
+  echo "  3. After download, confirm file size is ${APK_BYTES} bytes in Files → Downloads."
+  echo "  4. Tap the .apk → Install. If Play Protect warns → Install anyway."
+  echo "  5. With USB debugging: adb install -r ${APK_ASSET_NAME} shows the real error code."
 }
 
 main() {
@@ -243,14 +226,19 @@ main() {
   fi
 
   [[ -f "${APK_PATH}" ]] || die "expected APK at ${APK_PATH} after build"
-  resign_apk
   verify_apk_signed
+
+  APK_SHA256="$(sha256sum "${APK_PATH}" | awk '{print $1}')"
+  APK_BYTES="$(wc -c < "${APK_PATH}" | tr -d ' ')"
 
   local summary notes
   summary="$(summarize_changes)"
   notes="${TAG}
 
-${summary}"
+${summary}
+
+SHA256: ${APK_SHA256}
+Size: ${APK_BYTES} bytes (verify after download — a truncated file causes \"App not installed\")."
 
   git add "${BUILD_FILE}"
   git commit -m "chore: bump version to ${TAG}"
@@ -260,7 +248,7 @@ ${summary}"
 
   echo "==> Creating GitHub release ${TAG}"
   gh release create "${TAG}" \
-    "${APK_PATH}" \
+    "${APK_PATH}#${APK_ASSET_NAME}" \
     --target "${BUILDS_BRANCH}" \
     --title "${TAG}" \
     --notes "${notes}"

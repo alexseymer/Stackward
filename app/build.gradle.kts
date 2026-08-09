@@ -23,8 +23,8 @@ android {
         applicationId = "dev.stackward"
         minSdk = 28
         targetSdk = 35
-        versionCode = 8
-        versionName = "0.5.7-dogfood"
+        versionCode = 9
+        versionName = "0.5.8-dogfood"
     }
 
     signingConfigs {
@@ -58,6 +58,12 @@ android {
             applicationIdSuffix = ".dogfood"
             // Non-debuggable so Pixel/Play Protect allows sideload installs.
             isDebuggable = false
+            // Pixel phones are arm64 — shipping one ABI keeps the APK smaller
+            // and avoids corrupted partial downloads of a 100 MB universal APK.
+            ndk {
+                abiFilters.clear()
+                abiFilters += "arm64-v8a"
+            }
             matchingFallbacks += listOf("release")
             signingConfig = signingConfigs.getByName("dogfood")
         }
@@ -75,8 +81,8 @@ android {
 
     packaging {
         jniLibs {
-            // Compress native libs for reliable sideload installs on Pixel 8 (16 KB page size).
-            useLegacyPackaging = true
+            // Uncompressed, 16 KB-aligned native libs for Pixel 8 page size.
+            useLegacyPackaging = false
         }
         resources {
             excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
