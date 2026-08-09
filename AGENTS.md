@@ -41,3 +41,23 @@ APK plus the user's own external infrastructure. See `README.md`, `PRD.md`, and
   model file (see `docs/MODEL_SETUP.md`). None of that is available in this VM.
 - Git workflow: never push to `main`; use a `cursor/…` branch + draft PR and request
   review from `alexseymer` (see `.cursor/rules/git-workflow.mdc`).
+
+### Phone test builds (debug APK releases)
+
+When the user says **"cut a new build"** (or asks for a test APK release), run:
+
+```bash
+./scripts/release_apk.sh
+```
+
+This script (on the `builds` branch only — never `main`):
+
+1. Resets `builds` to latest `origin/main`
+2. Bumps `versionCode` / `versionName` in `app/build.gradle.kts`
+3. Runs `./gradlew :app:assembleDebug` (aborts with Gradle output on failure)
+4. Commits `chore: bump version to vX.Y.Z`, pushes `builds`, and creates a GitHub
+   Release tagged `vX.Y.Z` with `app-debug.apk` attached
+5. Prints the direct APK download URL
+
+Use `DRY_RUN=1 ./scripts/release_apk.sh` to preview the version bump without
+building or publishing. Optional `SOURCE_REF=origin/<branch>` builds from another ref.
