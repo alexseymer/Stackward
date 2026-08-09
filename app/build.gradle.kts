@@ -11,8 +11,8 @@ android {
         applicationId = "dev.stackward"
         minSdk = 28
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.5.4-dogfood"
+        versionCode = 6
+        versionName = "0.5.5-dogfood"
     }
 
     buildTypes {
