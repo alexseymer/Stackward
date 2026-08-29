@@ -46,7 +46,7 @@ class Tier1RulesSyncer(
 
     companion object {
         private val NOPASSWD_REGEX = Regex(
-            """^gemma-agent\s+ALL=\(root\)\s+NOPASSWD:\s+(.+)$""",
+            """^stackward-agent\s+ALL=\(root\)\s+NOPASSWD:\s+(.+)$""",
         )
 
         fun parseSudoersSnapshot(raw: String): List<String> {

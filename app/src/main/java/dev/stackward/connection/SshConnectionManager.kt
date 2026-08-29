@@ -9,6 +9,8 @@ import kotlinx.coroutines.withContext
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.connection.channel.direct.DirectConnection
 import net.schmizz.sshj.connection.channel.direct.Session
+import net.schmizz.sshj.userauth.keyprovider.OpenSSHKeyFile
+import java.io.StringReader
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
@@ -25,7 +27,7 @@ class SshConnectionManager(
     suspend fun execute(
         profile: ServerProfile,
         command: String,
-        username: String = AGENT_USERNAME,
+        username: String = profile.username,
         keyAlias: String? = null,
     ): String = executeWithRetry(
         profile = profile,
@@ -37,7 +39,7 @@ class SshConnectionManager(
     suspend fun executeWithRetry(
         profile: ServerProfile,
         command: String,
-        username: String = AGENT_USERNAME,
+        username: String = profile.username,
         keyAlias: String? = null,
         maxAttempts: Int = DEFAULT_RETRY_ATTEMPTS,
     ): String = withContext(Dispatchers.IO) {
@@ -152,10 +154,37 @@ class SshConnectionManager(
         }
     }
 
+    suspend fun installAuthorizedKey(
+        config: SshConnectionConfig,
+        publicKeyOpenSsh: String,
+        jumpHost: String? = null,
+        jumpHostPort: Int = 22,
+        jumpHostKeyFingerprint: String? = null,
+    ): SshCommandResult {
+        val trimmedKey = publicKeyOpenSsh.trim()
+        require(trimmedKey.isNotEmpty()) { "Public key required" }
+        val quotedKey = shellSingleQuote(trimmedKey)
+        val command = """
+            set -e
+            mkdir -p ~/.ssh && chmod 700 ~/.ssh
+            touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+            grep -Fqx $quotedKey ~/.ssh/authorized_keys || echo $quotedKey >> ~/.ssh/authorized_keys
+            echo STACKWARD_KEY_INSTALLED=1
+        """.trimIndent()
+        return executeCommand(
+            config = config,
+            command = command,
+            jumpHost = jumpHost,
+            jumpHostPort = jumpHostPort,
+            jumpHostKeyFingerprint = jumpHostKeyFingerprint,
+        )
+    }
+
     suspend fun verifyAgentConnection(
         host: String,
         port: Int,
         expectedFingerprint: String,
+        username: String = AGENT_USERNAME,
         keyAlias: String? = null,
         jumpHost: String? = null,
         jumpHostPort: Int = 22,
@@ -164,7 +193,7 @@ class SshConnectionManager(
         config = SshConnectionConfig(
             host = host,
             port = port,
-            username = AGENT_USERNAME,
+            username = username,
             useAgentKey = true,
         ),
         command = "whoami && id -Gn",
@@ -193,7 +222,7 @@ class SshConnectionManager(
             config = SshConnectionConfig(
                 host = profile.host,
                 port = profile.port,
-                username = AGENT_USERNAME,
+                username = profile.username,
                 useAgentKey = true,
             ),
             expectedFingerprint = profile.hostKeyFingerprint,
@@ -329,6 +358,14 @@ class SshConnectionManager(
                     ?: throw SshException("Agent SSH key not found on device ($alias)")
                 client.authPublickey(config.username, AgentSshKeyProvider(keyPair))
             }
+            !config.privateKeyPem.isNullOrBlank() -> {
+                val keyProvider = OpenSSHKeyFile()
+                keyProvider.init(
+                    StringReader(config.privateKeyPem),
+                    config.privateKeyPassphrase?.takeIf { it.isNotBlank() },
+                )
+                client.authPublickey(config.username, keyProvider)
+            }
             !config.password.isNullOrBlank() -> {
                 client.authPassword(config.username, config.password)
             }
@@ -372,7 +409,7 @@ class SshConnectionManager(
     )
 
     companion object {
-        const val AGENT_USERNAME = "gemma-agent"
+        const val AGENT_USERNAME = ServerProfile.DEFAULT_AGENT_USERNAME
         private const val CONNECT_TIMEOUT_MS = 15_000L
         private const val COMMAND_TIMEOUT_MS = 120_000L
         private const val DEFAULT_RETRY_ATTEMPTS = 3

@@ -10,12 +10,12 @@ class ProxmoxBootstrapParserTest {
     fun parse_extractsTokenFromBootstrapMarker() {
         val stdout = """
             ==> Proxmox bootstrap complete.
-            STACKWARD_TOKEN_JSON={"data":{"full-tokenid":"gemma-agent@pve!stackward","value":"abc-secret-123"}}
+            STACKWARD_TOKEN_JSON={"data":{"full-tokenid":"stackward-agent@pve!stackward","value":"abc-secret-123"}}
         """.trimIndent()
 
         val credentials = ProxmoxBootstrapParser.parse(stdout)
 
-        assertEquals("gemma-agent@pve!stackward", credentials?.tokenId)
+        assertEquals("stackward-agent@pve!stackward", credentials?.tokenId)
         assertEquals("abc-secret-123", credentials?.tokenSecret)
     }
 
@@ -26,11 +26,11 @@ class ProxmoxBootstrapParserTest {
 
     @Test
     fun parse_acceptsFlatJsonShape() {
-        val stdout = """STACKWARD_TOKEN_JSON={"tokenid":"gemma-agent@pve!stackward","secret":"flat-secret"}"""
+        val stdout = """STACKWARD_TOKEN_JSON={"tokenid":"stackward-agent@pve!stackward","secret":"flat-secret"}"""
 
         val credentials = ProxmoxBootstrapParser.parse(stdout)
 
-        assertEquals("gemma-agent@pve!stackward", credentials?.tokenId)
+        assertEquals("stackward-agent@pve!stackward", credentials?.tokenId)
         assertEquals("flat-secret", credentials?.tokenSecret)
     }
 }

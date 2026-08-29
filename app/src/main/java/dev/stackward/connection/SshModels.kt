@@ -8,6 +8,8 @@ data class SshConnectionConfig(
     val port: Int = 22,
     val username: String,
     val password: String? = null,
+    val privateKeyPem: String? = null,
+    val privateKeyPassphrase: String? = null,
     val useAgentKey: Boolean = false,
 )
 

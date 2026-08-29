@@ -47,6 +47,7 @@ class ServerProfileRepository(context: Context) {
         put("id", id)
         put("host", host)
         put("port", port)
+        put("username", username)
         put("hostType", hostType.name)
         put("hostKeyFingerprint", hostKeyFingerprint)
         put("jumpHost", jumpHost)
@@ -60,6 +61,7 @@ class ServerProfileRepository(context: Context) {
         id = getString("id"),
         host = getString("host"),
         port = getInt("port"),
+        username = optString("username").ifBlank { ServerProfile.DEFAULT_AGENT_USERNAME },
         hostType = HostType.valueOf(getString("hostType")),
         hostKeyFingerprint = getString("hostKeyFingerprint"),
         jumpHost = optString("jumpHost").ifBlank { null },

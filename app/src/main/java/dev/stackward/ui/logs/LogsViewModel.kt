@@ -305,7 +305,7 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
                         containers = containers,
                         isLoading = false,
                         error = if (containers.isEmpty()) {
-                            "No Docker log directories visible for gemma-agent."
+                            "No Docker log directories visible for stackward-agent."
                         } else {
                             null
                         },

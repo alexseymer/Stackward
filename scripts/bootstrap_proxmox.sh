@@ -9,7 +9,7 @@
 #
 # What it does:
 #   1. Creates a custom Proxmox role with minimal privileges
-#   2. Creates gemma-agent@pve user (if not exists)
+#   2. Creates stackward-agent@pve user (if not exists)
 #   3. Assigns the role to the user
 #   4. Generates a scoped API token and prints it (store in Android Keystore)
 #
@@ -22,7 +22,7 @@
 
 set -euo pipefail
 
-PVE_USER="gemma-agent@pve"
+PVE_USER="stackward-agent@pve"
 ROLE_ID="stackward-agent"
 TOKEN_NAME="stackward"
 
