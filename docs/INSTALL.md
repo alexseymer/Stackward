@@ -1,38 +1,74 @@
-# Installing Stackward dogfood APKs (Pixel)
+# Installing Stackward on a Pixel (2026)
 
-Chrome's **"App not installed"** message hides the real PackageManager error.
-In August 2026 Google is also rolling out **Android developer verification**, which
-can block sideloads from unverified signing keys unless you use ADB or the
-advanced power-user flow.
+**Do not rely on Chrome “Open APK → Install”.** On Pixel phones in mid‑2026,
+Google’s **Android developer verification** / Play Protect often rejects
+sideloaded APKs from unverified signing keys with a useless **"App not installed"**
+dialog. That message does **not** mean the APK is corrupt.
 
-## Preferred: install with ADB
+The reliable path is **ADB** (USB or wireless). ADB installs bypass that check
+and print the real PackageManager error if something is actually wrong.
 
-1. On the Pixel: **Settings → About phone → Build number** (tap 7×) to enable Developer options.
-2. **Settings → System → Developer options → USB debugging** → on.
-3. Plug into a computer with [`platform-tools`](https://developer.android.com/tools/releases/platform-tools) / `adb`.
-4. Download the APK from the GitHub Release, then:
+## Install with wireless ADB (no cable)
+
+On the Pixel:
+
+1. **Settings → About phone → Build number** — tap 7 times.
+2. **Settings → System → Developer options**:
+   - **USB debugging** → on
+   - **Wireless debugging** → on
+3. Tap **Wireless debugging** → **Pair device with pairing code**.
+   Note the **IP:port** and **pairing code**.
+
+On a computer (Mac/Linux/Windows) with
+[platform-tools](https://developer.android.com/tools/releases/platform-tools):
 
 ```bash
-adb devices          # phone should show as "device"
+# 1) Pair (use the pairing port + code from the phone dialog)
+adb pair <PHONE_IP>:<PAIRING_PORT>
+# enter the pairing code when prompted
+
+# 2) Connect (use the *connection* IP:port shown on the Wireless debugging screen)
+adb connect <PHONE_IP>:<CONNECTION_PORT>
+adb devices   # should list the phone as "device"
+
+# 3) Download the release APK on the computer, then:
 adb install -r app-dogfood.apk
 ```
 
-If it fails, `adb` prints the **real** reason, e.g.:
+Success looks like: `Success`
 
-| Code | Meaning |
-|------|---------|
-| `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | Old Stackward still installed with a different key — uninstall it first |
-| `INSTALL_FAILED_INSUFFICIENT_STORAGE` | Free more space |
-| `INSTALL_PARSE_FAILED_NO_CERTIFICATES` | Truncated / corrupt download |
-| `INSTALL_FAILED_VERIFICATION_FAILURE` | Play Protect / developer verification — see below |
+## Install with USB cable
 
-## Sideload checklist (if you cannot use ADB)
+```bash
+adb devices
+adb install -r app-dogfood.apk
+```
 
-1. Download in **Chrome** (not the GitHub app). Confirm the file size matches the release notes.
-2. **Settings → Apps → Special app access → Install unknown apps → Chrome → Allow**.
-3. Play Store → profile → **Play Protect → Settings** → turn off **Scan apps with Play Protect** temporarily.
-4. Open the APK from **Files → Downloads** and install.
-5. If Android blocks an **unverified developer**, use ADB (above) or Google's advanced sideload flow in Developer options (may require a waiting period).
+## If `adb install` fails
+
+Paste the **exact** `adb` output. Common codes:
+
+| Code | Fix |
+|------|-----|
+| `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | Uninstall any old Stackward / `dev.stackward*` apps first |
+| `INSTALL_FAILED_INSUFFICIENT_STORAGE` | Free ~200 MB |
+| `INSTALL_PARSE_FAILED_NO_CERTIFICATES` | Re-download the APK on the computer (file was truncated) |
+| `INSTALL_FAILED_VERIFICATION_FAILURE` | Play Protect — disable scan temporarily, or `adb install -r -t` / `-d` as needed |
+
+Uninstall leftovers:
+
+```bash
+adb uninstall dev.stackward.dogfood
+adb uninstall dev.stackward.smoke
+adb uninstall dev.stackward
+```
+
+## Current package IDs
+
+| Build | Package | Use |
+|-------|---------|-----|
+| dogfood | `dev.stackward.dogfood` | Full phone-test app (label: **Stackward**) |
+| smoke | `dev.stackward.smoke` | Install probe only |
 
 ## Revoke agent access without the phone (lost device)
 
@@ -57,12 +93,7 @@ pveum user token remove stackward-agent@pve stackward
 
 Re-onboard a replacement device with a fresh key when ready.
 
-## Smoke vs dogfood
+## Chrome sideload (not recommended)
 
-| Build | Package ID | Contents |
-|-------|------------|----------|
-| `smoke` | `dev.stackward.smoke` | Tiny APK, **no** native MediaPipe libs — install probe only |
-| `dogfood` | `dev.stackward.dogfood` | Full app (arm64), on-device LLM libs included |
-
-If **smoke** installs but **dogfood** does not, the failure is in native-lib packaging.
-If **neither** installs, the failure is device policy / Play Protect / developer verification — use ADB.
+Only try this after ADB works once. Chrome installs of unverified APKs are
+commonly blocked in 2026 even when the APK is valid.

@@ -39,8 +39,8 @@ android {
         applicationId = "dev.stackward"
         minSdk = 28
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.5.9-dogfood"
+        versionCode = 11
+        versionName = "0.5.10-dogfood"
 
         buildConfigField("boolean", "DEV_PREFILL", "false")
         buildConfigField("String", "DEV_HOST", "\"\"")
@@ -124,7 +124,9 @@ android {
 
     packaging {
         jniLibs {
-            useLegacyPackaging = false
+            // Compress native libs and extract at install time. Avoids Pixel
+            // PackageInstaller failures with large uncompressed MediaPipe .so files.
+            useLegacyPackaging = true
         }
         resources {
             excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
@@ -150,7 +152,7 @@ kotlin {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2026.06.01")
+    val composeBom = platform("androidx.compose:compose-bom:2026.08.00")
 
     implementation("androidx.core:core-ktx:1.19.0")
     implementation("androidx.activity:activity-compose:1.13.0")
@@ -174,8 +176,8 @@ dependencies {
 
     // SSH — Phase 1 (full BC replaces Android's stripped provider for X25519/Ed25519)
     implementation("com.hierynomus:sshj:0.40.0")
-    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
-    implementation("org.bouncycastle:bcpkix-jdk18on:1.78.1")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.85.2")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.85.2")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20260719")
