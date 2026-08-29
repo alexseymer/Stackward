@@ -34,6 +34,29 @@ If it fails, `adb` prints the **real** reason, e.g.:
 4. Open the APK from **Files → Downloads** and install.
 5. If Android blocks an **unverified developer**, use ADB (above) or Google's advanced sideload flow in Developer options (may require a waiting period).
 
+## Revoke agent access without the phone (lost device)
+
+If the phone is lost or wiped, revoke Stackward's SSH access from an admin account
+on the host (not via the app):
+
+1. SSH to the host as an admin user (root or sudo).
+2. Run the panic helper installed by [`scripts/bootstrap_linux.sh`](../scripts/bootstrap_linux.sh):
+
+```bash
+sudo /usr/local/sbin/stackward-panic-revoke
+```
+
+This clears `~stackward-agent/.ssh/authorized_keys`. Alternatively, edit that file
+manually and remove the device's public key line.
+
+3. On Proxmox, revoke the API token if one was issued:
+
+```bash
+pveum user token remove stackward-agent@pve stackward
+```
+
+Re-onboard a replacement device with a fresh key when ready.
+
 ## Smoke vs dogfood
 
 | Build | Package ID | Contents |

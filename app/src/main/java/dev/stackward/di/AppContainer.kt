@@ -50,6 +50,7 @@ class AppContainer(context: Context) {
     val permissionExecutor = PermissionExecutor(
         engine = permissionEngine,
         auditLog = auditLogRepository,
+        securitySettings = securitySettings,
         proxmoxApi = proxmoxApi,
     )
     val tier1RulesSyncer = Tier1RulesSyncer(

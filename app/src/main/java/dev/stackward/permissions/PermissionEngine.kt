@@ -68,7 +68,12 @@ class PermissionEngine(
 
     fun currentTier1Rules(): List<String> = tier1Rules
 
-    fun evaluate(proposal: ActionProposal): PermissionDecision {
+    fun evaluate(
+        proposal: ActionProposal,
+        capabilityPack: CapabilityPack = CapabilityPack.MAINTAIN,
+    ): PermissionDecision {
+        capabilityDenial(proposal, capabilityPack)?.let { return it }
+
         return when (proposal.tier) {
             PermissionTier.ROUTINE -> {
                 if (isAllowedRoutine(proposal)) {
@@ -93,6 +98,29 @@ class PermissionEngine(
             PermissionTier.BOUNDARY_CHANGE -> PermissionDecision.DraftOnly(
                 proposal,
                 suggestedDiff = buildSudoersDiff(proposal),
+            )
+        }
+    }
+
+    private fun capabilityDenial(
+        proposal: ActionProposal,
+        capabilityPack: CapabilityPack,
+    ): PermissionDecision? {
+        return when (capabilityPack) {
+            CapabilityPack.MONITOR -> {
+                if (proposal.tier != PermissionTier.ROUTINE) {
+                    PermissionDecision.Deny(
+                        proposal,
+                        "Enable the Maintain capability pack in Settings for maintenance actions.",
+                    )
+                } else {
+                    null
+                }
+            }
+            CapabilityPack.MAINTAIN -> null
+            CapabilityPack.PROVISION -> PermissionDecision.Deny(
+                proposal,
+                "Provision capability pack is not available in v1.",
             )
         }
     }

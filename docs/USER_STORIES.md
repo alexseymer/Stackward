@@ -35,8 +35,7 @@ public key into `~/.ssh/authorized_keys`, then wipes the password.
 | Bootstrap password is wiped from memory/storage after key install | ✅ |
 | Post-setup SSH sessions use the username chosen at onboarding (stored in `ServerProfile`) | ✅ |
 
-**Known gaps:** none for core key-install path after identity unification; heuristic
-digest flags and NL query UI remain open (Epic B/C).
+**Known gaps:** none for core onboarding path. Remaining v1 gaps: push notifications (B3), host-key UI (E6), docker-group opt-in (F3).
 
 **Phase:** [Phase 0/1](PHASES.md#phase-1--key--user-provisioning)
 
@@ -51,7 +50,7 @@ me and requires explicit acknowledgment before key install.
 |----|--------|
 | Login probe detects root and/or passwordless sudo | ✅ |
 | UI blocks provision until acknowledgment checkbox/tap | ✅ |
-| Elevated identity noted in audit trail | ⚠️ (F2) |
+| Elevated identity noted in audit trail | ✅ |
 
 **Phase:** [Phase 0](PHASES.md#phase-0--bootstrap-problem)
 
@@ -114,9 +113,9 @@ schedule without me opening the app.
 |----|--------|
 | WorkManager runs hourly digest worker | ✅ |
 | Journal: error-level entries from last hour | ✅ |
-| Docker: container log tails (not just container IDs) | ⚠️ |
+| Docker: container log tails (not just container IDs) | ✅ |
 | Proxmox: task log via scoped API token (when configured) | ✅ |
-| Heuristic anomaly flags (errors, failed tasks, restart loops) | ❌ |
+| Heuristic anomaly flags (errors, failed tasks, restart loops) | ✅ |
 
 **Clarification:** v1 "anomaly" means heuristic flags, not raw log dumps only.
 Optional on-device AI summary when a Gemma model is loaded.
@@ -196,8 +195,8 @@ and get an on-device summary tied to that question.
 
 | AC | Status |
 |----|--------|
-| Question text field on Logs screen | ❌ |
-| `summarizeCurrentLogs(userQuestion)` receives the question | ⚠️ (API exists, UI missing) |
+| Question text field on Logs screen | ✅ |
+| `summarizeCurrentLogs(userQuestion)` receives the question | ✅ |
 
 ---
 
@@ -208,7 +207,7 @@ status and recent logs, not logs alone.
 
 | AC | Status |
 |----|--------|
-| `docker inspect` health/status included in context | ❌ |
+| `docker inspect` health/status included in context | ✅ (when `docker` CLI available) |
 | Recent json-log tail for selected container | ✅ |
 
 ---
@@ -278,8 +277,8 @@ the model may only propose actions allowed by my pack. Human gates unchanged.
 
 | AC | Status |
 |----|--------|
-| Settings selector for capability pack | ❌ |
-| PermissionEngine rejects out-of-pack proposals | ❌ |
+| Settings selector for capability pack | ✅ |
+| PermissionEngine rejects out-of-pack proposals | ✅ |
 
 **PRD decision:** [§10 Capability packs](../PRD.md#10-decisions-resolved)
 
@@ -310,7 +309,7 @@ admin path without the app.
 
 | AC | Status |
 |----|--------|
-| Documented admin procedure (SSH as admin → `stackward-panic-revoke` or manual `authorized_keys` edit) | ⚠️ (scripts exist; doc in [INSTALL.md](INSTALL.md) TBD) |
+| Documented admin procedure (SSH as admin → `stackward-panic-revoke` or manual `authorized_keys` edit) | ✅ ([INSTALL.md](INSTALL.md)) |
 | In-app revoke useless without phone (expected) | ✅ |
 
 ---
@@ -373,7 +372,7 @@ See [D5](#d5--capability-pack-gates-proposals).
 
 | AC | Status |
 |----|--------|
-| Audit entry at onboarding when elevated ack given | ❌ |
+| Audit entry at onboarding when elevated ack given | ✅ |
 
 ---
 
