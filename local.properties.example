@@ -1,0 +1,14 @@
+# Copy to local.properties (gitignored) for debug dogfooding prefill.
+# Requires stackward.dev.prefill=true and a debug build.
+
+sdk.dir=/path/to/Android/Sdk
+
+# stackward.dev.prefill=true
+# stackward.dev.host=192.168.1.10
+# stackward.dev.port=22
+# stackward.dev.username=stackward-agent
+# stackward.dev.sshPassword=
+# stackward.dev.knockSequence=
+# stackward.dev.useJumpHost=false
+# stackward.dev.jumpHost=
+# stackward.dev.jumpPort=22

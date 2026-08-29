@@ -10,6 +10,7 @@ import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.connection.channel.direct.DirectConnection
 import net.schmizz.sshj.connection.channel.direct.Session
 import net.schmizz.sshj.userauth.keyprovider.OpenSSHKeyFile
+import net.schmizz.sshj.userauth.password.PasswordUtils
 import java.io.StringReader
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
@@ -362,7 +363,7 @@ class SshConnectionManager(
                 val keyProvider = OpenSSHKeyFile()
                 keyProvider.init(
                     StringReader(config.privateKeyPem),
-                    config.privateKeyPassphrase?.takeIf { it.isNotBlank() },
+                    PasswordUtils.createOneOff(config.privateKeyPassphrase?.toCharArray()),
                 )
                 client.authPublickey(config.username, keyProvider)
             }
