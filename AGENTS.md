@@ -58,10 +58,13 @@ This script (on the `builds` branch only — never `main`):
 4. Verifies the APK signature with `apksigner` before publishing
 5. Commits `chore: bump version to vX.Y.Z`, pushes `builds`, and creates a GitHub
    Release tagged `vX.Y.Z` with `app-dogfood.apk` attached
-6. Prints the direct APK download URL
+6. Prints the direct APK download URL **and reminds the user to install via
+   `adb install -r`** (Chrome sideload often fails with "App not installed" under
+   Android 2026 developer verification — see `docs/INSTALL.md`)
 
 All release APKs are signed with the shared `app/dogfood.keystore` (committed;
 dogfood-only, not for Play Store) so installs upgrade consistently across builds.
 
 Use `DRY_RUN=1 ./scripts/release_apk.sh` to preview the version bump without
 building or publishing. Optional `SOURCE_REF=origin/<branch>` builds from another ref.
+`BUILD_TYPE=smoke ./scripts/release_apk.sh` publishes a no-native-libs install probe.
