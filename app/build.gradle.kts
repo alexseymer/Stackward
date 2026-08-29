@@ -130,6 +130,9 @@ android {
         }
         resources {
             excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            // BouncyCastle ships LICENSE/NOTICE in bcprov, bcpkix, and bcutil.
+            excludes += "/META-INF/LICENSE.md"
+            excludes += "/META-INF/NOTICE.md"
         }
     }
 
