@@ -70,6 +70,29 @@ adb uninstall dev.stackward
 | dogfood | `dev.stackward.dogfood` | Full phone-test app (label: **Stackward**) |
 | smoke | `dev.stackward.smoke` | Install probe only |
 
+## Revoke agent access without the phone (lost device)
+
+If the phone is lost or wiped, revoke Stackward's SSH access from an admin account
+on the host (not via the app):
+
+1. SSH to the host as an admin user (root or sudo).
+2. Run the panic helper installed by [`scripts/bootstrap_linux.sh`](../scripts/bootstrap_linux.sh):
+
+```bash
+sudo /usr/local/sbin/stackward-panic-revoke
+```
+
+This clears `~stackward-agent/.ssh/authorized_keys`. Alternatively, edit that file
+manually and remove the device's public key line.
+
+3. On Proxmox, revoke the API token if one was issued:
+
+```bash
+pveum user token remove stackward-agent@pve stackward
+```
+
+Re-onboard a replacement device with a fresh key when ready.
+
 ## Chrome sideload (not recommended)
 
 Only try this after ADB works once. Chrome installs of unverified APKs are

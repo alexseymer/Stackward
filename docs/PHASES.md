@@ -8,10 +8,10 @@ on earlier ones being solid.
 ## Current stage
 
 **All phases (0/1 → 5) are feature-complete at scaffold level** in the
-`0.5.4-dogfood` build, including Proxmox API integration. Every task table below
+latest dogfood build, including Proxmox API integration. Every task table below
 is ✅ Done. The project is **not production-ready** — current focus is dogfooding
-on real hardware and stabilization rather than net-new phases (see
-[Beyond Phase 5](#beyond-phase-5--current-focus)).
+on real hardware and closing gaps in [USER_STORIES.md](USER_STORIES.md) rather
+than net-new phases (see [Beyond Phase 5](#beyond-phase-5--current-focus)).
 
 | Phase | Focus | State |
 |-------|-------|-------|
@@ -177,5 +177,6 @@ new phases to hardening the existing ones through real-world use:
   host-key-change alerting under flaky-network conditions.
 - **Test coverage** — grow the JVM unit suite around the permission engine, proposal
   parser, and Proxmox command gating; add instrumented tests where feasible.
-- **Toward production-ready** — resolve the [Open Decisions in the PRD](../PRD.md#10-open-decisions)
-  and close the exit-criteria gaps observed during dogfooding.
+- **Toward production-ready** — close acceptance-criteria gaps in
+  [USER_STORIES.md](USER_STORIES.md) (dogfood exit checklist) observed during
+  real-hardware testing.

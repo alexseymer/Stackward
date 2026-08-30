@@ -127,21 +127,27 @@ infra to a third-party SaaS monitoring tool.
 
 ## 6. Key User Stories
 
-1. As a user, I am guided to create `stackward-agent` on the host first
-   (`sudo adduser stackward-agent`), then connect with that user’s password
-   once so the app can install this phone’s SSH key (ssh-copy-id style).
-   The password is wiped afterwards and never stored. If I choose a more
-   privileged account instead, the app warns me and I must acknowledge the
-   risk before continuing.
-2. As a user, I get an hourly digest of anomalies across journal, Docker,
-   and Proxmox logs without doing anything.
-3. As a user, I ask "why is container X unhealthy" and get a summarized,
-   correlated answer pulled from its logs.
-4. As a user, I approve a one-time restart of a service after reviewing
-   the exact command and the model's reasoning, gated by a fresh biometric
-   check.
-5. As a user, if my phone is lost, I can revoke the agent's access with
-   one action (using a separately retained admin path).
+Outcome-focused stories for dogfood acceptance. Detailed acceptance criteria
+live in [docs/USER_STORIES.md](docs/USER_STORIES.md).
+
+1. **First connect** — I create `stackward-agent` on my host, connect once
+   with password, and the app installs its key and wipes the password. If I
+   choose a more privileged account, the app warns me and I must acknowledge
+   the risk before continuing.
+2. **Stay informed** — I get periodic digests of problems across journal,
+   Docker, and Proxmox without opening a laptop.
+3. **Investigate** — I ask a natural-language question about a container or
+   service and get a correlated on-device summary.
+4. **Act safely** — I approve a one-time maintenance action after seeing the
+   literal command, model reasoning, and a biometric check.
+5. **Recover from loss** — I can revoke agent access from the phone *or* via
+   a documented admin path if the phone is gone.
+6. **Reach LAN hosts** — I onboard through a jump host without treating the
+   bastion as a monitored server.
+7. **Control scope** — I choose capability level (read-only / maintenance /
+   future provisioning) in Settings; mutations stay human-gated.
+8. **Audit & rotate** — I export audit history, rotate keys, and review Tier 1
+   rules on a schedule.
 
 ## 7. Success Metrics
 
@@ -178,15 +184,12 @@ See [docs/PHASES.md](docs/PHASES.md) for full detail.
   Proxmox), read-only
 - **Phase 5** — Hardening: audit log, key rotation, panic revoke
 
-## 10. Open Decisions
+## 10. Decisions (resolved)
 
-- Auto-detect host type (plain/Proxmox/Docker) during onboarding vs. user
-  declares it upfront.
-- Whether Tier 3 changes should be *draftable* by the agent (for human
-  review) or entirely outside its action space from day one.
-- Whether jump hosts get their own full agent identity (monitored target
-  too) or act as pure relays. **Decided:** pure relay — bastion gets the
-  agent key for ProxyJump auth only; it is not registered as a monitored
-  ServerProfile.
-- How capability packs (read-only / maintenance / provisioning) are
-  exposed in Settings without undermining the human-gate invariant.
+| Topic | Decision |
+|-------|----------|
+| Canonical agent identity | `stackward-agent` (Linux SSH user); `stackward-agent@pve` (Proxmox API user) |
+| Host type detection | Auto-detect after connect; optional override in Settings later |
+| Tier 3 agent proposals | Draft-only for human review — never auto-applied |
+| Jump host role | Pure relay — bastion gets the agent key for ProxyJump auth only; not registered as a monitored ServerProfile |
+| Capability packs (Settings) | Three packs gate what the model may *propose*; Tier 2/3 human gates unchanged: **Monitor** (Tier 1 reads + digests), **Maintain** (+ Tier 2 one-timers), **Provision** (future, off by default in v1) |

@@ -62,6 +62,8 @@ data class LogsUiState(
     val executionMessage: String? = null,
     val auditEntries: List<AuditEntry> = emptyList(),
     val aiUnavailableReason: String? = null,
+    val summaryQuestion: String = "",
+    val digestAnomalyFlags: List<String> = emptyList(),
 )
 
 class LogsViewModel(application: Application) : AndroidViewModel(application) {
@@ -126,12 +128,19 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun onSummaryQuestionChange(question: String) {
+        _uiState.update { it.copy(summaryQuestion = question) }
+    }
+
     fun summarizeCurrentLogs(userQuestion: String? = null) {
         val logs = _uiState.value.logOutput
         if (logs.isNullOrBlank()) {
             _uiState.update { it.copy(error = "Fetch logs before summarizing") }
             return
         }
+
+        val question = userQuestion?.takeIf { it.isNotBlank() }
+            ?: _uiState.value.summaryQuestion.takeIf { it.isNotBlank() }
 
         viewModelScope.launch {
             _uiState.update {
@@ -141,7 +150,7 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
                     aiUnavailableReason = null,
                 )
             }
-            val result = container.logSummarizer.summarize(logs, userQuestion)
+            val result = container.logSummarizer.summarize(logs, question)
             val decisions = result.proposals.map { proposal ->
                 ProposalWithDecision(proposal, container.permissionExecutor.evaluate(proposal))
             }
@@ -237,7 +246,7 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
         val profile = container.profileRepository.loadAll().firstOrNull()
         val savedDigest = container.logDigestStore.load()
         _uiState.update {
-            it.copy(profile = profile, savedDigest = savedDigest)
+            it.copy(profile = profile, savedDigest = savedDigest, digestAnomalyFlags = savedDigest?.anomalyFlags.orEmpty())
         }
         if (profile != null) {
             LogDigestWorker.schedule(getApplication())
@@ -305,7 +314,7 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
                         containers = containers,
                         isLoading = false,
                         error = if (containers.isEmpty()) {
-                            "No Docker log directories visible for gemma-agent."
+                            "No Docker log directories visible for stackward-agent."
                         } else {
                             null
                         },
@@ -329,7 +338,7 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             runCatching {
-                container.logReader.readDockerLogs(profile, containerId)
+                container.logReader.readDockerContainerContext(profile, containerId)
             }.onSuccess { result ->
                 applyLogResult(result)
             }.onFailure { error ->
@@ -351,6 +360,7 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         savedDigest = digest,
+                        digestAnomalyFlags = digest.anomalyFlags,
                         logOutput = digest.content,
                         truncated = digest.truncated,
                         isLoading = false,

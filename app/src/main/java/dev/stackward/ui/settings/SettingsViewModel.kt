@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.stackward.StackwardApplication
+import dev.stackward.permissions.CapabilityPack
 import dev.stackward.security.Tier1SyncResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +32,7 @@ data class SettingsUiState(
     val statusMessage: String? = null,
     val error: String? = null,
     val tier1SyncResult: Tier1SyncResult? = null,
+    val capabilityPack: CapabilityPack = CapabilityPack.MONITOR,
     val showPanicConfirm: Boolean = false,
     val showRotateConfirm: Boolean = false,
     val pendingAuditExport: String? = null,
@@ -66,8 +68,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 tier1ReviewDue = container.securitySettings.isTier1ReviewDue(),
                 lastTier1ReviewLabel = lastReview?.let { ts -> dateFormat.format(Date(ts)) },
                 auditEntryCount = container.auditLogRepository.loadAll().size,
+                capabilityPack = container.securitySettings.getCapabilityPack(),
                 error = null,
             )
+        }
+    }
+
+    fun setCapabilityPack(pack: CapabilityPack) {
+        if (pack == CapabilityPack.PROVISION) return
+        container.securitySettings.setCapabilityPack(pack)
+        refresh()
+        _uiState.update {
+            it.copy(statusMessage = "Capability pack set to ${pack.displayName}")
         }
     }
 

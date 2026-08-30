@@ -20,6 +20,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import dev.stackward.permissions.CapabilityPack
 import dev.stackward.ui.security.BiometricGate
 import dev.stackward.util.findFragmentActivity
 import java.text.SimpleDateFormat
@@ -108,7 +110,7 @@ fun SettingsScreen(
             title = { Text("Emergency revoke?") },
             text = {
                 Text(
-                    "Removes all gemma-agent keys on the server and wipes local credentials. " +
+                    "Removes all stackward-agent keys on the server and wipes local credentials. " +
                         "You will need to re-bootstrap. Export audit log first if needed.",
                 )
             },
@@ -165,6 +167,11 @@ fun SettingsScreen(
 
             ConnectionCard(uiState = uiState)
 
+            CapabilityPackCard(
+                selected = uiState.capabilityPack,
+                onSelect = viewModel::setCapabilityPack,
+            )
+
             Tier1Card(
                 uiState = uiState,
                 onSync = viewModel::syncTier1Rules,
@@ -194,6 +201,48 @@ fun SettingsScreen(
             uiState.tier1SyncResult?.let { result ->
                 Tier1SyncResultCard(result = result)
             }
+        }
+    }
+}
+
+@Composable
+private fun CapabilityPackCard(
+    selected: CapabilityPack,
+    onSelect: (CapabilityPack) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Capability pack", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "Gates what the model may propose. Tier 2/3 still require your confirmation.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CapabilityPack.MONITOR.let { pack ->
+                    FilterChip(
+                        selected = selected == pack,
+                        onClick = { onSelect(pack) },
+                        label = { Text(pack.displayName) },
+                    )
+                }
+                CapabilityPack.MAINTAIN.let { pack ->
+                    FilterChip(
+                        selected = selected == pack,
+                        onClick = { onSelect(pack) },
+                        label = { Text(pack.displayName) },
+                    )
+                }
+            }
+            Text(
+                text = selected.summary,
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Text(
+                text = "Provision: not available in v1.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

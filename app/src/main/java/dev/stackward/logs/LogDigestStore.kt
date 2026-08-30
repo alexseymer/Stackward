@@ -2,6 +2,7 @@ package dev.stackward.logs
 
 import android.content.Context
 import dev.stackward.crypto.SecurePrefs
+import org.json.JSONArray
 
 /**
  * Persists the latest scheduled log digest for display in the app.
@@ -15,15 +16,28 @@ class LogDigestStore(context: Context) {
             .putString(KEY_CONTENT, digest.content)
             .putBoolean(KEY_TRUNCATED, digest.truncated)
             .putLong(KEY_GENERATED_AT, digest.generatedAt)
+            .putString(KEY_ANOMALY_FLAGS, JSONArray(digest.anomalyFlags).toString())
             .apply()
     }
 
     fun load(): LogDigest? {
         val content = prefs.getString(KEY_CONTENT, null) ?: return null
+        val flagsRaw = prefs.getString(KEY_ANOMALY_FLAGS, null)
+        val flags = if (flagsRaw.isNullOrBlank()) {
+            emptyList()
+        } else {
+            val array = JSONArray(flagsRaw)
+            buildList {
+                for (index in 0 until array.length()) {
+                    add(array.getString(index))
+                }
+            }
+        }
         return LogDigest(
             content = content,
             truncated = prefs.getBoolean(KEY_TRUNCATED, false),
             generatedAt = prefs.getLong(KEY_GENERATED_AT, 0L),
+            anomalyFlags = flags,
         )
     }
 
@@ -32,5 +46,6 @@ class LogDigestStore(context: Context) {
         private const val KEY_CONTENT = "content"
         private const val KEY_TRUNCATED = "truncated"
         private const val KEY_GENERATED_AT = "generated_at"
+        private const val KEY_ANOMALY_FLAGS = "anomaly_flags"
     }
 }

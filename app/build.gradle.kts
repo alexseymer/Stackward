@@ -12,8 +12,24 @@ val keystoreProperties = Properties().apply {
     }
 }
 
+val localProperties = Properties().apply {
+    val propsFile = rootProject.file("local.properties")
+    if (propsFile.exists()) {
+        load(propsFile.inputStream())
+    }
+}
+
 fun signingProp(name: String, envVar: String, default: String): String =
     keystoreProperties.getProperty(name) ?: System.getenv(envVar) ?: default
+
+fun localProp(key: String, default: String = ""): String =
+    localProperties.getProperty(key)?.trim().orEmpty().ifBlank { default }
+
+fun localBool(key: String, default: Boolean = false): Boolean =
+    localProperties.getProperty(key)?.trim()?.equals("true", ignoreCase = true) ?: default
+
+fun buildConfigString(value: String): String =
+    "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 android {
     namespace = "dev.stackward"
@@ -25,6 +41,16 @@ android {
         targetSdk = 35
         versionCode = 11
         versionName = "0.5.10-dogfood"
+
+        buildConfigField("boolean", "DEV_PREFILL", "false")
+        buildConfigField("String", "DEV_HOST", "\"\"")
+        buildConfigField("String", "DEV_PORT", "\"\"")
+        buildConfigField("String", "DEV_USERNAME", "\"\"")
+        buildConfigField("String", "DEV_SSH_PASSWORD", "\"\"")
+        buildConfigField("String", "DEV_KNOCK_SEQUENCE", "\"\"")
+        buildConfigField("boolean", "DEV_USE_JUMP_HOST", "false")
+        buildConfigField("String", "DEV_JUMP_HOST", "\"\"")
+        buildConfigField("String", "DEV_JUMP_PORT", "\"\"")
     }
 
     signingConfigs {
@@ -42,6 +68,18 @@ android {
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("dogfood")
+            val devPrefill = localBool("stackward.dev.prefill")
+            buildConfigField("boolean", "DEV_PREFILL", devPrefill.toString())
+            if (devPrefill) {
+                buildConfigField("String", "DEV_HOST", buildConfigString(localProp("stackward.dev.host")))
+                buildConfigField("String", "DEV_PORT", buildConfigString(localProp("stackward.dev.port")))
+                buildConfigField("String", "DEV_USERNAME", buildConfigString(localProp("stackward.dev.username")))
+                buildConfigField("String", "DEV_SSH_PASSWORD", buildConfigString(localProp("stackward.dev.sshPassword")))
+                buildConfigField("String", "DEV_KNOCK_SEQUENCE", buildConfigString(localProp("stackward.dev.knockSequence")))
+                buildConfigField("boolean", "DEV_USE_JUMP_HOST", localBool("stackward.dev.useJumpHost").toString())
+                buildConfigField("String", "DEV_JUMP_HOST", buildConfigString(localProp("stackward.dev.jumpHost")))
+                buildConfigField("String", "DEV_JUMP_PORT", buildConfigString(localProp("stackward.dev.jumpPort")))
+            }
         }
         release {
             isMinifyEnabled = false
@@ -92,6 +130,9 @@ android {
         }
         resources {
             excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            // BouncyCastle ships LICENSE/NOTICE in bcprov, bcpkix, and bcutil.
+            excludes += "/META-INF/LICENSE.md"
+            excludes += "/META-INF/NOTICE.md"
         }
     }
 
@@ -138,8 +179,8 @@ dependencies {
 
     // SSH — Phase 1 (full BC replaces Android's stripped provider for X25519/Ed25519)
     implementation("com.hierynomus:sshj:0.40.0")
-    implementation("org.bouncycastle:bcprov-jdk18on:1.85.2")
-    implementation("org.bouncycastle:bcpkix-jdk18on:1.85.2")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.85")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.85")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20260719")

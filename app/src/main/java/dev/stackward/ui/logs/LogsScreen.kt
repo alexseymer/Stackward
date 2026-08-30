@@ -30,6 +30,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -46,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import dev.stackward.inference.ModelVariant
+import dev.stackward.logs.DigestAnomalyDetector
 import dev.stackward.logs.JournalPriority
 import dev.stackward.logs.JournalSince
 import dev.stackward.permissions.AuditEntry
@@ -160,6 +162,7 @@ fun LogsScreen(
                     onVariantSelected = viewModel::onModelVariantSelected,
                     onImport = { importLauncher.launch(arrayOf("*/*")) },
                     onSummarize = viewModel::summarizeCurrentLogs,
+                    onSummaryQuestionChange = viewModel::onSummaryQuestionChange,
                 )
 
                 when (uiState.selectedTab) {
@@ -175,10 +178,21 @@ fun LogsScreen(
                         selectedId = uiState.selectedContainerId,
                         onSelect = viewModel::onContainerSelected,
                     )
-                    LogTab.DIGEST -> Text(
-                        text = "Hourly digest across journal + Docker (read-only, Tier 1).",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    LogTab.DIGEST -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Hourly digest across journal + Docker (read-only, Tier 1).",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        if (uiState.digestAnomalyFlags.isNotEmpty()) {
+                            Text(
+                                text = "Flagged: " + uiState.digestAnomalyFlags.joinToString { flag ->
+                                    DigestAnomalyDetector.label(flag)
+                                },
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.tertiary,
+                            )
+                        }
+                    }
                 }
 
                 if (uiState.isLoading || uiState.isExecutingProposal) {
@@ -317,6 +331,7 @@ private fun ModelStatusCard(
     onVariantSelected: (ModelVariant) -> Unit,
     onImport: () -> Unit,
     onSummarize: () -> Unit,
+    onSummaryQuestionChange: (String) -> Unit,
 ) {
     val capability = uiState.deviceCapability
     Card(
@@ -355,6 +370,17 @@ private fun ModelStatusCard(
             if (uiState.isImportingModel) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
+            OutlinedTextField(
+                value = uiState.summaryQuestion,
+                onValueChange = onSummaryQuestionChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Question (optional)") },
+                placeholder = { Text("Why is container X unhealthy?") },
+                singleLine = false,
+                minLines = 1,
+                maxLines = 3,
+                enabled = uiState.modelConfigured,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = onImport,

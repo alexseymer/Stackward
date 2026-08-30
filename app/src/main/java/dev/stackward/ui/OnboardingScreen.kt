@@ -59,10 +59,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.stackward.BuildConfig
 import dev.stackward.connection.HostKeyFingerprint
-import dev.stackward.connection.SshConnectionManager
 import dev.stackward.onboarding.BootstrapAuthMethod
 import dev.stackward.onboarding.HostType
 import dev.stackward.onboarding.OnboardingFlow
+import dev.stackward.onboarding.ServerProfile
 import dev.stackward.ui.onboarding.OnboardingUiState
 import dev.stackward.ui.onboarding.OnboardingViewModel
 import dev.stackward.ui.onboarding.ProvisionStep
@@ -301,7 +301,7 @@ private fun InputContent(
         value = uiState.agentUsername,
         onValueChange = viewModel::onAgentUsernameChange,
         label = { Text("Agent SSH user") },
-        placeholder = { Text(SshConnectionManager.AGENT_USERNAME) },
+        placeholder = { Text(ServerProfile.DEFAULT_AGENT_USERNAME) },
         supportingText = {
             Text("Must already exist. Default: stackward-agent. Elevated accounts need acknowledgment.")
         },

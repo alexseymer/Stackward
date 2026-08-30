@@ -10,7 +10,7 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.1-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![On-device LLM](https://img.shields.io/badge/LLM-Gemma%20on--device-4285F4?logo=google&logoColor=white)](docs/MODEL_SETUP.md)
-[![Release](https://img.shields.io/badge/release-0.5.4--dogfood-orange.svg)](docs/PHASES.md)
+[![Release](https://img.shields.io/badge/release-0.5.11--dogfood-orange.svg)](docs/PHASES.md)
 [![Status: dogfood](https://img.shields.io/badge/status-dogfood-yellow.svg)](#status)
 
 On-device (Gemma E2B/E4B) Android agent for monitoring and managing
@@ -19,7 +19,8 @@ SSH, with a tiered, human-confirmed permission model. No credentials,
 logs, or biometric data ever leave the device except over your own
 SSH/API connections to your own infrastructure.
 
-See [PRD.md](PRD.md) for the full product spec, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+See [PRD.md](PRD.md) for the full product spec, [docs/USER_STORIES.md](docs/USER_STORIES.md)
+for acceptance criteria, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 for the system design, and [docs/PHASES.md](docs/PHASES.md) for the build
 order.
 
@@ -31,15 +32,16 @@ order.
 - **The model proposes, the human disposes.** Gemma emits *structured* action
   proposals (never raw shell); a permission engine gates every one before it
   reaches a server.
-- **Least-privilege by construction.** A dedicated `gemma-agent` identity per host
+- **Least-privilege by construction.** A dedicated `stackward-agent` identity per host
   (SSH-key-only, hardware-backed Keystore key) and a scoped Proxmox API token —
   no standing broad `sudo`, no `docker` group by default.
 
 ## Features
 
-- **Zero-touch bootstrap** — enter an IP + one-time admin credential; the app
-  provisions the `gemma-agent` user, restricted key, sudoers stub, and (optional)
-  Proxmox token, then discards the admin credential.
+- **Guided key install** — create `stackward-agent` on the host (`sudo adduser
+  stackward-agent`), then enter IP + one-time password; the app installs its
+  SSH key (ssh-copy-id style) and wipes the password. Optional admin-run
+  bootstrap scripts add sudoers helpers and Proxmox tokens.
 - **Unified log reading** — systemd journal, Docker container logs, and Proxmox
   task logs through one read-only, zero-elevation pipeline.
 - **Scheduled digests** — hourly anomaly digest across all three sources via
@@ -56,7 +58,7 @@ order.
 
 ## Status
 
-**Early scaffold — dogfood build (`0.5.4-dogfood`), not yet production-ready.**
+**Early scaffold — dogfood build (`0.5.11-dogfood` latest release), not yet production-ready.**
 
 All planned phases are feature-complete at scaffold level; current focus is
 dogfooding and stabilization on real hardware. See [docs/PHASES.md](docs/PHASES.md)
@@ -118,6 +120,7 @@ See [PRD.md § 5](PRD.md#5-core-concepts) for details.
 
 ```
 PRD.md                  Full product requirements
+docs/USER_STORIES.md    Acceptance criteria & dogfood checklist
 docs/ARCHITECTURE.md    System design
 docs/PHASES.md          Build roadmap
 docs/MODEL_SETUP.md     On-device model import
