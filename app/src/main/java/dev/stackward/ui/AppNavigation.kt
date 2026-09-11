@@ -5,9 +5,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.stackward.ui.analyzer.LogAnalyzerScreen
+import dev.stackward.ui.analyzer.LogAnalyzerViewModel
 import dev.stackward.ui.logs.LogsScreen
 import dev.stackward.ui.logs.LogsViewModel
 import dev.stackward.ui.onboarding.OnboardingViewModel
@@ -18,14 +21,17 @@ import dev.stackward.ui.settings.SettingsViewModel
 private enum class AppDestination {
     ONBOARDING,
     LOGS,
+    ANALYZER,
     SETTINGS,
 }
 
 @Composable
 fun StackwardApp() {
     var destination by rememberSaveable { mutableStateOf<AppDestination?>(null) }
+    var analyzerInitialLogs by remember { mutableStateOf<String?>(null) }
     val onboardingViewModel: OnboardingViewModel = viewModel()
     val logsViewModel: LogsViewModel = viewModel()
+    val logAnalyzerViewModel: LogAnalyzerViewModel = viewModel()
     val settingsViewModel: SettingsViewModel = viewModel()
     val onboardingState by onboardingViewModel.uiState.collectAsState()
 
@@ -49,6 +55,18 @@ fun StackwardApp() {
         AppDestination.LOGS -> LogsScreen(
             viewModel = logsViewModel,
             onOpenSettings = { destination = AppDestination.SETTINGS },
+            onOpenAnalyzer = { logs ->
+                analyzerInitialLogs = logs
+                destination = AppDestination.ANALYZER
+            },
+        )
+        AppDestination.ANALYZER -> LogAnalyzerScreen(
+            viewModel = logAnalyzerViewModel,
+            initialLogs = analyzerInitialLogs,
+            onBack = {
+                analyzerInitialLogs = null
+                destination = AppDestination.LOGS
+            },
         )
         AppDestination.SETTINGS -> SettingsScreen(
             viewModel = settingsViewModel,

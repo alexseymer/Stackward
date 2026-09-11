@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -62,6 +63,7 @@ import java.util.Date
 fun LogsScreen(
     viewModel: LogsViewModel,
     onOpenSettings: () -> Unit = {},
+    onOpenAnalyzer: (String?) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val profile = uiState.profile
@@ -101,6 +103,9 @@ fun LogsScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { onOpenAnalyzer(uiState.logOutput) }) {
+                        Icon(Icons.Default.Analytics, contentDescription = "Log analyzer")
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
@@ -118,10 +123,19 @@ fun LogsScreen(
                     .fillMaxSize()
                     .padding(padding)
                     .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text("No server provisioned yet.")
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(onClick = onOpenSettings) {
+                Text(
+                    text = "You can still try the offline Log Analyzer with sample logs — no SSH required.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(onClick = { onOpenAnalyzer(null) }) {
+                    Icon(Icons.Default.Analytics, contentDescription = null)
+                    Text("Open Log Analyzer", modifier = Modifier.padding(start = 4.dp))
+                }
+                OutlinedButton(onClick = onOpenSettings) {
                     Text("Open setup")
                 }
             }
