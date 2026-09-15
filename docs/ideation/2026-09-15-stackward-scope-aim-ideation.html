@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ideation: Stackward scope, need, and realism</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #121418;
+      --surface: #1c2128;
+      --card: #222830;
+      --text: #e8e4da;
+      --muted: #a39e92;
+      --line: #343b46;
+      --accent: #d4a54a;
+      --accent-text: #f0d48a;
+      --accent-soft: #2b2618;
+      --ok-soft: #1c2a22;
+      --ok-text: #8fbf9a;
+      --warn-soft: #2c2018;
+      --warn-text: #e0a07a;
+      --info-soft: #1a2430;
+      --info-text: #9bb8d4;
+    }
+    * { box-sizing: border-box; }
+    html { color-scheme: dark; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.55;
+    }
+    strong { color: inherit; font-weight: 600; }
+    a { color: var(--accent-text); }
+    a:hover { color: var(--accent); }
+    code, .mono {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.88em;
+    }
+    .page {
+      max-width: 54rem;
+      margin: 0 auto;
+      padding: 2.25rem 1.25rem 4rem;
+    }
+    .prose { max-width: 70ch; }
+    header.doc-meta {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .eyebrow {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent-text);
+      margin: 0 0 0.4rem;
+    }
+    h1 {
+      font-size: 1.85rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin: 0 0 1rem;
+    }
+    h2 {
+      font-size: 1.28rem;
+      font-weight: 600;
+      margin: 2.4rem 0 0.8rem;
+    }
+    h3 {
+      font-size: 1.08rem;
+      font-weight: 600;
+      margin: 0;
+    }
+    .meta-list {
+      display: grid;
+      grid-template-columns: 7.5rem 1fr;
+      gap: 0.35rem 1rem;
+      margin: 0;
+      font-size: 0.92rem;
+    }
+    .meta-list dt {
+      color: var(--muted);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin: 0;
+    }
+    .meta-list dd { margin: 0; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.6rem;
+      margin: 1.25rem 0 0;
+    }
+    .stat {
+      background: var(--surface);
+      border-radius: 0.4rem;
+      padding: 0.7rem 0.8rem;
+    }
+    .stat b {
+      display: block;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    .stat span {
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+    nav.toc {
+      background: var(--surface);
+      border-radius: 0.5rem;
+      padding: 0.9rem 1rem;
+      margin: 0 0 2rem;
+    }
+    nav.toc ol { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+    nav.toc a { text-decoration: none; }
+    .axis-list { list-style: none; padding: 0; margin: 0; }
+    .axis-list li {
+      background: var(--surface);
+      border-radius: 0.4rem;
+      padding: 0.7rem 0.9rem;
+      margin: 0 0 0.45rem;
+    }
+    .axis-list b {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.78rem;
+      color: var(--accent-text);
+    }
+    .jump {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: 0 0 1.2rem;
+    }
+    .jump a {
+      text-decoration: none;
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 0.28rem 0.7rem;
+      font-size: 0.82rem;
+    }
+    article.idea {
+      background: var(--card);
+      border-radius: 0.6rem;
+      padding: 1.15rem 1.2rem 1.3rem;
+      margin: 0 0 1.15rem;
+    }
+    article.idea h3 { margin-bottom: 0.55rem; }
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin: 0 0 0.85rem;
+    }
+    .chip {
+      border-radius: 999px;
+      padding: 0.18rem 0.62rem;
+      font-size: 0.75rem;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+    }
+    .chip-axis { background: var(--info-soft); color: var(--info-text); }
+    .chip-conf { background: var(--ok-soft); color: var(--ok-text); }
+    .chip-cx { background: var(--accent-soft); color: var(--accent-text); }
+    .chip-rank { background: #2a3140; color: var(--text); }
+    dl.fields { margin: 0.6rem 0 0; }
+    dl.fields dt {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0.7rem 0 0.18rem;
+    }
+    dl.fields dd { margin: 0; }
+    figure.diagram {
+      margin: 1rem 0 0.4rem;
+      background: var(--bg);
+      border-radius: 0.45rem;
+      padding: 0.7rem 0.5rem 0.4rem;
+      overflow-x: auto;
+    }
+    figure.diagram figcaption {
+      color: var(--muted);
+      font-size: 0.82rem;
+      padding: 0.2rem 0.6rem 0.4rem;
+    }
+    svg text {
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      paint-order: stroke fill;
+      stroke: #121418;
+      stroke-width: 3px;
+      stroke-linejoin: round;
+    }
+    table.reject {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+    }
+    table.reject th, table.reject td {
+      text-align: left;
+      vertical-align: top;
+      padding: 0.55rem 0.5rem;
+      border-bottom: 1px solid var(--line);
+    }
+    table.reject th {
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    footer.composition-signal {
+      margin-top: 2.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+    ul.ground { padding-left: 1.15rem; }
+    @media (max-width: 720px) {
+      .stats { grid-template-columns: 1fr 1fr; }
+      .meta-list { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="doc-meta">
+      <p class="eyebrow">Ideation</p>
+      <h1>Stackward scope, need, and realism</h1>
+      <dl class="meta-list">
+        <dt>Date</dt>
+        <dd><time datetime="2026-09-15">2026-09-15</time></dd>
+        <dt>Topic</dt>
+        <dd>stackward-scope-aim</dd>
+        <dt>Focus</dt>
+        <dd>The general scope and aim of the project. Is there a need? Is it realistic? Should you go this direction?</dd>
+        <dt>Mode</dt>
+        <dd>repo-grounded</dd>
+      </dl>
+      <div class="stats">
+        <div class="stat"><b>47</b><span>raw candidates</span></div>
+        <div class="stat"><b>17</b><span>after dedupe</span></div>
+        <div class="stat"><b>6</b><span>survivors</span></div>
+        <div class="stat"><b>5</b><span>axes covered</span></div>
+      </div>
+    </header>
+
+    <nav class="toc" aria-label="Document sections">
+      <p class="eyebrow">Contents</p>
+      <ol>
+        <li><a href="#grounding-context">Grounding Context</a></li>
+        <li><a href="#topic-axes">Topic Axes</a></li>
+        <li><a href="#ranked-ideas">Ranked Ideas</a></li>
+        <li><a href="#rejection-summary">Rejection Summary</a></li>
+      </ol>
+    </nav>
+
+    <section id="grounding-context">
+      <p class="eyebrow">Evidence</p>
+      <h2>Grounding Context</h2>
+      <div class="prose">
+        <p><strong>Codebase context.</strong> Stackward is a single-module Android client (<code>:app</code>, Kotlin + Compose, <code>dev.stackward</code>) with no backend. The stated job is a fast “what’s wrong right now” from a phone, without a laptop and without sending logs to SaaS. The architecture is “the model proposes, the human disposes”: Gemma E2B/E4B via MediaPipe emits structured JSON, never raw shell; a three-tier <code>PermissionEngine</code> plus hardware Keystore and biometrics gates writes. Phases 0–5 are scaffolded (TOFU, jump-host, Proxmox client, log parsing, one-timer sudoers). The app already degrades to raw logs and heuristic digests if no model file is imported. There is no <code>STRATEGY.md</code> or <code>CONCEPTS.md</code>. Canonical constraints live in <code>PRD.md</code> and <code>README.md</code>. The README also calls this a personal infrastructure tool, MIT-licensed, not ready for external contribution.</p>
+        <p><strong>Pain points that bear on need and realism.</strong> First useful loop currently requires three independent carries: an ADB/Play-Protect install path, a user-imported multi-gigabyte <code>.task</code>/<code>.litertlm</code> file on a 4–6 GB RAM phone, and an out-of-band root bootstrap the app is forbidden to run. Quantized 2B/4B models are assumed to hallucinate, so mutating UI must show the literal command. Android 2026 developer verification already breaks Chrome sideload; the committed dogfood keystore is not for Play.</p>
+        <p><strong>Past learnings.</strong> None — <code>docs/solutions/</code> does not exist.</p>
+        <p><strong>External context (2026).</strong> Managing Proxmox/Docker/Linux from a phone is a settled daily workflow: Tailscale + Termius/Mosh, the official Proxmox Flutter app, Pulse (~6.5k GitHub stars; Community free; Relay ~$39/yr; Pro ~$79/yr with Patrol AI). The open slice is natural-language plus gated actuation, and it is filling <em>on the host</em> (Pulse Patrol, HolmesGPT, Grounder), not on the handset. Pulse Patrol’s own local bar is roughly an 8B with reliable tool calls on ~8 GB VRAM. Gemma 4 E2B is fast enough on 2026 flagships (~52 tok/s on an S26 Ultra) and is in a different size class from that bar. Homelab surveys put fun ahead of privacy; willingness to pay is FOSS-shaped. Home Assistant Companion is the topology that already won this audience: thin trusted phone, brain on the LAN. Cloud chat pasted into Termius is the zero-install quality foil. Android developer verification begins 30 Sep 2026 in participating countries and goes global in 2027; hobbyist limited distribution is about 20 devices.</p>
+        <p><strong>Slack context.</strong> Not requested. Dedicated Slack research tools were not used.</p>
+      </div>
+    </section>
+
+    <section id="topic-axes">
+      <p class="eyebrow">Surface map</p>
+      <h2>Topic Axes</h2>
+      <ul class="axis-list">
+        <li><b>job-to-be-done</b> — Monitor vs propose vs act; couch triage vs pocket SRE vs signed one-timer.</li>
+        <li><b>inference-locus</b> — Where the brain lives: handset NPU, user-owned host, or none.</li>
+        <li><b>audience-wtp</b> — Author-as-user vs homelab FOSS vs small-business operator, and who would pay.</li>
+        <li><b>feasibility-distribution</b> — Model payload, host bootstrap, and Android 2026 shipping.</li>
+        <li><b>competitive-wedge</b> — What remains after Pulse, Termius, the Proxmox app, and cloud-paste.</li>
+      </ul>
+    </section>
+
+    <section id="ranked-ideas">
+      <p class="eyebrow">Directions</p>
+      <h2>Ranked Ideas</h2>
+      <nav class="jump" aria-label="Jump to idea">
+        <a href="#idea-1">1. Name the fork</a>
+        <a href="#idea-2">2. Estate-local brain</a>
+        <a href="#idea-3">3. Personal lookout</a>
+        <a href="#idea-4">4. Notary, not Gemma</a>
+        <a href="#idea-5">5. 2026-installable client</a>
+        <a href="#idea-6">6. N=1 MIT success</a>
+      </nav>
+
+      <article class="idea" id="idea-1">
+        <h3>1. Name three mutually exclusive theses — then pick one</h3>
+        <div class="chip-row">
+          <span class="chip chip-rank">1</span>
+          <span class="chip chip-axis">axis: competitive-wedge</span>
+          <span class="chip chip-conf">confidence: 88%</span>
+          <span class="chip chip-cx">complexity: Low</span>
+        </div>
+        <dl class="fields">
+          <dt>Description</dt>
+          <dd>The “is there a need / is it realistic / should I continue” question is unanswerable while one APK claims four products at once: on-device Gemma SRE, a privacy-preserving lookout, a biometric notary for SSH, and a small-business operator tool. Write a short <code>STRATEGY.md</code> that lists three mutually exclusive north stars and chooses exactly one. Mixing them is why the PRD can be both true and directionless.</dd>
+          <dt>Axis</dt>
+          <dd>competitive-wedge</dd>
+          <dt>Basis</dt>
+          <dd><code>direct:</code> The PRD user sentence is “what’s wrong right now” without a laptop or SaaS (<code>PRD.md</code> users section) while invariant 1 is “inference stays on-device,” Maintain is a v1 capability, Provision is a future pack, and the README still calls this a personal MIT tool. Those claims cannot all be the reason the project exists. <code>reasoned:</code> A go/no-go is a choice among theses, not an average of them. Pulse already occupies “permissioned AI for Proxmox”; Termius occupies “SSH from a phone.” Stackward only has a need if it names the leftover job and drops the rest as non-goals.</dd>
+          <dt>Rationale</dt>
+          <dd>This is the move that changes what you do next even if you never write another line of Kotlin. Ideas 2–4 below are the three honest “yes, continue” paths. Idea 5 is the shipping constraint that applies to all of them. Idea 6 is the audience constraint. Until one thesis is named, more phases will keep compounding a mixed identity.</dd>
+          <dt>Downsides</dt>
+          <dd>Choosing feels like killing work already scaffolded (MediaPipe, Maintain packs, SMB copy). That sunk cost is real. The cost of not choosing is larger: you cannot tell whether the project is succeeding.</dd>
+        </dl>
+        <figure class="diagram">
+          <svg viewBox="0 0 760 230" width="760" height="230" role="img" aria-label="Three exclusive theses branching from one mixed APK">
+            <rect x="250" y="12" width="260" height="44" rx="8" fill="#2a3140"/>
+            <text x="380" y="40" text-anchor="middle" fill="#e8e4da" font-size="14">Mixed APK (today)</text>
+            <line x1="380" y1="56" x2="380" y2="84" stroke="#d4a54a" stroke-width="2"/>
+            <polygon points="380,90 375,80 385,80" fill="#d4a54a"/>
+            <text x="380" y="108" text-anchor="middle" fill="#f0d48a" font-size="13">pick exactly one</text>
+            <rect x="16" y="132" width="228" height="78" rx="8" fill="#1c2a22"/>
+            <text x="130" y="160" text-anchor="middle" fill="#8fbf9a" font-size="13">Companion</text>
+            <text x="130" y="182" text-anchor="middle" fill="#e8e4da" font-size="12">phone gates, brain on LAN</text>
+            <rect x="266" y="132" width="228" height="78" rx="8" fill="#2b2618"/>
+            <text x="380" y="160" text-anchor="middle" fill="#f0d48a" font-size="13">Lookout</text>
+            <text x="380" y="182" text-anchor="middle" fill="#e8e4da" font-size="12">triage only, model optional</text>
+            <rect x="516" y="132" width="228" height="78" rx="8" fill="#1a2430"/>
+            <text x="630" y="160" text-anchor="middle" fill="#9bb8d4" font-size="13">Notary</text>
+            <text x="630" y="182" text-anchor="middle" fill="#e8e4da" font-size="12">sign the command, Gemma clerk</text>
+          </svg>
+          <figcaption>Illustrative split of the current mixed identity into three exclusive north stars. Not a product spec.</figcaption>
+        </figure>
+      </article>
+
+      <article class="idea" id="idea-2">
+        <h3>2. Phone as trusted remote; brain on the estate</h3>
+        <div class="chip-row">
+          <span class="chip chip-rank">2</span>
+          <span class="chip chip-axis">axis: inference-locus</span>
+          <span class="chip chip-conf">confidence: 76%</span>
+          <span class="chip chip-cx">complexity: High</span>
+        </div>
+        <dl class="fields">
+          <dt>Description</dt>
+          <dd>Keep the privacy product (“no third party sees logs or keys”) and the phone-resident disposer (Keystore, biometric, literal command, one-timer sudoers). Retire “Gemma must live in the handset” as an always-true invariant. Inference becomes operator policy: none, on-device if the phone can, or on a user-owned process the existing SSH session already reaches. That is the Home Assistant Companion topology applied to Proxmox/Docker, and the shape a larger team would build for this job in 2026.</dd>
+          <dt>Axis</dt>
+          <dd>inference-locus</dd>
+          <dt>Basis</dt>
+          <dd><code>direct:</code> Invariant 1 currently freezes locus: “Inference stays on-device (local brain)” and the decision table assigns “Where intelligence runs” to Product / on-device. The privacy sentence underneath is different: no prompts, logs, or command output leave the device except over the user’s own SSH/API. <code>external:</code> HA Companion already won “thin trusted phone, brain on LAN.” Pulse Patrol, HolmesGPT, and Grounder put NL + gated actuation on the host; Pulse’s local bar is an 8B with tool calls, above phone E2B/E4B. <code>reasoned:</code> Credential residency is what homelab privacy actually buys. Token generation on an NPU is a capability tax (RAM, import, no emulator, weak tool-calling). Unlocking locus keeps Stackward’s identity as a phone agent for your infra without requiring MediaPipe to out-reason Patrol.</dd>
+          <dt>Rationale</dt>
+          <dd>Need for “what’s wrong / act from the pub, nothing to SaaS” is real. The unrealistic part of the current direction is asking a 2B/4B phone model to be the SRE. This fork says: the category is right; the 2026 implementation that can meet the job is companion-shaped. A basis verifier called this subject-replacement because the PRD assigns locus to Product. That citation describes the current freeze; it does not forbid changing the freeze. An architectural pivot inside the same product is in bounds.</dd>
+          <dt>Downsides</dt>
+          <dd>You give up the rarest claim (“inference never leaves the SoC”). You may add a user-run host helper, which the current “APK plus your infra, no compose” story treated as a boundary. Quality then depends on whatever the operator can run on the node. iOS still sits outside this Android client.</dd>
+        </dl>
+        <figure class="diagram">
+          <svg viewBox="0 0 760 210" width="760" height="210" role="img" aria-label="Current on-device brain versus estate-local brain with phone gates">
+            <text x="180" y="22" text-anchor="middle" fill="#a39e92" font-size="12">Today: brain in the handset</text>
+            <rect x="40" y="40" width="280" height="150" rx="10" fill="#222830"/>
+            <rect x="58" y="58" width="244" height="44" rx="6" fill="#2c2018"/>
+            <text x="180" y="85" text-anchor="middle" fill="#e0a07a" font-size="13">Gemma E2B/E4B</text>
+            <rect x="58" y="114" width="244" height="56" rx="6" fill="#2b2618"/>
+            <text x="180" y="138" text-anchor="middle" fill="#f0d48a" font-size="13">Keystore + PermissionEngine</text>
+            <text x="180" y="158" text-anchor="middle" fill="#e8e4da" font-size="12">same device, same RAM tax</text>
+            <text x="560" y="22" text-anchor="middle" fill="#a39e92" font-size="12">Fork: brain on the estate</text>
+            <rect x="420" y="40" width="300" height="64" rx="10" fill="#1c2a22"/>
+            <text x="570" y="66" text-anchor="middle" fill="#8fbf9a" font-size="13">User-owned host brain</text>
+            <text x="570" y="86" text-anchor="middle" fill="#e8e4da" font-size="12">optional · never a third party</text>
+            <rect x="420" y="118" width="300" height="72" rx="10" fill="#2b2618"/>
+            <text x="570" y="146" text-anchor="middle" fill="#f0d48a" font-size="13">Phone still signs the write</text>
+            <text x="570" y="166" text-anchor="middle" fill="#e8e4da" font-size="12">Keystore · biometric · one-timer</text>
+            <line x1="570" y1="104" x2="570" y2="118" stroke="#d4a54a" stroke-width="2"/>
+          </svg>
+          <figcaption>Illustrative locus split. Privacy stays “no third party”; the phone remains the only place a write is approved.</figcaption>
+        </figure>
+      </article>
+
+      <article class="idea" id="idea-3">
+        <h3>3. Personal lookout: triage-only, model-optional, digest tempo</h3>
+        <div class="chip-row">
+          <span class="chip chip-rank">3</span>
+          <span class="chip chip-axis">axis: job-to-be-done</span>
+          <span class="chip chip-conf">confidence: 84%</span>
+          <span class="chip chip-cx">complexity: Medium</span>
+        </div>
+        <dl class="fields">
+          <dt>Description</dt>
+          <dd>Collapse v1 to the job the PRD actually wrote in the user sentence: a ridge lookout, not a sheriff. Read-only logs, status, Proxmox/Docker views, heuristic (then optional NL) digests on a correspondence cadence. Maintain and Provision go dark. Gemma is a plugin, not the title. Success is “I glanced at the phone and knew whether to open a laptop,” not “I SRE’d from the pub.”</dd>
+          <dt>Axis</dt>
+          <dd>job-to-be-done</dd>
+          <dt>Basis</dt>
+          <dd><code>direct:</code> Users “want a fast way to ask ‘what’s wrong right now’ from their phone without opening a laptop or exposing infra to a third-party SaaS monitoring tool.” Capability packs already encode Monitor / Maintain / Provision, with Provision denied in v1. No-model mode already shows raw logs; <code>DigestAnomalyDetector</code> flags issues with “v1 — no ML required.” <code>external:</code> Fire lookouts, physician pagers, and HA “something is on fire” notifications won by making the commute decision cheap. Official Proxmox app and Pulse already fight over actuation dashboards. <code>reasoned:</code> A 2B model behind literal-command confirm is slower than Termius for people who already know the restart. The lookout job does not need that fight.</dd>
+          <dt>Rationale</dt>
+          <dd>This is the most realistic “yes, continue” if you are the user. The scaffold already does most of it. It answers need without requiring Gemma to beat Pulse Patrol, and it answers realism without a host-side brain. Combined with idea 6, it is a coherent personal instrument.</dd>
+          <dt>Downsides</dt>
+          <dd>You will feel like you shipped a log viewer. Maintain code and the propose/dispose slogan look orphaned. If the real itch was signing a reboot without a laptop, lookout under-serves that itch (see idea 4).</dd>
+        </dl>
+        <figure class="diagram">
+          <svg viewBox="0 0 760 160" width="760" height="160" role="img" aria-label="Lookout rings a bell so a human decides whether to ride out">
+            <rect x="30" y="36" width="200" height="88" rx="8" fill="#2b2618"/>
+            <text x="130" y="72" text-anchor="middle" fill="#f0d48a" font-size="14">Lookout</text>
+            <text x="130" y="96" text-anchor="middle" fill="#e8e4da" font-size="12">smoke on the ridge</text>
+            <line x1="230" y1="80" x2="300" y2="80" stroke="#d4a54a" stroke-width="2"/>
+            <polygon points="308,80 298,75 298,85" fill="#d4a54a"/>
+            <rect x="316" y="36" width="200" height="88" rx="8" fill="#1a2430"/>
+            <text x="416" y="72" text-anchor="middle" fill="#9bb8d4" font-size="14">Human</text>
+            <text x="416" y="96" text-anchor="middle" fill="#e8e4da" font-size="12">open the laptop?</text>
+            <line x1="516" y1="80" x2="586" y2="80" stroke="#9a958a" stroke-width="2" stroke-dasharray="5 4"/>
+            <polygon points="594,80 584,75 584,85" fill="#9a958a"/>
+            <rect x="602" y="36" width="128" height="88" rx="8" fill="#222830"/>
+            <text x="666" y="72" text-anchor="middle" fill="#a39e92" font-size="14">Sheriff</text>
+            <text x="666" y="96" text-anchor="middle" fill="#a39e92" font-size="12">not v1</text>
+          </svg>
+          <figcaption>The lookout’s job ends at the bell. Actuation stays a later ride, or a different thesis (idea 4).</figcaption>
+        </figure>
+      </article>
+
+      <article class="idea" id="idea-4">
+        <h3>4. The invention is the notary, not Gemma</h3>
+        <div class="chip-row">
+          <span class="chip chip-rank">4</span>
+          <span class="chip chip-axis">axis: competitive-wedge</span>
+          <span class="chip chip-conf">confidence: 80%</span>
+          <span class="chip chip-cx">complexity: Medium</span>
+        </div>
+        <dl class="fields">
+          <dt>Description</dt>
+          <dd>Compete on the ritual that cloud-paste and Termius skip: exact command string, face unlock, time-bounded one-timer sudoers, then the extra guns come off. Treat <code>PermissionEngine</code> as the product and Gemma as an optional clerk who may only point at a closed verb catalog (<code>reboot_vm</code>, <code>restart_service</code>, <code>fetch_journal</code>). The model does not mint free-form shell. Success metric: time from a known fault to a biometric-confirmed catalog action — not summary quality versus GPT.</dd>
+          <dt>Axis</dt>
+          <dd>competitive-wedge</dd>
+          <dt>Basis</dt>
+          <dd><code>direct:</code> “The model proposes, the human (or a narrow, pre-approved rule) disposes.” Architecture Tier 2 blocks until the user confirms the exact command string. The risk table already assumes a small model will hallucinate a plausible destructive command, and mitigates by showing the literal string. <code>PermissionDecision.DraftOnly</code> exists for boundary changes. <code>reasoned:</code> A notary does not advise on the deal; they make the signature the signature. Letters of marque beat a standing navy when you cannot afford always-on elevation. Pulse Patrol is a capable lawyer with tools on the ward. Stackward can be the commission, not the better brief. Closing the verb catalog is the architectural version of the hallucination table, rather than hoping UI confirm catches a bad JSON <code>command</code> field.</dd>
+          <dt>Rationale</dt>
+          <dd>This is the distinctive leftover after conceding NL quality. If Pulse Patrol ran on the node tomorrow, “I will not execute text I did not see, under a key I did not unlock, as an identity that cannot silently grow sudo” is still a reason to keep building. It also survives deleting MediaPipe.</dd>
+          <dt>Downsides</dt>
+          <dd>A closed catalog is less “agentic” and may feel like a thin Proxmox/systemd remote. You still need the host helpers for one-timers. If operators already type the restart faster in Termius, the notary is ceremony without time saved — then this thesis fails in dogfood, which would be useful information.</dd>
+        </dl>
+        <figure class="diagram">
+          <svg viewBox="0 0 760 120" width="760" height="120" role="img" aria-label="Closed verb to literal string to biometric to one-timer to revoke">
+            <rect x="8" y="28" width="130" height="56" rx="8" fill="#1a2430"/>
+            <text x="73" y="62" text-anchor="middle" fill="#9bb8d4" font-size="12">catalog verb</text>
+            <line x1="138" y1="56" x2="168" y2="56" stroke="#d4a54a" stroke-width="2"/>
+            <rect x="168" y="28" width="130" height="56" rx="8" fill="#2b2618"/>
+            <text x="233" y="62" text-anchor="middle" fill="#f0d48a" font-size="12">literal string</text>
+            <line x1="298" y1="56" x2="328" y2="56" stroke="#d4a54a" stroke-width="2"/>
+            <rect x="328" y="28" width="130" height="56" rx="8" fill="#1c2a22"/>
+            <text x="393" y="62" text-anchor="middle" fill="#8fbf9a" font-size="12">biometric</text>
+            <line x1="458" y1="56" x2="488" y2="56" stroke="#d4a54a" stroke-width="2"/>
+            <rect x="488" y="28" width="130" height="56" rx="8" fill="#2c2018"/>
+            <text x="553" y="62" text-anchor="middle" fill="#e0a07a" font-size="12">one-timer</text>
+            <line x1="618" y1="56" x2="648" y2="56" stroke="#d4a54a" stroke-width="2"/>
+            <rect x="648" y="28" width="104" height="56" rx="8" fill="#222830"/>
+            <text x="700" y="62" text-anchor="middle" fill="#e8e4da" font-size="12">revoke</text>
+          </svg>
+          <figcaption>The marque: a named verb, an exact instrument, a face, a time bound, then the extra guns come off.</figcaption>
+        </figure>
+      </article>
+
+      <article class="idea" id="idea-5">
+        <h3>5. Ship a 2026-installable client; treat Gemma as an expert extra</h3>
+        <div class="chip-row">
+          <span class="chip chip-rank">5</span>
+          <span class="chip chip-axis">axis: feasibility-distribution</span>
+          <span class="chip chip-conf">confidence: 75%</span>
+          <span class="chip chip-cx">complexity: Medium</span>
+        </div>
+        <dl class="fields">
+          <dt>Description</dt>
+          <dd>Make the default artifact something a stranger can install without ADB, a 2.6 GB Hugging Face hunt, or a root bootstrap. That means a small (possibly native-lib-free / smoke-shaped) viewer-plus-gates client on a verified-developer path, with Gemma remaining the dogfood SKU. Version the host contract so Monitor works on key-install-only; bootstrap becomes power-user, not the door to first digest. Either enroll in Play / Android developer verification or write “~20 devices” as an explicit ceiling.</dd>
+          <dt>Axis</dt>
+          <dd>feasibility-distribution</dd>
+          <dt>Basis</dt>
+          <dd><code>direct:</code> <code>docs/INSTALL.md</code> already says not to rely on Chrome “Open APK → Install” because developer verification / Play Protect rejects sideloaded APKs; ADB is the reliable path. Model files are user-imported, not bundled. <code>scripts/bootstrap_linux.sh</code> states the app does not run it and that it requires root. A smoke flavor already exists as an install probe. <code>external:</code> Android developer verification starts 30 Sep 2026 (participating countries) and is planned global in 2027; hobbyist limited distribution is about 20 devices. <code>reasoned:</code> A needed product that cannot be installed is a lab. The PRD’s “enter IP → first digest in under five minutes” cannot include three laptop-side carries and still be a phone product.</dd>
+          <dt>Rationale</dt>
+          <dd>This is the realism test that applies no matter which thesis you pick. If you will not become a verified publisher, idea 6 (N=1) is not a consolation prize — it is the only honest audience. If you will ship to homelabbers, distribution is the next product, not a footnote after Phase 6.</dd>
+          <dt>Downsides</dt>
+          <dd>Play review of an SSH/Keystore agent is a threat-model and policy project of its own. Splitting SKUs adds maintenance. Key-install-only Monitor is a weaker demo than the full bootstrap loop.</dd>
+        </dl>
+        <figure class="diagram">
+          <svg viewBox="0 0 760 170" width="760" height="170" role="img" aria-label="Three install locks versus a default viewer and optional Gemma SKU">
+            <rect x="20" y="20" width="140" height="52" rx="8" fill="#2c2018"/>
+            <text x="90" y="52" text-anchor="middle" fill="#e0a07a" font-size="13">ADB / Protect</text>
+            <rect x="180" y="20" width="140" height="52" rx="8" fill="#2c2018"/>
+            <text x="250" y="52" text-anchor="middle" fill="#e0a07a" font-size="13">multi-GB model</text>
+            <rect x="340" y="20" width="160" height="52" rx="8" fill="#2c2018"/>
+            <text x="420" y="52" text-anchor="middle" fill="#e0a07a" font-size="13">root bootstrap</text>
+            <text x="620" y="52" text-anchor="middle" fill="#a39e92" font-size="12">today’s three carries</text>
+            <line x1="90" y1="72" x2="90" y2="98" stroke="#d4a54a" stroke-width="2"/>
+            <line x1="250" y1="72" x2="250" y2="98" stroke="#9a958a" stroke-width="2" stroke-dasharray="4 3"/>
+            <line x1="420" y1="72" x2="420" y2="98" stroke="#9a958a" stroke-width="2" stroke-dasharray="4 3"/>
+            <rect x="20" y="100" width="220" height="52" rx="8" fill="#1c2a22"/>
+            <text x="130" y="132" text-anchor="middle" fill="#8fbf9a" font-size="13">default: installable viewer</text>
+            <rect x="280" y="100" width="260" height="52" rx="8" fill="#222830"/>
+            <text x="410" y="132" text-anchor="middle" fill="#a39e92" font-size="13">Gemma SKU remains expert/ADB</text>
+          </svg>
+          <figcaption>Default path drops the model and bootstrap as conditions of first value. Gemma stays an extra, not the door.</figcaption>
+        </figure>
+      </article>
+
+      <article class="idea" id="idea-6">
+        <h3>6. Declare N=1 MIT success; stop writing a market you cannot reach</h3>
+        <div class="chip-row">
+          <span class="chip chip-rank">6</span>
+          <span class="chip chip-axis">axis: audience-wtp</span>
+          <span class="chip chip-conf">confidence: 70%</span>
+          <span class="chip chip-cx">complexity: Low</span>
+        </div>
+        <dl class="fields">
+          <dt>Description</dt>
+          <dd>Strike “small businesses” / “small teams” from the user sentence until a second-device story exists. Write success as “this phone, this cluster, travel days without a laptop.” Homelab willingness to pay is FOSS-shaped; Pulse already charges for reach and governed AI. Under current invariants there is no path to a million users that does not violate no-cloud or become Pulse. That is not a failure if the builder is the user.</dd>
+          <dt>Axis</dt>
+          <dd>audience-wtp</dd>
+          <dt>Basis</dt>
+          <dd><code>direct:</code> Non-goal: no multi-user / team accounts — single operator, single device. LICENSE is MIT. README: “Not yet ready for external contribution — this is a personal infrastructure tool.” The users section still names homelab users and small businesses together. <code>external:</code> Self-host surveys: most people host for themselves; fun outranks privacy; paid analogs in this niche are convenience (Pulse Relay/Pro, Termius Pro), not another SSH client. <code>reasoned:</code> Flip to N=1 and ADB plus bootstrap are the correct channel. Flip to 1M and you need Play, iOS, support, and a model distribution story the privacy invariant forbids. Do not hold a quiet belief that dogfood becomes a company.</dd>
+          <dt>Rationale</dt>
+          <dd>The founder question “is there a need?” has two answers. Need-for-you: yes, if you actually open this instead of Termius. Need-as-a-market: weak, and already served. A verifier called this below a meeting-test because teams are already a non-goal. Keep it anyway: the PRD still writes SMB into the aim, and that sentence is what makes “should I go this direction” feel like a startup question.</dd>
+          <dt>Downsides</dt>
+          <dd>Naming N=1 can become an excuse never to dogfood the install path. It also closes a door you might want later. The discipline is to mean it: if you do not miss the app when traveling, stop.</dd>
+        </dl>
+        <figure class="diagram">
+          <svg viewBox="0 0 760 150" width="760" height="150" role="img" aria-label="Audience nested from author to homelab FOSS to small business">
+            <rect x="40" y="24" width="680" height="100" rx="10" fill="#222830"/>
+            <text x="380" y="48" text-anchor="middle" fill="#a39e92" font-size="12">small-business operator — PRD names it; WTP and teams story missing</text>
+            <rect x="90" y="58" width="580" height="52" rx="8" fill="#1a2430"/>
+            <text x="380" y="78" text-anchor="middle" fill="#9bb8d4" font-size="12">homelab FOSS — real community, pays for Pulse/Termius, not another agent</text>
+            <rect x="200" y="72" width="360" height="28" rx="6" fill="#1c2a22"/>
+            <text x="380" y="91" text-anchor="middle" fill="#8fbf9a" font-size="13">N=1 — the only audience the install path currently reaches</text>
+          </svg>
+          <figcaption>The reachable user is the inner box. Outer boxes are copy until distribution and identity catch up.</figcaption>
+        </figure>
+      </article>
+    </section>
+
+    <section id="rejection-summary">
+      <p class="eyebrow">Cuts</p>
+      <h2>Rejection Summary</h2>
+      <table class="reject">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Idea</th>
+            <th>Reason rejected</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>D1</td>
+            <td>Lookout / triage-only as a standalone</td>
+            <td>Duplicate of a stronger combination (idea 3); “freeze Maintain” is not entailed by the PRD, which still lists confirmed maintenance as a v1 goal.</td>
+          </tr>
+          <tr>
+            <td>D2 raw</td>
+            <td>Estate-local brain (as originally framed as mere policy)</td>
+            <td>Verifier refuted the claim that current PRD quotes already treat locus as operator policy. The architectural pivot survives as idea 2 with that overread stripped; the “quotes already allow it” version does not.</td>
+          </tr>
+          <tr>
+            <td>D4</td>
+            <td>Three locks contradict the five-minute metric</td>
+            <td>The cited clock is enter-IP → first digest, so bootstrap/ADB/model sit beside the metric rather than inside it. Absorbed into idea 5 without the false contradiction.</td>
+          </tr>
+          <tr>
+            <td>D5</td>
+            <td>Trust APK as default identity</td>
+            <td>No-model degradation supports optional Gemma, not a title change; mild subject-replacement of the LLM-agent claim. Absorbed into ideas 3 and 5.</td>
+          </tr>
+          <tr>
+            <td>D6</td>
+            <td>Version the host contract as ABI</td>
+            <td>PHASES re-bootstrap notes are historical migrations, not evidence of an unversioned ABI that warrants its own north star. Folded into idea 5 as a shipping detail.</td>
+          </tr>
+          <tr>
+            <td>D8</td>
+            <td>Concede NL quality versus Pulse</td>
+            <td>Sound, but it is a premise of ideas 1, 2, and 4 rather than a separate direction.</td>
+          </tr>
+          <tr>
+            <td>D10</td>
+            <td>Clipboard-kill as the sole job</td>
+            <td>Human-gated mutation is a safety constraint, not proof that “I already know what’s wrong” is the JTBD. Absorbed into idea 4.</td>
+          </tr>
+          <tr>
+            <td>D11</td>
+            <td>Closed verb catalog alone</td>
+            <td>Category error if sold as what the repo already does: parsers still take a free-form <code>command</code> string. Kept only as a tightening inside idea 4.</td>
+          </tr>
+          <tr>
+            <td>D12</td>
+            <td>Correspondence chess / no interactive chat</td>
+            <td>Digests exist, but README/PRD also sell ask-from-phone. Absorbed into idea 3 as tempo, not as a unique survivor.</td>
+          </tr>
+          <tr>
+            <td>X1</td>
+            <td>Companion bundle as cited</td>
+            <td>Inherited D2’s overread of on-device quotes. Rebuilt as idea 2 with explicit invariant change.</td>
+          </tr>
+          <tr>
+            <td>—</td>
+            <td>Abandon Stackward / become a different company</td>
+            <td>Subject-replacement — out of bounds regardless of market evidence.</td>
+          </tr>
+          <tr>
+            <td>—</td>
+            <td>axis coverage</td>
+            <td>No empty axes after filtering; no recovery skip.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer class="composition-signal">
+      Composed 2026-09-15T16:50Z by ce-ideate from the focus “general scope and aim of Stackward — need, realism, whether to continue.”
+    </footer>
+  </div>
+</body>
+</html>
