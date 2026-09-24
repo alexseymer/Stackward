@@ -183,7 +183,7 @@ dependencies {
     implementation("org.bouncycastle:bcpkix-jdk18on:1.85")
 
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.json:json:20260719")
+    testImplementation("org.json:json:20260814")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
