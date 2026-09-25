@@ -75,7 +75,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setCapabilityPack(pack: CapabilityPack) {
-        if (pack == CapabilityPack.PROVISION) return
         container.securitySettings.setCapabilityPack(pack)
         refresh()
         _uiState.update {
