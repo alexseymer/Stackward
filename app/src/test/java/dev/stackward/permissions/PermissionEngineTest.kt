@@ -37,7 +37,10 @@ class PermissionEngineTest {
     }
 
     @Test
-    fun evaluate_requiresConfirmationForProxmoxPowerAction() {
+    fun evaluate_deniesProxmoxPowerActionUnderMonitorCapabilityPack() {
+        // v1 CapabilityPack is MONITOR-only (read-only), so any non-ROUTINE tier is denied
+        // before command-specific classification runs. ONE_TIMER's RequireConfirmation path
+        // becomes reachable again once a capability pack that allows it exists (Phase 3).
         val proposal = ActionProposal(
             tier = PermissionTier.ONE_TIMER,
             action = "vm_reboot",
@@ -48,7 +51,7 @@ class PermissionEngineTest {
 
         val decision = engine.evaluate(proposal)
 
-        assertTrue(decision is PermissionDecision.RequireConfirmation)
+        assertTrue(decision is PermissionDecision.Deny)
     }
 
     @Test
