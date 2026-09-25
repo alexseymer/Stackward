@@ -98,13 +98,23 @@ ready for external contribution or redistribution.
 }
 ```
 
-### 5.1 Risk-Based Action Gating
+### 5.1 Check Script Detection
+
+`~/.stackward/check.sh` monitors:
+- **Logs:** Parse systemd journal, Docker logs, Proxmox task logs for errors, warnings, crashes
+- **Disk & Memory:** Read `/proc/mounts`, `df`, `/proc/meminfo`; flag >90% disk, low free memory
+- **Service Health:** `systemctl list-units --failed`; count service restarts, status changes
+- **Security:** Check `/etc/ssh/sshd_config` for password auth, use `ss` to list open ports
+
+Returns JSON: `{timestamp, hostname, issues: [...], suggestions: [...]}`
+
+### 5.2 Risk-Based Action Gating
 
 | Risk Level | Description | Examples | Phone Action |
 |------------|-------------|----------|--------------|
-| **Safe** | No elevation, reversible, low blast radius | restart service, check logs, verify config | Auto-approve, logged |
-| **Risky** | Requires elevation or is harder to undo | disable SSH password auth, update packages, reboot host | Require biometric confirmation before applying |
-| **Scary** | Changes system fundamentals, out of scope | edit sudoers, modify Proxmox permissions, change SSH port | Forbidden; user performs manually at console or provides documented script |
+| **Safe** | No elevation, read-only, zero side effects | tail logs, check service status, read config | Auto-approve, logged |
+| **Risky** | Requires elevation or harder to undo | restart service, reboot host, disable SSH password auth, update packages | Require biometric confirmation + show literal command before applying |
+| **Scary** | Changes system boundaries, out of scope | edit sudoers, modify Proxmox permissions, change SSH port | Forbidden; app shows manual workaround with copy-paste command |
 
 ### 5.2 Identity, Credentials, and Setup
 
@@ -148,22 +158,28 @@ Outcome-focused stories for v1 dogfood acceptance.
    install script once with the password, and the app installs the key and
    wipes the password. If I choose a more privileged account (root/sudo), the
    app warns me and I must acknowledge the risk.
-2. **Quick triage** — I open the app; it queries my hosts and shows me what's
-   wrong right now (disk full, service down, security risk) in under 10 seconds.
-3. **Natural-language summary (optional)** — If I've imported a Gemma model,
+2. **Dashboard glance** — I open the app; it shows all my configured hosts at
+   a glance (Proxmox, Docker, bastion). Green = no issues, red = problems.
+   Tap any host to see what's wrong.
+3. **Quick check** — I tap a host; app queries `check.sh` and shows issues +
+   suggestions in under 10 seconds. Disk at 92%, PostgreSQL failed, SSH
+   password auth still on.
+4. **Natural-language summary (optional)** — If I've imported a Gemma model,
    the app summarizes the anomalies in plain English. If I haven't, I still see
    the structured list.
-4. **Safe improvement** — I approve a low-risk action (restart a service) with
-   one tap; it runs immediately without extra confirmation.
-5. **Risky improvement** — I see a suggestion to disable SSH password auth. I
-   tap "apply," confirm with my fingerprint, and it happens.
-6. **Scary action blocked** — The app suggests editing sudoers or changing
-   Proxmox permissions but shows "manual step — see documentation" because
-   those are admin-only operations.
-7. **Monitor through jump host** — I onboard my internal Proxmox cluster via a
-   bastion without treating the bastion itself as a monitored server.
-8. **Scheduled checks** — I configure the app to check my hosts nightly;
-   notifications alert me if something is wrong.
+5. **Safe action** — I see "Check logs" suggestion; I tap it; app runs immediately
+   (no confirmation needed) and shows the tail of the journal.
+6. **Risky action with biometric** — I see "Restart nginx" suggestion. I tap "apply,"
+   confirm with my fingerprint, and it restarts. App shows the literal command
+   before executing.
+7. **Scary action blocked** — The app suggests "Disable SSH password auth" but
+   shows "Manual step required" with the exact command to run at the console.
+   I copy-paste it locally.
+8. **Scheduled monitoring** — For my Proxmox host, I enable "auto-check every 4h."
+   For my backup server, I leave it manual-only. Notifications alert me only if
+   something is critical (disk >95%, service down).
+9. **Monitor through jump host** — I onboard my internal Proxmox cluster via a
+   bastion; the bastion is not registered as a monitored server, just a relay.
 
 ## 7. Success Metrics
 

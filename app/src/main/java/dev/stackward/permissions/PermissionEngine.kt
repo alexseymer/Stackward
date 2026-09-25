@@ -70,7 +70,7 @@ class PermissionEngine(
 
     fun evaluate(
         proposal: ActionProposal,
-        capabilityPack: CapabilityPack = CapabilityPack.MAINTAIN,
+        capabilityPack: CapabilityPack = CapabilityPack.MONITOR,
     ): PermissionDecision {
         capabilityDenial(proposal, capabilityPack)?.let { return it }
 
@@ -111,17 +111,12 @@ class PermissionEngine(
                 if (proposal.tier != PermissionTier.ROUTINE) {
                     PermissionDecision.Deny(
                         proposal,
-                        "Enable the Maintain capability pack in Settings for maintenance actions.",
+                        "v1 Monitor tier only supports read-only checks. Risk-based action gating coming in Phase 3.",
                     )
                 } else {
                     null
                 }
             }
-            CapabilityPack.MAINTAIN -> null
-            CapabilityPack.PROVISION -> PermissionDecision.Deny(
-                proposal,
-                "Provision capability pack is not available in v1.",
-            )
         }
     }
 

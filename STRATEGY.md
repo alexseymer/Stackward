@@ -80,13 +80,48 @@ An installable Android APK that:
 3. **Gemma path:** Model import flow works; summarization happens in under 30s on a 2026 flagship.
 4. **Dogfood:** The author actually uses it weekly on their own cluster, without opening a laptop.
 
+## Implementation Specifics (v1 Refined)
+
+### Check Script Monitoring
+
+`~/.stackward/check.sh` detects and reports on:
+- **Logs:** Systemd journal, Docker container logs, Proxmox task logs (errors, warnings, crashes)
+- **Disk & Memory:** Partition %, memory %, swap usage
+- **Service Health:** Failed systemd units, restart counts, status changes
+- **Security Basics:** SSH password auth enabled, open ports, firewall state
+
+Returns JSON with issues (detected problems) and suggestions (proposed actions).
+
+### Action Risk Levels
+
+| Risk | Actions | Gate | Examples |
+|------|---------|------|----------|
+| **Safe** | Read-only operations | Auto-approve, logged | Read logs, check status, tail journal |
+| **Risky** | State changes, restarts | Biometric required | Restart service, reboot host, disable SSH password auth, update packages |
+| **Scary** | System boundary changes | Forbidden, manual workaround shown | Edit sudoers, change Proxmox perms, modify SSH port |
+
+### Phone App UI & Behavior
+
+- **Dashboard:** Display all configured hosts at once; tap to see issues + suggestions for one host
+- **Polling:** Per-host setting: manual-only or auto-check every 4 hours
+- **Notifications:** Critical issues only (service down, disk >95%, security risk detected)
+- **Actions:** User taps "Apply" → if safe, runs immediately; if risky, requires biometric + confirms; if scary, shows manual step
+
+### Gemma Integration
+
+- Optional: user imports Gemma 2B/4B `.task`/`.litertlm` file once
+- On-demand summarization: phone runs inference on anomalies, displays summary
+- Without Gemma: structured anomalies still work; no NL summary
+- Fallback: if Gemma inference fails (timeout, OOM), show structured list
+
 ## Implementation Order
 
-1. **Freeze Maintain/Provision** — Mark as v2+ in CapabilityPack; remove from UI.
-2. **Emphasize read-only** — PRD rewrites, docs updates.
-3. **Test no-model mode** — Verify heuristic digests work without Gemma.
-4. **Integrate Gemma as optional** — Make summarization a clearly optional extra.
-5. **Simplify install story** — APK + SSH key = first value (no bootstrap required for Monitor tier).
+1. **Check script core** — Implement `~/.stackward/check.sh` with log/disk/service/security detection
+2. **Bootstrap integration** — Fold `check.sh` install into `scripts/bootstrap_linux.sh`
+3. **Phone app refactor** — Update Android app for dashboard view, per-host polling, risk-based gating
+4. **Risk-gated actions** — Implement safe/risky/scary gates; biometric confirmation for risky
+5. **Gemma optional layer** — Make summarization opt-in; verify no-model degradation works
+6. **Notifications** — Add critical-issue alerts (configurable per host)
 
 ## Relationship to Ideation Doc (2026-09-15)
 

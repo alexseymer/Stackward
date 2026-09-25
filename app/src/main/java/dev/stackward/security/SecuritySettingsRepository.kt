@@ -45,20 +45,13 @@ class SecuritySettingsRepository(context: Context) {
     }
 
     fun getCapabilityPack(): CapabilityPack {
-        val raw = prefs.getString(KEY_CAPABILITY_PACK, CapabilityPack.MONITOR.name)
-            ?: CapabilityPack.MONITOR.name
-        return runCatching { CapabilityPack.valueOf(raw) }
-            .getOrDefault(CapabilityPack.MONITOR)
-            .let { pack ->
-                if (pack == CapabilityPack.PROVISION) CapabilityPack.MONITOR else pack
-            }
+        return CapabilityPack.MONITOR
     }
 
     fun setCapabilityPack(pack: CapabilityPack) {
-        require(pack != CapabilityPack.PROVISION) {
-            "Provision capability pack is not selectable in v1"
+        require(pack == CapabilityPack.MONITOR) {
+            "v1 supports Monitor tier only. Risk-based action gating coming in Phase 3."
         }
-        prefs.edit().putString(KEY_CAPABILITY_PACK, pack.name).apply()
     }
 
     fun clear() {
