@@ -167,10 +167,7 @@ fun SettingsScreen(
 
             ConnectionCard(uiState = uiState)
 
-            CapabilityPackCard(
-                selected = uiState.capabilityPack,
-                onSelect = viewModel::setCapabilityPack,
-            )
+            CapabilityPackCard()
 
             Tier1Card(
                 uiState = uiState,
@@ -206,40 +203,18 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun CapabilityPackCard(
-    selected: CapabilityPack,
-    onSelect: (CapabilityPack) -> Unit,
-) {
+private fun CapabilityPackCard() {
+    val selected = CapabilityPack.MONITOR
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Capability pack", style = MaterialTheme.typography.titleSmall)
+            Text("Monitor tier", style = MaterialTheme.typography.titleSmall)
             Text(
-                "Gates what the model may propose. Tier 2/3 still require your confirmation.",
+                selected.summary,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CapabilityPack.MONITOR.let { pack ->
-                    FilterChip(
-                        selected = selected == pack,
-                        onClick = { onSelect(pack) },
-                        label = { Text(pack.displayName) },
-                    )
-                }
-                CapabilityPack.MAINTAIN.let { pack ->
-                    FilterChip(
-                        selected = selected == pack,
-                        onClick = { onSelect(pack) },
-                        label = { Text(pack.displayName) },
-                    )
-                }
-            }
             Text(
-                text = selected.summary,
-                style = MaterialTheme.typography.labelSmall,
-            )
-            Text(
-                text = "Provision: not available in v1.",
+                "Risk-based action gating (safe/risky/scary) coming in Phase 3.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

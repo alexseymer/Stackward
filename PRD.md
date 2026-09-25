@@ -1,195 +1,235 @@
-# PRD: Stackward — On-Device LLM for Server & Infra Monitoring
+# PRD: Stackward — Personal Infrastructure Triage & Gated Improvements
 
 ## 1. Summary
 
-An Android app that runs a quantized Gemma 4 model (E2B/E4B) fully on-device
-to help a user monitor and manage their own infrastructure — plain Linux
-hosts, Proxmox clusters, and Docker containers — over SSH, without sending
-credentials, logs, or command output to any third-party cloud service.
+An Android app for solo infrastructure operators to monitor and improve their
+own systems — Linux hosts, Proxmox, Docker — from a phone without a laptop or
+SaaS exposure.
 
-The core design constraint: **the model proposes, the human (or a narrow,
-pre-approved rule) disposes.** No autonomous privilege escalation, no silent
-broadening of what the agent may do, no biometric data leaving the device.
+**The job:** "Is something wrong right now? Should I open the laptop?"
+
+**How it works:**
+1. User connects phone to a host via SSH (one-time setup)
+2. Phone queries a lightweight check script (`~/.stackward/check.sh`) for issues
+3. Script returns **structured anomalies** (disk full, service down, security risk, etc.)
+4. Phone gates improvements based on risk: safe actions auto-approve, risky require
+   biometric confirmation, scary operations forbidden
+5. Optional: Gemma summarizes issues in natural language (on-device, user-imported)
+
+**Core constraint:** No autonomous actions, no cloud, nothing leaves the device except over the user's own SSH.
 
 **Product invariants** (always true):
 
-1. Inference stays on-device (local brain).
-2. Mutating / elevating actions are human-gated (confirm + biometric where
-   elevation is involved).
-
-**User policy** (defaults are safe; the operator chooses):
-
-- How powerful the remote SSH/API identity is (restricted agent recommended;
-  elevated accounts allowed only with explicit acknowledgment).
-- Which capabilities are in scope (read-only monitoring vs maintenance vs
-  broader provisioning-style work), still gated by the invariants above.
+1. All data stays on the device and user-owned hosts — never cloud.
+2. Risky/scary improvements are human-gated (biometric where elevation is involved).
+3. Gemma is optional; without it, the app works as a structured anomaly detector.
 
 ## 2. Goals
 
-- Let a user point the app at a server (IP/host + port) and connect with an
-  identity *they* choose — recommended default: a dedicated least-privilege
-  agent user with almost no manual server-side setup beyond creating the
-  account.
-- Read and summarize logs (systemd journal, Docker container logs, Proxmox
-  task logs) using the on-device model — typically read-only, zero elevation.
-- Allow scoped, confirmed command execution for routine and one-off
-  maintenance tasks (service restarts, VM/LXC power actions); broader
-  actions only when the user has enabled the corresponding capability and
-  confirms each elevation as required.
-- Support infra that isn't directly reachable from the internet, via SSH
-  jump-host / tunnel patterns.
-- Keep all inference local. No prompts, logs, or command output leave the
-  device except over the user's own SSH/API connections to their own
-  infrastructure.
-- Make privilege and scope tradeoffs visible: safe defaults, never silent
-  escalation.
+- **One-time setup:** User creates a low-privilege host account, connects once
+  with SSH password; app installs a key and the `check.sh` script, then wipes
+  the password — never stored.
+- **Detect anomalies:** App queries the check script regularly; script reads logs
+  (systemd, Docker, Proxmox), runs heuristics (disk %, memory, error patterns),
+  and returns structured issues + suggested improvements in JSON.
+- **Summarize with Gemma (optional):** If user imports a quantized Gemma 2B/4B,
+  phone summarizes the anomalies in natural language on-device. Without Gemma,
+  the app still shows the structured anomalies.
+- **Gate improvements by risk:**
+  - **Safe** (restart a service, check logs): auto-approve, logged
+  - **Risky** (disable SSH password auth, update packages): require biometric confirmation
+  - **Scary** (edit sudoers, change Proxmox permissions): forbidden, documented workaround for manual operator action
+- **Support jump hosts:** Monitor systems behind a bastion without treating the
+  bastion as a monitored server.
+- **Keep it private:** No prompts, logs, or host state leave the device except
+  over SSH/API to the user's own infrastructure; no third-party SaaS, no cloud
+  fallback, no team/multi-user (single operator per deployment).
 
-## 3. Non-Goals (v1)
+## 3. Non-Goals (v1 and beyond)
 
-- No autonomous unattended write actions of any kind (Tier 2/3 always
-  require explicit human confirmation).
-- No multi-user / team accounts — single operator, single device (or
-  device + backup) per deployment.
-- No cloud fallback inference. If the phone can't run the model, the app
-  degrades to "no AI summarization," not "send data to a cloud API."
-- No forcing a single remote identity: the app recommends
-  `stackward-agent`, but does not permanently forbid stronger accounts —
-  it warns and requires acknowledgment instead.
-
-Provisioning-style work (creating VMs/LXCs/hosts) is **out of the default
-capability set** for v1, not a permanent ban. Users may opt into broader
-scopes later; every mutating step remains human-gated.
+- **No autonomous unattended actions** — every risky action requires a biometric
+  gate from the phone's operator.
+- **No team/multi-operator mode** — Stackward is for solo operators managing
+  their own infrastructure; no team accounts, no shared credential pools.
+- **No cloud or SaaS fallback** — if Gemma can't run on the phone, the app
+  degrades to structured anomalies without summarization; never sends data
+  to a cloud API.
+- **No broad privilege grants by default** — the app recommends a dedicated
+  low-privilege `stackward-agent` user; if the operator chooses root/sudo,
+  the app warns and requires explicit acknowledgment before proceeding.
+- **No broad actuation** — creating VMs, editing sudoers, granting Proxmox
+  permissions, and other "scary" operations are out of scope. The app shows
+  what should be done; an operator performs those steps manually at the
+  console or via a documented admin script.
+- **No Play Store enrollment in v1** — distribution is ADB + APK download;
+  verification happens locally on the device, not via Play ecosystem.
 
 ## 4. Users
 
-Solo operators / small teams who self-host — homelab users, small
-businesses running Proxmox + Docker — who want a fast way to ask "what's
-wrong right now" from their phone without opening a laptop or exposing
-infra to a third-party SaaS monitoring tool.
+**Primary:** Solo homelab operators (one person, their own Proxmox/Docker
+cluster, 10–1000 nodes) who want a fast triage path from their phone without
+a laptop and without exposing logs to a third-party SaaS.
+
+**Secondary:** None for v1. No small-business multi-operator story. No team
+delegation. README and LICENSE (MIT) clarify this is a personal tool, not
+ready for external contribution or redistribution.
 
 ## 5. Core Concepts
 
-### 5.0 Decision layers
+### 5.0 The Check Script Architecture
 
-| Layer | Who decides |
-|--------|-------------|
-| Where intelligence runs | Product (on-device) |
-| Whether an action may run | User (confirm / rules they approved) |
-| How powerful the SSH/API identity is | User (setup choice; elevated = explicit ack) |
-| What kinds of work are in scope | User (capabilities they enable) |
+**`~/.stackward/check.sh`** is a shell script installed on each monitored host:
 
-### 5.1 Tiered Permission Model
+1. **Detects:** Reads logs, runs heuristics (disk, memory, errors, security risks)
+2. **Reports:** Returns JSON with issues and suggested improvements
+3. **Phone gates:** Phone queries the script, displays results, and decides whether to apply suggestions
 
-| Tier | Description | Examples | Confirmation |
-|------|-------------|----------|---------------|
-| **Tier 1 — Routine** | Read-only or pre-vetted low-risk actions | log reads, `systemctl status`, VM/LXC status via Proxmox API, container list | None (logged) |
-| **Tier 2 — One-timer** | Named, bounded elevation for a single action | restart a service, restart/stop a container, power-cycle a VM | Explicit per-action confirmation + biometric |
-| **Tier 3 — Boundary change** | Anything that changes what the agent is *allowed* to do | editing `sudoers.d`, granting new Proxmox API permissions, adding new Tier 1 rules | Out of the automated path; human-only, hard confirmation, drafted not auto-applied |
+**JSON response example:**
+```json
+{
+  "issues": [
+    {"type": "security", "severity": "critical", "message": "SSH password auth enabled"},
+    {"type": "disk", "severity": "high", "message": "/var at 92%"}
+  ],
+  "suggestions": [
+    {"id": "ssh-disable-pwd", "risk": "risky", "action": "disable_ssh_password"},
+    {"id": "disk-alert", "risk": "safe", "action": "log_alert"}
+  ]
+}
+```
 
-### 5.2 Identity & Credentials
+### 5.1 Check Script Detection
 
-- **Recommended default:** dedicated low-privilege OS user per host
-  (`stackward-agent`), created out-of-band by an admin
-  (`sudo adduser stackward-agent` on Debian). Password used once
-  (ssh-copy-id style) to install the device public key into
-  `~/.ssh/authorized_keys`, then wiped — never stored.
-- **User choice:** the operator may connect with a different (including
-  elevated / root / passwordless-sudo) account. The app detects elevation
-  during the login probe, shows a clear risk warning, and requires
-  explicit acknowledgment before key install. Optional host helpers
-  (`scripts/bootstrap_linux.sh`) install narrow sudoers rules for
-  Stackward helpers; they are admin-run, not required for basic key-only
-  setup.
-- SSH keypair generated in Android Keystore (hardware-backed where
-  available), non-exportable, `setUserAuthenticationRequired(true)` —
-  every signing operation requires a fresh biometric prompt.
-- Proxmox: dedicated API token (`stackward-agent@pve`) bound to a custom role
-  with explicit, minimal privileges (`VM.Audit`, `Sys.Audit`,
-  `VM.PowerMgmt` — never `VM.Config.*` / `VM.Allocate` in the default role).
-  Token creation is **out-of-band** (admin `pveum`); broader roles are a
-  user/admin policy choice. (`VM.Monitor` was dropped in PVE 9; bootstrap
-  falls back to a legacy privilege set that still includes it on older hosts.)
-- Docker: log access via file/group ACL on Docker's log directory, **not**
-  `docker` group membership (which is root-equivalent) unless the user
-  explicitly opts in and is warned.
-- No biometric data ever transmitted or stored server-side. Biometrics
-  gate local key usage only.
+`~/.stackward/check.sh` monitors:
+- **Logs:** Parse systemd journal, Docker logs, Proxmox task logs for errors, warnings, crashes
+- **Disk & Memory:** Read `/proc/mounts`, `df`, `/proc/meminfo`; flag >90% disk, low free memory
+- **Service Health:** `systemctl list-units --failed`; count service restarts, status changes
+- **Security:** Check `/etc/ssh/sshd_config` for password auth, use `ss` to list open ports
 
-### 5.3 Connectivity
+Returns JSON: `{timestamp, hostname, issues: [...], suggestions: [...]}`
 
-- Direct SSH for hosts reachable from the internet.
-- Jump-host / tunnel support (`ProxyJump` equivalent via channel
-  forwarding) for LAN-only infra — e.g. phone → bastion/Proxmox host →
-  internal target, or local port-forward for reaching the Proxmox API
-  (`:8006`) or Docker hosts on the LAN.
-- Host key pinning (TOFU) per hop, with alerting on change.
-- Reconnect-with-backoff for scheduled/unattended log digests.
+### 5.2 Risk-Based Action Gating
+
+| Risk Level | Description | Examples | Phone Action |
+|------------|-------------|----------|--------------|
+| **Safe** | No elevation, read-only, zero side effects | tail logs, check service status, read config | Auto-approve, logged |
+| **Risky** | Requires elevation or harder to undo | restart service, reboot host, disable SSH password auth, update packages | Require biometric confirmation + show literal command before applying |
+| **Scary** | Changes system boundaries, out of scope | edit sudoers, modify Proxmox permissions, change SSH port | Forbidden; app shows manual workaround with copy-paste command |
+
+### 5.2 Identity, Credentials, and Setup
+
+**One-time setup flow:**
+1. User creates a low-privilege host account: `sudo adduser stackward-agent`
+2. User runs: `ssh stackward-agent@host "bash < <(curl .../install.sh)"`
+3. User enters password once; script installs SSH key and `check.sh`, then wipes password
+4. Password never stored on phone; all future SSH is key-based
+
+**Key security practices:**
+- SSH keypair lives in Android Keystore (hardware-backed where available),
+  non-exportable, `setUserAuthenticationRequired(true)` — every SSH sign
+  requires a fresh biometric prompt.
+- Recommended identity: dedicated low-privilege `stackward-agent` user
+  (no elevation, no sudo needed for read-only checks).
+- User choice: operator may connect with a more privileged account (root, sudo).
+  The app detects elevation during login, warns with clear risk language,
+  and requires explicit acknowledgment before key install.
+- Biometric data never leaves the device or is sent server-side; biometric gates
+  only local key operations.
+- Proxmox and Docker: optional, configured via `~/.stackward/env` on the host
+  if the user wants to include those datasources in anomaly detection.
+
+### 5.3 Connectivity & Polling
+
+- **Direct SSH:** Phone connects directly to hosts reachable from the internet.
+- **Jump-host support:** For LAN-only infra, phone → bastion → internal host
+  (ProxyJump via SSH channel forwarding). Bastion is not registered as a
+  monitored server, only as a relay.
+- **Host key pinning (TOFU):** Each host's key is pinned on first connect;
+  changes alert the user.
+- **Scheduled checks:** Phone can poll the check script on a user-defined
+  cadence (e.g., every 4 hours, every night); reconnect-with-backoff on
+  temporary failures.
 
 ## 6. Key User Stories
 
-Outcome-focused stories for dogfood acceptance. Detailed acceptance criteria
-live in [docs/USER_STORIES.md](docs/USER_STORIES.md).
+Outcome-focused stories for v1 dogfood acceptance.
 
-1. **First connect** — I create `stackward-agent` on my host, connect once
-   with password, and the app installs its key and wipes the password. If I
-   choose a more privileged account, the app warns me and I must acknowledge
-   the risk before continuing.
-2. **Stay informed** — I get periodic digests of problems across journal,
-   Docker, and Proxmox without opening a laptop.
-3. **Investigate** — I ask a natural-language question about a container or
-   service and get a correlated on-device summary.
-4. **Act safely** — I approve a one-time maintenance action after seeing the
-   literal command, model reasoning, and a biometric check.
-5. **Recover from loss** — I can revoke agent access from the phone *or* via
-   a documented admin path if the phone is gone.
-6. **Reach LAN hosts** — I onboard through a jump host without treating the
-   bastion as a monitored server.
-7. **Control scope** — I choose capability level (read-only / maintenance /
-   future provisioning) in Settings; mutations stay human-gated.
-8. **Audit & rotate** — I export audit history, rotate keys, and review Tier 1
-   rules on a schedule.
+1. **First connect** — I create a `stackward-agent` user on my host, run the
+   install script once with the password, and the app installs the key and
+   wipes the password. If I choose a more privileged account (root/sudo), the
+   app warns me and I must acknowledge the risk.
+2. **Dashboard glance** — I open the app; it shows all my configured hosts at
+   a glance (Proxmox, Docker, bastion). Green = no issues, red = problems.
+   Tap any host to see what's wrong.
+3. **Quick check** — I tap a host; app queries `check.sh` and shows issues +
+   suggestions in under 10 seconds. Disk at 92%, PostgreSQL failed, SSH
+   password auth still on.
+4. **Natural-language summary (optional)** — If I've imported a Gemma model,
+   the app summarizes the anomalies in plain English. If I haven't, I still see
+   the structured list.
+5. **Safe action** — I see "Check logs" suggestion; I tap it; app runs immediately
+   (no confirmation needed) and shows the tail of the journal.
+6. **Risky action with biometric** — I see "Restart nginx" suggestion. I tap "apply,"
+   confirm with my fingerprint, and it restarts. App shows the literal command
+   before executing.
+7. **Scary action blocked** — The app suggests "Disable SSH password auth" but
+   shows "Manual step required" with the exact command to run at the console.
+   I copy-paste it locally.
+8. **Scheduled monitoring** — For my Proxmox host, I enable "auto-check every 4h."
+   For my backup server, I leave it manual-only. Notifications alert me only if
+   something is critical (disk >95%, service down).
+9. **Monitor through jump host** — I onboard my internal Proxmox cluster via a
+   bastion; the bastion is not registered as a monitored server, just a relay.
 
 ## 7. Success Metrics
 
-- Time from "enter IP" to "first working log digest" (target: < 5 min).
-- Zero standing broad-privilege grants created without explicit user /
-  Tier 3 human action.
-- Zero biometric or credential data observed leaving the device in network
-  audit.
-- False-positive rate of anomaly flags in digests (tracked qualitatively
-  in early dogfooding).
+- **Install-to-first-check:** User runs install script → app connects →
+  shows first anomalies in under 5 minutes (no model import needed).
+- **Model optional:** Without Gemma, the app still provides value as a
+  structured anomaly detector; with Gemma, summaries arrive within 30s
+  on a 2026 flagship.
+- **Biometric integrity:** Zero credential data or biometric data leaves the
+  device in network audit.
+- **False-positive rate:** Heuristic anomaly detection flags fewer than N false
+  positives per 100 real issues (tracked during dogfooding; target: 10–20%).
+- **Dogfood:** Author uses the app weekly to triage their own cluster; would
+  open it instead of a laptop for "what's wrong?" questions.
 
 ## 8. Risks & Mitigations
 
 | Risk | Mitigation |
 |---|---|
-| Small on-device model hallucinates a plausible but wrong/destructive command | All mutating actions gated by Tier 2/3 confirmation showing literal command string, not paraphrase |
-| Compromised jump host MITMs inner hop | Per-hop host key pinning |
-| Docker group membership grants root-equivalent access | Default to log-file ACL access; require explicit opt-in + warning for group membership |
-| One-time agent password used during setup | Keystore-encrypted in memory only; wiped after authorized_keys install; never written to disk |
-| User connects with root / broad sudo | Login probe detects elevation; setup blocked until explicit acknowledgment; audit notes elevated identity |
-| Lost/stolen unlocked phone | Every sensitive key operation re-triggers biometric prompt, not just app unlock |
+| Check script is compromised or returns malicious suggestions | Phone shows literal command before applying; user confirms via biometric; audited locally |
+| Compromised jump host MITMs inner connections | Per-hop SSH host key pinning; TOFU validation and alerting on key change |
+| Heuristics flag false positives (e.g., false OOM alert) | Human review before action; "risky" actions still require biometric gate |
+| One-time agent password used during setup | Held in Keystore-encrypted memory only; wiped immediately after `authorized_keys` install |
+| User connects with root/passwordless-sudo | Login probe detects elevation; setup workflow warns and requires explicit acknowledgment |
+| Lost/stolen phone with unlocked session | Every key operation (SSH, apply action) re-triggers biometric — not app unlock alone |
+| No Gemma model available | App degrades to structured anomalies; summarization is optional, not required for value |
 
 ## 9. Phased Roadmap
 
-See [docs/PHASES.md](docs/PHASES.md) for full detail.
+See [docs/PHASES.md](docs/PHASES.md) for full detail. Focus is on Monitor tier only in v1.
 
-- **Phase 0/1** — Agent setup (prep info, one-time password →
-  authorized_keys, jump-host support; Proxmox token out-of-band; elevated
-  identity requires acknowledgment)
-- **Phase 2** — Local model integration (Gemma 4 E2B/E4B via MediaPipe LLM
-  Inference API)
-- **Phase 3** — Tiered permission engine (sudoers + Proxmox role backend)
-- **Phase 4** — MVP feature: unified log reading (journal + Docker +
-  Proxmox), read-only
-- **Phase 5** — Hardening: audit log, key rotation, panic revoke
+- **Phase 0/1** — Setup (one-time password → authorized_keys, key install in
+  Keystore, `check.sh` deployment via bootstrap script, jump-host support)
+- **Phase 2** — Check script + heuristics (detect errors, OOM, disk full, security risks)
+- **Phase 3** — Risk-based action gating (safe auto-approve, risky require
+  biometric, scary forbidden)
+- **Phase 4** — Gemma optional summarization (user imports model, phone runs
+  inference on-device, no model = structured anomalies still work)
+- **Phase 5** — Hardening & audit (local audit log, key rotation, panic revoke,
+  biometric-on-every-action pattern)
 
 ## 10. Decisions (resolved)
 
 | Topic | Decision |
 |-------|----------|
-| Canonical agent identity | `stackward-agent` (Linux SSH user); `stackward-agent@pve` (Proxmox API user) |
-| Host type detection | Auto-detect after connect; optional override in Settings later |
-| Tier 3 agent proposals | Draft-only for human review — never auto-applied |
-| Jump host role | Pure relay — bastion gets the agent key for ProxyJump auth only; not registered as a monitored ServerProfile |
-| Capability packs (Settings) | Three packs gate what the model may *propose*; Tier 2/3 human gates unchanged: **Monitor** (Tier 1 reads + digests), **Maintain** (+ Tier 2 one-timers), **Provision** (future, off by default in v1) |
+| Core agent | Shell script (`check.sh`), not a daemon; phone queries on-demand or on schedule |
+| Recommended identity | `stackward-agent` (dedicated low-privilege Linux user, no elevation) |
+| Risk-based gating | Safe actions auto-approve; risky actions require biometric; scary actions forbidden |
+| Gemma integration | Optional; phone imports user's model file; without it, structured anomalies still work |
+| Scary operations (sudoers, Proxmox perms, SSH port changes) | Out of scope; documented manual workarounds provided |
+| Jump host role | Pure relay — not registered as a monitored server; only used for ProxyJump auth |
+| v1 scope | Monitor tier only (read-only detection + risk-gated improvements); no Maintain or Provision phases |
+| Distribution (v1) | ADB + downloaded APK; no Play Store enrollment; ~20-device limit due to Android developer verification |
