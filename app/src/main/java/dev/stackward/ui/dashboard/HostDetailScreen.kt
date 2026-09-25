@@ -127,6 +127,8 @@ fun HostDetailScreen(
                         )
                     }
                 }
+
+                AiSummarySection(uiState = uiState, onSummarize = viewModel::summarizeIssues)
             }
         }
     }
@@ -190,6 +192,41 @@ fun HostDetailScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun AiSummarySection(uiState: HostDetailUiState, onSummarize: () -> Unit) {
+    Column(modifier = Modifier.padding(top = 24.dp)) {
+        Text("AI summary", style = MaterialTheme.typography.titleMedium)
+        if (!uiState.modelConfigured) {
+            Text(
+                "No model imported — summarization disabled (no cloud fallback).",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        } else if (uiState.isSummarizing) {
+            CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
+        } else {
+            OutlinedButton(onClick = onSummarize, modifier = Modifier.padding(top = 8.dp)) {
+                Text("Summarize with Gemma")
+            }
+        }
+        uiState.aiUnavailableReason?.let { reason ->
+            Text(
+                reason,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+        uiState.aiSummary?.let { summary ->
+            RowCard {
+                Text("Gemma summary", style = MaterialTheme.typography.labelMedium)
+                Text(summary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
     }
 }
 
