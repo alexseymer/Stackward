@@ -222,7 +222,7 @@ cat > "${AGENT_HOME}/.stackward/check.sh" << 'CHECK_SCRIPT_EOF'
 # Installed by: scripts/bootstrap_linux.sh (app onboarding invokes this)
 # Called by: Stackward Android app via SSH, on-demand or on schedule
 
-set -euo pipefail
+set -uo pipefail
 
 : "${SYSTEMD_JOURNAL_LINES:=100}"
 : "${DOCKER_LOG_LINES:=50}"
@@ -230,195 +230,130 @@ set -euo pipefail
 : "${DISK_CRITICAL_PCT:=95}"
 : "${MEM_WARNING_PCT:=80}"
 
-# Optional Proxmox/Docker config (set by bootstrap if user wants to include these).
-: "${STACKWARD_PROXMOX_ENABLED:=false}"
-: "${STACKWARD_DOCKER_ENABLED:=true}"
-
-# JSON output helpers
-json_escape() {
-    printf '%s\n' "$1" | jq -Rs .
-}
-
-issue() {
-    local type="$1" severity="$2" message="$3"
-    cat <<EOF
-    {
-      "type": "$(json_escape "$type")",
-      "severity": "$(json_escape "$severity")",
-      "message": $(json_escape "$message")
-    }
-EOF
-}
-
-suggestion() {
-    local id="$1" risk="$2" action="$3" reason="$4"
-    cat <<EOF
-    {
-      "id": "$(json_escape "$id")",
-      "risk": "$(json_escape "$risk")",
-      "action": "$(json_escape "$action")",
-      "reason": $(json_escape "$reason")
-    }
-EOF
-}
-
 # Core detection functions
 detect_disk_issues() {
-    local issues=()
-    while IFS= read -r line; do
-        local device usage_pct mount
-        read -r device usage_pct mount <<< "$(echo "$line" | awk '{print $1, $5, $6}')"
-        usage_pct="${usage_pct%\%}"
+    df -h 2>/dev/null | grep -E '^/' | while IFS= read -r line; do
+        local usage_pct mount
+        usage_pct=$(echo "$line" | awk '{print $5}' | sed 's/%//')
+        mount=$(echo "$line" | awk '{print $6}')
 
         if [[ $usage_pct -gt $DISK_CRITICAL_PCT ]]; then
-            issues+=("$(issue "disk" "critical" "$mount at ${usage_pct}% capacity")")
+            echo "  { \"type\": \"disk\", \"severity\": \"critical\", \"message\": \"$mount at ${usage_pct}% capacity\" }"
         elif [[ $usage_pct -gt $DISK_WARNING_PCT ]]; then
-            issues+=("$(issue "disk" "high" "$mount at ${usage_pct}%")")
+            echo "  { \"type\": \"disk\", \"severity\": \"high\", \"message\": \"$mount at ${usage_pct}%\" }"
         fi
-    done < <(df -h | grep -E '^/' | awk '{print $1, $5, $6}')
-
-    printf '%s\n' "${issues[@]}"
+    done || true
 }
 
 detect_memory_issues() {
-    local issues=()
-    local mem_info memtotal memavail mem_used_pct
-
     if [[ -f /proc/meminfo ]]; then
+        local memtotal memavail mem_used_pct
         memtotal=$(grep MemTotal /proc/meminfo | awk '{print $2}')
         memavail=$(grep MemAvailable /proc/meminfo | awk '{print $2}')
         mem_used_pct=$(( (memtotal - memavail) * 100 / memtotal ))
 
         if [[ $mem_used_pct -gt $MEM_WARNING_PCT ]]; then
-            issues+=("$(issue "memory" "high" "Memory usage at ${mem_used_pct}%")")
+            echo "  { \"type\": \"memory\", \"severity\": \"high\", \"message\": \"Memory usage at ${mem_used_pct}%\" }"
         fi
     fi
-
-    printf '%s\n' "${issues[@]}"
 }
 
 detect_service_issues() {
-    local issues=()
-
-    # Check failed systemd units
     if command -v systemctl &>/dev/null; then
-        local failed_units
-        failed_units=$(systemctl list-units --state=failed --no-pager --plain 2>/dev/null | grep -v '^UNIT' | awk '{print $1}' || true)
-        if [[ -n $failed_units ]]; then
-            while IFS= read -r unit; do
-                [[ -z $unit ]] && continue
-                issues+=("$(issue "service" "critical" "Unit $unit failed")")
-            done <<< "$failed_units"
-        fi
+        systemctl list-units --state=failed --no-pager --plain 2>/dev/null | grep -v '^UNIT' | while IFS= read -r line; do
+            local unit
+            unit=$(echo "$line" | awk '{print $1}')
+            [[ -z $unit ]] && continue
+            echo "  { \"type\": \"service\", \"severity\": \"critical\", \"message\": \"Unit $unit failed\" }"
+        done || true
     fi
-
-    printf '%s\n' "${issues[@]}"
 }
 
 detect_security_issues() {
-    local issues=()
-
     # SSH password auth check
     if [[ -f /etc/ssh/sshd_config ]]; then
-        if grep -qE '^\s*PasswordAuthentication\s+yes' /etc/ssh/sshd_config; then
-            issues+=("$(issue "security" "critical" "SSH password authentication enabled")")
+        if grep -qE '^\s*PasswordAuthentication\s+yes' /etc/ssh/sshd_config 2>/dev/null; then
+            echo "  { \"type\": \"security\", \"severity\": \"critical\", \"message\": \"SSH password authentication enabled\" }"
         fi
     fi
 
-    # Check for excessive open ports (basic heuristic: >20 listening ports = suspicious)
+    # Check for excessive open ports
     if command -v ss &>/dev/null; then
         local port_count
-        port_count=$(ss -tlnp 2>/dev/null | grep LISTEN | wc -l || echo "0")
+        port_count=$(ss -tlnp 2>/dev/null | grep -c LISTEN || echo "0")
         if [[ $port_count -gt 20 ]]; then
-            issues+=("$(issue "security" "medium" "High number of open listening ports ($port_count)")")
+            echo "  { \"type\": \"security\", \"severity\": \"medium\", \"message\": \"High number of open listening ports ($port_count)\" }"
         fi
     fi
-
-    printf '%s\n' "${issues[@]}"
 }
 
 detect_log_errors() {
-    local issues=()
-
-    # Systemd journal errors (last N lines)
+    # Systemd journal errors
     if command -v journalctl &>/dev/null; then
         local error_count
         error_count=$(journalctl -n "$SYSTEMD_JOURNAL_LINES" --priority=err --no-pager 2>/dev/null | wc -l || echo "0")
         if [[ $error_count -gt 5 ]]; then
-            issues+=("$(issue "logs" "medium" "Multiple journal errors in last $SYSTEMD_JOURNAL_LINES entries")")
+            echo "  { \"type\": \"logs\", \"severity\": \"medium\", \"message\": \"Multiple journal errors in last $SYSTEMD_JOURNAL_LINES entries\" }"
         fi
     fi
 
-    # Docker container errors (if available)
-    if [[ $STACKWARD_DOCKER_ENABLED == "true" ]] && command -v docker &>/dev/null; then
+    # Docker container errors
+    if command -v docker &>/dev/null; then
         local failing_containers
         failing_containers=$(docker ps --filter "status=exited" --format "{{.Names}}" 2>/dev/null || echo "")
         if [[ -n $failing_containers ]]; then
             local count
             count=$(echo "$failing_containers" | wc -l)
-            issues+=("$(issue "docker" "medium" "$count container(s) exited")")
+            echo "  { \"type\": \"docker\", \"severity\": \"medium\", \"message\": \"$count container(s) exited\" }"
         fi
     fi
-
-    printf '%s\n' "${issues[@]}"
 }
 
 detect_suggestions() {
-    local suggestions=()
-
-    # Suggest log review if errors detected
-    suggestions+=("$(suggestion "review-logs" "safe" "tail_journal" "Inspect recent journal errors")")
-
-    # Suggest checking service status
-    suggestions+=("$(suggestion "check-services" "safe" "list_failed_services" "Review failed systemd units")")
+    echo "  { \"id\": \"review-logs\", \"risk\": \"safe\", \"action\": \"tail_journal\", \"reason\": \"Inspect recent journal errors\" }"
+    echo "  { \"id\": \"check-services\", \"risk\": \"safe\", \"action\": \"list_failed_services\", \"reason\": \"Review failed systemd units\" }"
 
     # Suggest disk cleanup if high
-    if df -h | grep -E '^/' | awk '{print $5}' | sed 's/%//' | grep -qE '([89][0-9]|100)'; then
-        suggestions+=("$(suggestion "cleanup-disk" "risky" "cleanup_old_logs" "Remove old log files to free disk space")")
+    if df -h 2>/dev/null | grep -E '^/' | awk '{print $5}' | sed 's/%//' | grep -qE '([89][0-9]|100)'; then
+        echo "  { \"id\": \"cleanup-disk\", \"risk\": \"risky\", \"action\": \"cleanup_old_logs\", \"reason\": \"Remove old log files to free disk space\" }"
     fi
 
     # Suggest SSH hardening if password auth is on
-    if [[ -f /etc/ssh/sshd_config ]] && grep -qE '^\s*PasswordAuthentication\s+yes' /etc/ssh/sshd_config; then
-        suggestions+=("$(suggestion "disable-ssh-pwd" "risky" "disable_ssh_password_auth" "Disable SSH password authentication")")
+    if [[ -f /etc/ssh/sshd_config ]] && grep -qE '^\s*PasswordAuthentication\s+yes' /etc/ssh/sshd_config 2>/dev/null; then
+        echo "  { \"id\": \"disable-ssh-pwd\", \"risk\": \"risky\", \"action\": \"disable_ssh_password_auth\", \"reason\": \"Disable SSH password authentication\" }"
     fi
-
-    printf '%s\n' "${suggestions[@]}"
 }
 
 # Main
 main() {
-    local issues=()
-    local suggestions=()
-    local timestamp
+    local timestamp hostname
     timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    local hostname
     hostname=$(hostname -f 2>/dev/null || hostname)
 
-    # Collect issues
-    mapfile -t issues < <(
-        detect_disk_issues
-        detect_memory_issues
-        detect_service_issues
-        detect_security_issues
-        detect_log_errors
-    )
+    {
+        echo "{"
+        echo "  \"timestamp\": \"$timestamp\","
+        echo "  \"hostname\": \"$hostname\","
+        echo "  \"issues\": ["
 
-    # Collect suggestions
-    mapfile -t suggestions < <(detect_suggestions)
+        # Collect all issues and join with commas
+        {
+            detect_disk_issues
+            detect_memory_issues
+            detect_service_issues
+            detect_security_issues
+            detect_log_errors
+        } | sed '$!s/$/,/'
 
-    # Output JSON
-    cat <<EOF
-{
-  "timestamp": "$(json_escape "$timestamp")",
-  "hostname": $(json_escape "$hostname"),
-  "issues": [
-$(printf '%s,\n' "${issues[@]}" | sed '$s/,$//')
-  ],
-  "suggestions": [
-$(printf '%s,\n' "${suggestions[@]}" | sed '$s/,$//')
-  ]
-}
-EOF
+        echo "  ],"
+        echo "  \"suggestions\": ["
+
+        # Collect all suggestions and join with commas
+        detect_suggestions | sed '$!s/$/,/'
+
+        echo "  ]"
+        echo "}"
+    }
 }
 
 main "$@"

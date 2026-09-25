@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -62,6 +63,7 @@ import java.util.Date
 fun LogsScreen(
     viewModel: LogsViewModel,
     onOpenSettings: () -> Unit = {},
+    onBack: (() -> Unit)? = null,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val profile = uiState.profile
@@ -97,6 +99,13 @@ fun LogsScreen(
                                 text = "${it.host}:${it.port}",
                                 style = MaterialTheme.typography.labelSmall,
                             )
+                        }
+                    }
+                },
+                navigationIcon = {
+                    onBack?.let { back ->
+                        IconButton(onClick = back) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                     }
                 },

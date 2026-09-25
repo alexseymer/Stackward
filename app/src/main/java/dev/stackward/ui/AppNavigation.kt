@@ -8,6 +8,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.stackward.ui.dashboard.DashboardScreen
+import dev.stackward.ui.dashboard.DashboardViewModel
+import dev.stackward.ui.dashboard.HostDetailScreen
+import dev.stackward.ui.dashboard.HostDetailViewModel
 import dev.stackward.ui.logs.LogsScreen
 import dev.stackward.ui.logs.LogsViewModel
 import dev.stackward.ui.onboarding.OnboardingViewModel
@@ -15,16 +19,22 @@ import dev.stackward.ui.onboarding.ProvisionStep
 import dev.stackward.ui.settings.SettingsScreen
 import dev.stackward.ui.settings.SettingsViewModel
 
-private enum class AppDestination {
-    ONBOARDING,
-    LOGS,
-    SETTINGS,
+// Serializable so rememberSaveable can persist it across rotation/process death —
+// a sealed class (unlike the enum this replaced) isn't Serializable by default.
+private sealed class AppDestination : java.io.Serializable {
+    data object Onboarding : AppDestination()
+    data object Dashboard : AppDestination()
+    data class HostDetail(val profileId: String) : AppDestination()
+    data object Logs : AppDestination()
+    data object Settings : AppDestination()
 }
 
 @Composable
 fun StackwardApp() {
     var destination by rememberSaveable { mutableStateOf<AppDestination?>(null) }
     val onboardingViewModel: OnboardingViewModel = viewModel()
+    val dashboardViewModel: DashboardViewModel = viewModel()
+    val hostDetailViewModel: HostDetailViewModel = viewModel()
     val logsViewModel: LogsViewModel = viewModel()
     val settingsViewModel: SettingsViewModel = viewModel()
     val onboardingState by onboardingViewModel.uiState.collectAsState()
@@ -32,35 +42,52 @@ fun StackwardApp() {
     if (destination == null) {
         destination = when {
             onboardingState.provisionedProfile != null ||
-                onboardingState.step == ProvisionStep.SUCCESS -> AppDestination.LOGS
-            else -> AppDestination.ONBOARDING
+                onboardingState.step == ProvisionStep.SUCCESS -> AppDestination.Dashboard
+            else -> AppDestination.Onboarding
         }
     }
 
     LaunchedEffect(destination) {
-        when (destination) {
-            AppDestination.LOGS -> logsViewModel.reloadProfile()
-            AppDestination.SETTINGS -> settingsViewModel.refresh()
+        when (val current = destination) {
+            is AppDestination.Dashboard -> dashboardViewModel.refresh()
+            is AppDestination.HostDetail -> hostDetailViewModel.load(current.profileId)
+            is AppDestination.Logs -> logsViewModel.reloadProfile()
+            is AppDestination.Settings -> settingsViewModel.refresh()
             else -> Unit
         }
     }
 
-    when (destination) {
-        AppDestination.LOGS -> LogsScreen(
-            viewModel = logsViewModel,
-            onOpenSettings = { destination = AppDestination.SETTINGS },
+    when (val current = destination) {
+        is AppDestination.Dashboard -> DashboardScreen(
+            viewModel = dashboardViewModel,
+            onOpenHost = { profileId -> destination = AppDestination.HostDetail(profileId) },
+            onAddHost = {
+                onboardingViewModel.startFresh()
+                destination = AppDestination.Onboarding
+            },
+            onOpenLogs = { destination = AppDestination.Logs },
+            onOpenSettings = { destination = AppDestination.Settings },
         )
-        AppDestination.SETTINGS -> SettingsScreen(
+        is AppDestination.HostDetail -> HostDetailScreen(
+            viewModel = hostDetailViewModel,
+            onBack = { destination = AppDestination.Dashboard },
+        )
+        is AppDestination.Logs -> LogsScreen(
+            viewModel = logsViewModel,
+            onOpenSettings = { destination = AppDestination.Settings },
+            onBack = { destination = AppDestination.Dashboard },
+        )
+        is AppDestination.Settings -> SettingsScreen(
             viewModel = settingsViewModel,
-            onBack = { destination = AppDestination.LOGS },
+            onBack = { destination = AppDestination.Dashboard },
             onPanicRevoked = {
                 onboardingViewModel.resetAfterRevoke()
-                destination = AppDestination.ONBOARDING
+                destination = AppDestination.Onboarding
             },
         )
-        AppDestination.ONBOARDING -> OnboardingScreen(
+        is AppDestination.Onboarding -> OnboardingScreen(
             viewModel = onboardingViewModel,
-            onProvisioned = { destination = AppDestination.LOGS },
+            onProvisioned = { destination = AppDestination.Dashboard },
         )
         null -> Unit
     }

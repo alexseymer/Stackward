@@ -1,6 +1,9 @@
 package dev.stackward.di
 
 import android.content.Context
+import dev.stackward.check.CheckResultStore
+import dev.stackward.check.CheckScriptRunner
+import dev.stackward.check.HostPollingRepository
 import dev.stackward.connection.ConnectionHealthRepository
 import dev.stackward.connection.HostKeyPinStore
 import dev.stackward.connection.SshConnectionManager
@@ -39,6 +42,9 @@ class AppContainer(context: Context) {
     val proxmoxApi = ProxmoxApiClient(ssh, proxmoxTokenStore)
     val logReader = LogReader(ssh, proxmoxApi)
     val logDigestStore = LogDigestStore(appContext)
+    val checkScriptRunner = CheckScriptRunner(ssh)
+    val checkResultStore = CheckResultStore(appContext)
+    val hostPollingRepository = HostPollingRepository(appContext)
     val modelRepository = ModelRepository(appContext)
     val deviceCapabilityChecker = DeviceCapabilityChecker(appContext)
     val gemmaEngine = GemmaInferenceEngine(appContext)

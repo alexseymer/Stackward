@@ -18,8 +18,7 @@ set -uo pipefail
 # Core detection functions
 detect_disk_issues() {
     df -h 2>/dev/null | grep -E '^/' | while IFS= read -r line; do
-        local device usage_pct mount
-        device=$(echo "$line" | awk '{print $1}')
+        local usage_pct mount
         usage_pct=$(echo "$line" | awk '{print $5}' | sed 's/%//')
         mount=$(echo "$line" | awk '{print $6}')
 
@@ -66,7 +65,7 @@ detect_security_issues() {
     # Check for excessive open ports
     if command -v ss &>/dev/null; then
         local port_count
-        port_count=$(ss -tlnp 2>/dev/null | grep LISTEN | wc -l || echo "0")
+        port_count=$(ss -tlnp 2>/dev/null | grep -c LISTEN || echo "0")
         if [[ $port_count -gt 20 ]]; then
             echo "  { \"type\": \"security\", \"severity\": \"medium\", \"message\": \"High number of open listening ports ($port_count)\" }"
         fi
