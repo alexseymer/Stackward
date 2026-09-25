@@ -2,6 +2,7 @@ package dev.stackward.ui.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -193,15 +194,20 @@ fun HostDetailScreen(
 }
 
 @Composable
-private fun IssueRow(issue: CheckIssue) {
+private fun RowCard(content: @Composable ColumnScope.() -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                "[${issue.severity.uppercase()}] ${issue.type}",
-                style = MaterialTheme.typography.labelMedium,
-            )
-            Text(issue.message, style = MaterialTheme.typography.bodyMedium)
-        }
+        Column(modifier = Modifier.padding(12.dp), content = content)
+    }
+}
+
+@Composable
+private fun IssueRow(issue: CheckIssue) {
+    RowCard {
+        Text(
+            "[${issue.severity.uppercase()}] ${issue.type}",
+            style = MaterialTheme.typography.labelMedium,
+        )
+        Text(issue.message, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -211,19 +217,17 @@ private fun SuggestionRow(
     isExecuting: Boolean,
     onApply: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(suggestion.reason, style = MaterialTheme.typography.bodyMedium)
-            Row(
-                modifier = Modifier.padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (isExecuting) {
-                    CircularProgressIndicator(modifier = Modifier.padding(4.dp))
-                } else {
-                    OutlinedButton(onClick = onApply) {
-                        Text("Apply")
-                    }
+    RowCard {
+        Text(suggestion.reason, style = MaterialTheme.typography.bodyMedium)
+        Row(
+            modifier = Modifier.padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (isExecuting) {
+                CircularProgressIndicator(modifier = Modifier.padding(4.dp))
+            } else {
+                OutlinedButton(onClick = onApply) {
+                    Text("Apply")
                 }
             }
         }
