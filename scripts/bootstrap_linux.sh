@@ -210,8 +210,225 @@ cat "${SUDOERS_FILE}"
 HELPER_EOF
 chmod 755 /usr/local/sbin/stackward-sudoers-snapshot
 
+echo "==> Installing check.sh anomaly detector"
+install -d -m 750 -o "${AGENT_USER}" -g "${AGENT_USER}" "${AGENT_HOME}/.stackward"
+cat > "${AGENT_HOME}/.stackward/check.sh" << 'CHECK_SCRIPT_EOF'
+#!/usr/bin/env bash
+# ~/.stackward/check.sh — host anomaly detection for Stackward
+#
+# Queries system state (logs, disk, memory, services, security) and returns
+# structured JSON with detected issues and suggested improvements.
+#
+# Installed by: scripts/bootstrap_linux.sh (app onboarding invokes this)
+# Called by: Stackward Android app via SSH, on-demand or on schedule
+
+set -euo pipefail
+
+: "${SYSTEMD_JOURNAL_LINES:=100}"
+: "${DOCKER_LOG_LINES:=50}"
+: "${DISK_WARNING_PCT:=85}"
+: "${DISK_CRITICAL_PCT:=95}"
+: "${MEM_WARNING_PCT:=80}"
+
+# Optional Proxmox/Docker config (set by bootstrap if user wants to include these).
+: "${STACKWARD_PROXMOX_ENABLED:=false}"
+: "${STACKWARD_DOCKER_ENABLED:=true}"
+
+# JSON output helpers
+json_escape() {
+    printf '%s\n' "$1" | jq -Rs .
+}
+
+issue() {
+    local type="$1" severity="$2" message="$3"
+    cat <<EOF
+    {
+      "type": "$(json_escape "$type")",
+      "severity": "$(json_escape "$severity")",
+      "message": $(json_escape "$message")
+    }
+EOF
+}
+
+suggestion() {
+    local id="$1" risk="$2" action="$3" reason="$4"
+    cat <<EOF
+    {
+      "id": "$(json_escape "$id")",
+      "risk": "$(json_escape "$risk")",
+      "action": "$(json_escape "$action")",
+      "reason": $(json_escape "$reason")
+    }
+EOF
+}
+
+# Core detection functions
+detect_disk_issues() {
+    local issues=()
+    while IFS= read -r line; do
+        local device usage_pct mount
+        read -r device usage_pct mount <<< "$(echo "$line" | awk '{print $1, $5, $6}')"
+        usage_pct="${usage_pct%\%}"
+
+        if [[ $usage_pct -gt $DISK_CRITICAL_PCT ]]; then
+            issues+=("$(issue "disk" "critical" "$mount at ${usage_pct}% capacity")")
+        elif [[ $usage_pct -gt $DISK_WARNING_PCT ]]; then
+            issues+=("$(issue "disk" "high" "$mount at ${usage_pct}%")")
+        fi
+    done < <(df -h | grep -E '^/' | awk '{print $1, $5, $6}')
+
+    printf '%s\n' "${issues[@]}"
+}
+
+detect_memory_issues() {
+    local issues=()
+    local mem_info memtotal memavail mem_used_pct
+
+    if [[ -f /proc/meminfo ]]; then
+        memtotal=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+        memavail=$(grep MemAvailable /proc/meminfo | awk '{print $2}')
+        mem_used_pct=$(( (memtotal - memavail) * 100 / memtotal ))
+
+        if [[ $mem_used_pct -gt $MEM_WARNING_PCT ]]; then
+            issues+=("$(issue "memory" "high" "Memory usage at ${mem_used_pct}%")")
+        fi
+    fi
+
+    printf '%s\n' "${issues[@]}"
+}
+
+detect_service_issues() {
+    local issues=()
+
+    # Check failed systemd units
+    if command -v systemctl &>/dev/null; then
+        local failed_units
+        failed_units=$(systemctl list-units --state=failed --no-pager --plain 2>/dev/null | grep -v '^UNIT' | awk '{print $1}' || true)
+        if [[ -n $failed_units ]]; then
+            while IFS= read -r unit; do
+                [[ -z $unit ]] && continue
+                issues+=("$(issue "service" "critical" "Unit $unit failed")")
+            done <<< "$failed_units"
+        fi
+    fi
+
+    printf '%s\n' "${issues[@]}"
+}
+
+detect_security_issues() {
+    local issues=()
+
+    # SSH password auth check
+    if [[ -f /etc/ssh/sshd_config ]]; then
+        if grep -qE '^\s*PasswordAuthentication\s+yes' /etc/ssh/sshd_config; then
+            issues+=("$(issue "security" "critical" "SSH password authentication enabled")")
+        fi
+    fi
+
+    # Check for excessive open ports (basic heuristic: >20 listening ports = suspicious)
+    if command -v ss &>/dev/null; then
+        local port_count
+        port_count=$(ss -tlnp 2>/dev/null | grep LISTEN | wc -l || echo "0")
+        if [[ $port_count -gt 20 ]]; then
+            issues+=("$(issue "security" "medium" "High number of open listening ports ($port_count)")")
+        fi
+    fi
+
+    printf '%s\n' "${issues[@]}"
+}
+
+detect_log_errors() {
+    local issues=()
+
+    # Systemd journal errors (last N lines)
+    if command -v journalctl &>/dev/null; then
+        local error_count
+        error_count=$(journalctl -n "$SYSTEMD_JOURNAL_LINES" --priority=err --no-pager 2>/dev/null | wc -l || echo "0")
+        if [[ $error_count -gt 5 ]]; then
+            issues+=("$(issue "logs" "medium" "Multiple journal errors in last $SYSTEMD_JOURNAL_LINES entries")")
+        fi
+    fi
+
+    # Docker container errors (if available)
+    if [[ $STACKWARD_DOCKER_ENABLED == "true" ]] && command -v docker &>/dev/null; then
+        local failing_containers
+        failing_containers=$(docker ps --filter "status=exited" --format "{{.Names}}" 2>/dev/null || echo "")
+        if [[ -n $failing_containers ]]; then
+            local count
+            count=$(echo "$failing_containers" | wc -l)
+            issues+=("$(issue "docker" "medium" "$count container(s) exited")")
+        fi
+    fi
+
+    printf '%s\n' "${issues[@]}"
+}
+
+detect_suggestions() {
+    local suggestions=()
+
+    # Suggest log review if errors detected
+    suggestions+=("$(suggestion "review-logs" "safe" "tail_journal" "Inspect recent journal errors")")
+
+    # Suggest checking service status
+    suggestions+=("$(suggestion "check-services" "safe" "list_failed_services" "Review failed systemd units")")
+
+    # Suggest disk cleanup if high
+    if df -h | grep -E '^/' | awk '{print $5}' | sed 's/%//' | grep -qE '([89][0-9]|100)'; then
+        suggestions+=("$(suggestion "cleanup-disk" "risky" "cleanup_old_logs" "Remove old log files to free disk space")")
+    fi
+
+    # Suggest SSH hardening if password auth is on
+    if [[ -f /etc/ssh/sshd_config ]] && grep -qE '^\s*PasswordAuthentication\s+yes' /etc/ssh/sshd_config; then
+        suggestions+=("$(suggestion "disable-ssh-pwd" "risky" "disable_ssh_password_auth" "Disable SSH password authentication")")
+    fi
+
+    printf '%s\n' "${suggestions[@]}"
+}
+
+# Main
+main() {
+    local issues=()
+    local suggestions=()
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    local hostname
+    hostname=$(hostname -f 2>/dev/null || hostname)
+
+    # Collect issues
+    mapfile -t issues < <(
+        detect_disk_issues
+        detect_memory_issues
+        detect_service_issues
+        detect_security_issues
+        detect_log_errors
+    )
+
+    # Collect suggestions
+    mapfile -t suggestions < <(detect_suggestions)
+
+    # Output JSON
+    cat <<EOF
+{
+  "timestamp": "$(json_escape "$timestamp")",
+  "hostname": $(json_escape "$hostname"),
+  "issues": [
+$(printf '%s,\n' "${issues[@]}" | sed '$s/,$//')
+  ],
+  "suggestions": [
+$(printf '%s,\n' "${suggestions[@]}" | sed '$s/,$//')
+  ]
+}
+EOF
+}
+
+main "$@"
+CHECK_SCRIPT_EOF
+chmod 755 "${AGENT_HOME}/.stackward/check.sh"
+chown "${AGENT_USER}:${AGENT_USER}" "${AGENT_HOME}/.stackward/check.sh"
+
 echo "==> Bootstrap complete for ${AGENT_USER}"
 echo "    Home:       ${AGENT_HOME}"
+echo "    Check script: ${AGENT_HOME}/.stackward/check.sh"
 echo "    Sudoers:    ${SUDOERS_FILE}"
 echo "    Journal:    systemd-journal group"
 echo "    Docker logs: read-only ACL (if Docker present)"
