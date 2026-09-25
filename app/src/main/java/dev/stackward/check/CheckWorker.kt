@@ -8,7 +8,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import dev.stackward.di.AppContainer
+import dev.stackward.StackwardApplication
 import java.util.concurrent.TimeUnit
 
 /**
@@ -24,7 +24,7 @@ class CheckWorker(
     override suspend fun doWork(): Result {
         val profileId = inputData.getString(KEY_PROFILE_ID) ?: return Result.failure()
         return try {
-            val container = AppContainer(applicationContext)
+            val container = (applicationContext as StackwardApplication).container
             val profile = container.profileRepository.loadAll().firstOrNull { it.id == profileId }
                 ?: return Result.success() // host removed since scheduling; nothing to retry for
 

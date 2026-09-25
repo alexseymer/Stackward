@@ -54,7 +54,15 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             when (val outcome = container.checkScriptRunner.run(profile)) {
                 is CheckRunResult.Success -> {
                     container.checkResultStore.save(profileId, outcome.result)
-                    updateHost(profileId) { summaryFor(profile) }
+                    updateHost(profileId) {
+                        it.copy(
+                            isChecking = false,
+                            error = null,
+                            lastCheckedAt = container.checkResultStore.getLastCheckedAt(profileId),
+                            issueCount = outcome.result.issues.size,
+                            maxSeverity = outcome.result.maxSeverity(),
+                        )
+                    }
                 }
                 is CheckRunResult.Failure -> {
                     updateHost(profileId) { it.copy(isChecking = false, error = outcome.message) }

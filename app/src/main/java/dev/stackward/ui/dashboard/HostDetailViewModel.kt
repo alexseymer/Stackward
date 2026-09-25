@@ -10,8 +10,8 @@ import dev.stackward.check.CheckSuggestion
 import dev.stackward.check.CheckSuggestionGate
 import dev.stackward.check.SuggestionDecision
 import dev.stackward.onboarding.ServerProfile
-import dev.stackward.permissions.AuditEntry
 import dev.stackward.permissions.PermissionTier
+import dev.stackward.permissions.recordAuditedExecution
 import dev.stackward.ui.security.BiometricGate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -131,17 +131,13 @@ class HostDetailViewModel(application: Application) : AndroidViewModel(applicati
             _uiState.update {
                 it.copy(executingSuggestionId = suggestion.id, pendingConfirmation = null, actionMessage = null)
             }
-            val outcome = runCatching { container.ssh.execute(profile, command) }
-            container.auditLogRepository.append(
-                AuditEntry(
-                    timestamp = System.currentTimeMillis(),
-                    tier = tier,
-                    command = command,
-                    approved = outcome.isSuccess,
-                    output = outcome.getOrNull(),
-                    reason = "check.sh suggestion \"${suggestion.id}\": ${suggestion.reason}",
-                ),
-            )
+            val outcome = container.auditLogRepository.recordAuditedExecution(
+                tier = tier,
+                command = command,
+                reason = "check.sh suggestion \"${suggestion.id}\": ${suggestion.reason}",
+            ) {
+                container.ssh.execute(profile, command)
+            }
             _uiState.update {
                 it.copy(
                     executingSuggestionId = null,

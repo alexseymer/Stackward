@@ -47,31 +47,61 @@ const DIAGNOSTICS = {
   docker_exited: "docker ps --filter status=exited --format '{{.Names}}' 2>/dev/null || true",
 };
 
+// Mirrors the JSON shape scripts/check.sh must produce — see PRD.md §5.0.
+const CheckResultSchema = z.object({
+  timestamp: z.string(),
+  hostname: z.string(),
+  issues: z.array(
+    z.object({
+      type: z.string().min(1),
+      severity: z.string().min(1),
+      message: z.string().min(1),
+    }),
+  ),
+  suggestions: z.array(
+    z.object({
+      id: z.string().min(1),
+      risk: z.enum(["safe", "risky", "scary"]),
+      action: z.string().min(1),
+      reason: z.string().default(""),
+    }),
+  ),
+});
+
 function validateCheckJson(raw) {
-  let parsed;
+  let json;
   try {
-    parsed = JSON.parse(raw);
+    json = JSON.parse(raw);
   } catch (err) {
     return { valid: false, error: `Not valid JSON: ${err.message}`, parsed: null };
   }
-  const problems = [];
-  if (typeof parsed.timestamp !== "string") problems.push('"timestamp" must be a string');
-  if (typeof parsed.hostname !== "string") problems.push('"hostname" must be a string');
-  if (!Array.isArray(parsed.issues)) problems.push('"issues" must be an array');
-  if (!Array.isArray(parsed.suggestions)) problems.push('"suggestions" must be an array');
-  for (const issue of parsed.issues ?? []) {
-    if (!issue.type || !issue.severity || !issue.message) {
-      problems.push(`issue missing type/severity/message: ${JSON.stringify(issue)}`);
-    }
+  const result = CheckResultSchema.safeParse(json);
+  if (!result.success) {
+    const error = result.error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`).join("; ");
+    return { valid: false, error, parsed: null };
   }
-  for (const suggestion of parsed.suggestions ?? []) {
-    if (!suggestion.id || !suggestion.risk || !suggestion.action) {
-      problems.push(`suggestion missing id/risk/action: ${JSON.stringify(suggestion)}`);
-    } else if (!["safe", "risky", "scary"].includes(suggestion.risk)) {
-      problems.push(`suggestion "${suggestion.id}" has invalid risk "${suggestion.risk}" (expected safe/risky/scary)`);
-    }
-  }
-  return { valid: problems.length === 0, error: problems.join("; ") || null, parsed };
+  return { valid: true, error: null, parsed: result.data };
+}
+
+// Shared response shape for the two tools that run check.sh and validate its
+// output (run_check_script_locally, check_host) — they differ only in what
+// "ok" depends on and which extra fields (stderr, exitCode) they attach.
+function checkResultFields(validation, { ok = validation.valid, ...extra } = {}) {
+  return {
+    ok,
+    validationError: validation.error,
+    issueCount: validation.parsed?.issues?.length ?? 0,
+    suggestionCount: validation.parsed?.suggestions?.length ?? 0,
+    parsed: validation.parsed,
+    ...extra,
+  };
+}
+
+function toToolResult(fields) {
+  return {
+    content: [{ type: "text", text: JSON.stringify(fields, null, 2) }],
+    isError: !fields.ok,
+  };
 }
 
 server.registerTool(
@@ -88,26 +118,7 @@ server.registerTool(
     try {
       const { stdout, stderr } = await execFileAsync("bash", [CHECK_SCRIPT_PATH], { timeout: 15_000 });
       const validation = validateCheckJson(stdout);
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                ok: validation.valid,
-                validationError: validation.error,
-                stderr: stderr || undefined,
-                issueCount: validation.parsed?.issues?.length ?? 0,
-                suggestionCount: validation.parsed?.suggestions?.length ?? 0,
-                parsed: validation.parsed,
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        isError: !validation.valid,
-      };
+      return toToolResult(checkResultFields(validation, { stderr: stderr || undefined }));
     } catch (err) {
       return {
         content: [{ type: "text", text: `Failed to run check.sh: ${err.message}` }],
@@ -148,27 +159,13 @@ server.registerTool(
       const conn = getHost(hostAlias);
       const { exitCode, stdout, stderr } = await sshExec(conn, "bash ~/.stackward/check.sh");
       const validation = validateCheckJson(stdout);
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                ok: exitCode === 0 && validation.valid,
-                exitCode,
-                validationError: validation.error,
-                stderr: stderr || undefined,
-                issueCount: validation.parsed?.issues?.length ?? 0,
-                suggestionCount: validation.parsed?.suggestions?.length ?? 0,
-                parsed: validation.parsed,
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        isError: !(exitCode === 0 && validation.valid),
-      };
+      return toToolResult(
+        checkResultFields(validation, {
+          ok: exitCode === 0 && validation.valid,
+          exitCode,
+          stderr: stderr || undefined,
+        }),
+      );
     } catch (err) {
       return {
         content: [{ type: "text", text: `check_host failed: ${err.message}` }],
