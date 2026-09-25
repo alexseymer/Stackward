@@ -35,6 +35,10 @@ data class HostDetailUiState(
     val manualStep: ManualStep? = null,
     val executingSuggestionId: String? = null,
     val actionMessage: String? = null,
+    val modelConfigured: Boolean = false,
+    val isSummarizing: Boolean = false,
+    val aiSummary: String? = null,
+    val aiUnavailableReason: String? = null,
 )
 
 /**
@@ -57,6 +61,9 @@ class HostDetailViewModel(application: Application) : AndroidViewModel(applicati
                 result = profile?.let { p -> container.checkResultStore.load(p.id) },
                 lastCheckedAt = profile?.let { p -> container.checkResultStore.getLastCheckedAt(p.id) },
                 error = null,
+                modelConfigured = container.modelRepository.isModelConfigured(),
+                aiSummary = null,
+                aiUnavailableReason = null,
             )
         }
     }
@@ -73,6 +80,10 @@ class HostDetailViewModel(application: Application) : AndroidViewModel(applicati
                             isChecking = false,
                             result = outcome.result,
                             lastCheckedAt = container.checkResultStore.getLastCheckedAt(profile.id),
+                            // A previous summary described the old result; drop it rather than
+                            // show a summary that no longer matches what's on screen.
+                            aiSummary = null,
+                            aiUnavailableReason = null,
                         )
                     }
                 }
@@ -122,6 +133,46 @@ class HostDetailViewModel(application: Application) : AndroidViewModel(applicati
                 return@launch
             }
             executeAndAudit(pending.suggestion, pending.command, PermissionTier.ONE_TIMER)
+        }
+    }
+
+    /**
+     * Summarizes the current check.sh result in plain English via the same optional,
+     * on-device [dev.stackward.inference.LogSummarizer] the Logs screen uses — degrades
+     * the same way: no model imported -> [HostDetailUiState.aiUnavailableReason] explains
+     * why, inference failure -> same field carries the error, structured issues/suggestions
+     * stay visible throughout either way. Ignores [dev.stackward.inference.SummarizationResult.proposals]
+     * entirely — check.sh suggestions already have their own risk-gated path via
+     * [CheckSuggestionGate]; this is a text summary only, not a second way to trigger actions.
+     */
+    fun summarizeIssues() {
+        val result = _uiState.value.result ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSummarizing = true, aiSummary = null, aiUnavailableReason = null) }
+            val summarization = container.logSummarizer.summarize(result.toSummaryInput())
+            _uiState.update {
+                it.copy(
+                    isSummarizing = false,
+                    aiSummary = summarization.summary.takeIf { summarization.usedOnDeviceModel },
+                    aiUnavailableReason = summarization.unavailableReason,
+                )
+            }
+        }
+    }
+
+    private fun CheckResult.toSummaryInput(): String = buildString {
+        appendLine("Host: $hostname (checked $timestamp)")
+        appendLine("Issues:")
+        if (issues.isEmpty()) {
+            appendLine("  none")
+        } else {
+            issues.forEach { appendLine("  [${it.severity}] ${it.type}: ${it.message}") }
+        }
+        appendLine("Suggestions:")
+        if (suggestions.isEmpty()) {
+            appendLine("  none")
+        } else {
+            suggestions.forEach { appendLine("  ${it.id} (${it.risk}): ${it.reason}") }
         }
     }
 
