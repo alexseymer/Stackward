@@ -1,5 +1,15 @@
 # Stackward — User Stories & Acceptance Criteria
 
+> ⚠️ **Superseded by the Lookout pivot.** These stories (Epics A–G) match
+> the pre-pivot Tier 1/2/3 + CapabilityPack Monitor/Maintain/Provision
+> architecture. Current user stories live in
+> [PRD.md §6](../PRD.md#6-key-user-stories) and reflect the check.sh /
+> risk-based (safe/risky/scary) model instead. Epic D ("Tier 1/2/3") and D5
+> ("Monitor/Maintain/Provision capability pack") in particular no longer
+> match the code — v1 is Monitor-only, see `CapabilityPack.kt`. Keep this
+> file for what was historically tested, not as the current acceptance
+> checklist.
+
 Detailed acceptance criteria for dogfood testing. High-level outcomes live in
 [PRD.md §6](../PRD.md#6-key-user-stories).
 

@@ -1,5 +1,17 @@
 # Stackward — System Architecture
 
+> ⚠️ **Superseded by the Lookout pivot.** This describes the earlier
+> broad-actuation architecture (Gemma emitting individual Tier 1/2/3 shell
+> proposals over a persistent SSH/Proxmox-API connection). The current
+> direction (`STRATEGY.md`, `PRD.md`) instead has the phone query a single
+> `~/.stackward/check.sh` script for structured anomalies, with
+> safe/risky/scary risk-based gating on its suggestions. Much of the code
+> described below (`PermissionEngine`, `ProxmoxCommands`, `AgentKeyManager`,
+> host-key pinning) is real and still applies at the connection/credential
+> layer — it's the "model proposes individual commands" framing in Layers
+> 1–2 below that's been replaced. Don't build new work against this file
+> without checking it against `STRATEGY.md` first.
+
 ## Overview
 
 Stackward is an Android app that runs a quantized Gemma 4 model on-device and

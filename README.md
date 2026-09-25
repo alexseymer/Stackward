@@ -58,19 +58,27 @@ order.
 
 ## Status
 
-**Early scaffold — dogfood build (`0.5.11-dogfood` latest release), not yet production-ready.**
+**Pivoting to "Lookout": read-only triage via a host-side check script,
+model optional, risk-based action gating.** See [STRATEGY.md](STRATEGY.md)
+for the current north star and [PRD.md](PRD.md) for the full spec — both
+supersede the phase table below and the docs it links to.
 
-All planned phases are feature-complete at scaffold level; current focus is
-dogfooding and stabilization on real hardware. See [docs/PHASES.md](docs/PHASES.md)
-for the roadmap and per-task detail.
+The table below reflects an **earlier, broader architecture** (on-device
+Gemma emitting individual Tier 1/2/3 shell proposals over a persistent
+SSH/Proxmox-API connection) that was built out to scaffold level before the
+Lookout pivot. Much of that code still exists and still works
+(`PermissionEngine`, `ProxmoxCommands`, `AgentKeyManager`), but v1 scope is
+now Monitor-only — see `CapabilityPack.kt` and
+[docs/PHASES.md](docs/PHASES.md) (flagged there as historical).
 
 | Phase | Scope | State |
 |-------|-------|-------|
 | 0 / 1 | Bootstrap, SSH user/key & Proxmox token provisioning, jump-host support | ✅ Implemented |
 | 2 | On-device Gemma summarization (MediaPipe LLM Inference API) | ✅ Implemented |
-| 3 | Tiered permission engine (sudoers + Proxmox role backend) | ✅ Implemented |
+| 3 | Tiered permission engine (sudoers + Proxmox role backend) | ⚠️ Implemented, scope narrowed to Monitor-only for v1 |
 | 4 | MVP: unified log reading (journal + Docker + Proxmox), read-only | ✅ Implemented |
 | 5 | Hardening: key rotation, panic revoke, audit export, Tier 1 review | ✅ Implemented |
+| — | **New:** `~/.stackward/check.sh` structured anomaly detector (Lookout) | ✅ Script done; app dashboard/risk-gating integration not started |
 
 See [docs/MODEL_SETUP.md](docs/MODEL_SETUP.md) for importing an on-device model.
 
