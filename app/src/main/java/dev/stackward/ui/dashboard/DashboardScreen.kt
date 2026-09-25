@@ -1,5 +1,9 @@
 package dev.stackward.ui.dashboard
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -66,6 +70,12 @@ fun DashboardScreen(
     onOpenSettings: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    // Critical-issue notifications from scheduled checks are best-effort: if this is
+    // denied, auto-polling still runs, it just won't alert in the background. See
+    // CheckNotifier.notifyIfCritical.
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) {}
 
     Scaffold(
         topBar = {
@@ -101,7 +111,12 @@ fun DashboardScreen(
                         host = host,
                         onClick = { onOpenHost(host.profile.id) },
                         onCheckNow = { viewModel.checkNow(host.profile.id) },
-                        onPollingModeChange = { mode -> viewModel.setPollingMode(host.profile.id, mode) },
+                        onPollingModeChange = { mode ->
+                            viewModel.setPollingMode(host.profile.id, mode)
+                            if (mode == PollingMode.AUTO_4H && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        },
                     )
                 }
             }

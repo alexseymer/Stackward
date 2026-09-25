@@ -31,6 +31,7 @@ class CheckWorker(
             when (val outcome = container.checkScriptRunner.run(profile)) {
                 is CheckRunResult.Success -> {
                     container.checkResultStore.save(profileId, outcome.result)
+                    CheckNotifier.notifyIfCritical(applicationContext, profile, outcome.result)
                     Result.success()
                 }
                 is CheckRunResult.Failure -> Result.retry()
