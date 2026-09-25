@@ -15,19 +15,20 @@ Not: "I SRE the cluster from my phone" or "I'm a small-business operator with te
 
 ### In Scope (v1 & beyond)
 
-- **Read-only logs** — systemd journal, Docker container logs, Proxmox task logs
-- **Status snapshots** — VM/LXC states, container health, disk/memory via Proxmox API
-- **Heuristic digests** — fast offline detection of errors, 5xx codes, OOM, connection failures
-- **Optional Gemma summarization** — natural-language triage, user-imported Gemma 2B/4B
-- **Correspondence tempo** — check every N hours, answer the "should I act" question
-- **Jump-host support** — monitoring through SSH tunnels (required for most homelabs)
+- **Detect anomalies** — Read logs, check system metrics, run heuristics to flag errors, 5xx codes, OOM, security risks
+- **Optional Gemma summarization** — Natural-language triage summary, user-imported Gemma 2B/4B
+- **Risk-based improvements** — Phone gates suggested actions:
+  - **Safe** (restart service, check logs): auto-approve, logged
+  - **Risky** (disable SSH password auth, update packages): require biometric confirmation
+  - **Scary** (edit sudoers, change Proxmox permissions): forbidden, documented manual path
+- **Correspondence tempo** — Check every N hours on schedule
+- **Jump-host support** — Monitor through SSH tunnels (required for most homelabs)
 
 ### Out of Scope (v1 onward)
 
-- **Maintain phase** — one-off restarts, service state changes (Tier 2 in PRD, archived)
-- **Provision phase** — VM/LXC creation, cluster changes (Tier 3 in PRD, archived)
-- **Autonomous actions** — if any future work permits actuation, it is not Lookout
-- **Team/multi-device** — this is a personal instrument
+- **Autonomous unattended actions** — everything gated by user confirmation
+- **Broad provisioning** — VM/LXC creation, cluster changes
+- **Team/multi-operator** — this is a personal instrument per deployment
 
 ### Why
 
@@ -44,21 +45,24 @@ Not: "I SRE the cluster from my phone" or "I'm a small-business operator with te
 2. **No third party sees infra** — all data stays on the device and user-owned hosts.
 3. **Model is optional** — if no Gemma `.task` is imported, heuristic digests work without it.
 
-### Capability Model (simplified)
+### Action Gating Model (simplified)
 
-| Tier | What | Status |
-|------|------|--------|
-| **Tier 1 — Read** | Logs, status, heuristic digests, optional Gemma summary | v1, always on |
-| **Tier 2 — Maintain** | One-time restarts, service actions | Archived; never v1 |
-| **Tier 3 — Provision** | VM/LXC creation, sudoers changes | Archived; never v1 |
+| Risk Level | What | Gate |
+|------------|------|------|
+| **Safe** | Restart service, check logs, verify config | Auto-approve, logged |
+| **Risky** | Disable SSH password auth, update packages, reboot host | Biometric confirmation required |
+| **Scary** | Edit sudoers, modify Proxmox permissions, change SSH port | Forbidden; documented manual workaround |
+
+**Why this over "Tiers":** Old tier language (Maintain/Provision) suggested capability packs. New model is risk-based: phone assesses the action and gates it. No capability switching; same model, different gates per action.
 
 ### Deliverable
 
 An installable Android APK that:
-- Connects to a user's Linux host, Proxmox cluster, or Docker daemon via SSH
-- Imports their choice of Gemma (2B/4B quantized, or none)
-- Shows a glanceable feed of "what's wrong right now" with heuristic + optional NL
-- Requires no Play Store, no cloud, no team setup
+- Connects to a user's infrastructure via SSH (one-time password → key install)
+- Queries a lightweight check script (`~/.stackward/check.sh`) for structured anomalies
+- Optionally runs user-imported Gemma (2B/4B quantized) for NL summaries
+- Gates improvements by risk: safe auto-approve, risky require biometric, scary forbidden
+- Requires no Play Store, no cloud, no team setup, no broad host elevation by default
 - Works on N=1 (the author using it on their own cluster)
 
 ## Audience
