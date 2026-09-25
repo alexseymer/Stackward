@@ -78,7 +78,17 @@ now Monitor-only — see `CapabilityPack.kt` and
 | 3 | Tiered permission engine (sudoers + Proxmox role backend) | ⚠️ Implemented, scope narrowed to Monitor-only for v1 |
 | 4 | MVP: unified log reading (journal + Docker + Proxmox), read-only | ✅ Implemented |
 | 5 | Hardening: key rotation, panic revoke, audit export, Tier 1 review | ✅ Implemented |
-| — | **New:** `~/.stackward/check.sh` structured anomaly detector (Lookout) | ✅ Script done; app dashboard/risk-gating integration not started |
+| — | **New:** `~/.stackward/check.sh` structured anomaly detector (Lookout) | ✅ Script done |
+| — | **New:** Dashboard (multi-host), per-host polling, risk-gated suggestions (safe/risky/scary) | ⚠️ Implemented, unverified — see note below |
+
+**Unverified note:** the dashboard/risk-gating code (`dev.stackward.check`,
+`dev.stackward.ui.dashboard`) was written and manually reviewed line-by-line
+against existing call signatures, but has **not** been compiled — the
+environment it was written in had no network access to `dl.google.com`, so
+`./gradlew` could not resolve the Android Gradle Plugin. Run
+`./gradlew :app:testDebugUnitTest :app:assembleDebug` before trusting it;
+the pure-logic pieces (`CheckScriptParser`, `CheckActionCatalog`,
+`CheckSuggestionGate`) have unit tests, the Compose UI does not.
 
 See [docs/MODEL_SETUP.md](docs/MODEL_SETUP.md) for importing an on-device model.
 
