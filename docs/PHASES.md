@@ -1,6 +1,16 @@
 # Stackward — Build Phases
 
-Recommended build order: **0/1 → 4 → 2/3 → 5**
+> ⚠️ **Superseded by the Lookout pivot.** `STRATEGY.md` and `PRD.md` are now
+> the source of truth for product direction (read-only triage via
+> `~/.stackward/check.sh`, risk-based safe/risky/scary gating, Monitor-only
+> v1). This file still accurately describes the **broader Tier 1/2/3 +
+> CapabilityPack architecture that was built before that pivot** — most of
+> that code (`PermissionEngine`, `ProxmoxCommands`, `AgentKeyManager`) still
+> exists and still works, but it is no longer the v1 target shape. Treat
+> this as historical background on what exists, not as the current roadmap.
+> See `STRATEGY.md § Implementation Order` for what's actually next.
+
+Recommended build order (pre-pivot): **0/1 → 4 → 2/3 → 5**
 
 Each phase is independently testable. Do not skip ahead — later phases depend
 on earlier ones being solid.

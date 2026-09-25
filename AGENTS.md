@@ -7,6 +7,66 @@ no backend, database, docker-compose, or web/dev server — the "product" is the
 APK plus the user's own external infrastructure. See `README.md`, `PRD.md`, and
 `docs/`.
 
+## Product direction & source of truth
+
+Read these in order when the current direction is unclear — they are not
+all mutually consistent, because the product pivoted mid-flight:
+
+1. **`STRATEGY.md`** — the chosen north star ("Lookout": read-only triage
+   via `~/.stackward/check.sh`, risk-based safe/risky/scary gating, model
+   optional). Most current strategic document.
+2. **`PRD.md`** — full spec matching that strategy.
+3. **`docs/PHASES.md`, `docs/ARCHITECTURE.md`, `docs/USER_STORIES.md`,
+   the README "Status" table** — describe an **earlier, broader
+   architecture** (Tier 1/2/3 permission engine, CapabilityPack
+   Monitor/Maintain/Provision, Gemma emitting individual shell proposals
+   over a persistent SSH/Proxmox-API connection). Flagged inline as
+   superseded, but still accurate about *what code exists* — a lot of it
+   (`PermissionEngine`, `ProxmoxCommands`, `AgentKeyManager`, host-key
+   TOFU pinning) still works and is reused by the new direction. Treat as
+   historical background, not current scope, wherever it conflicts with
+   STRATEGY.md/PRD.md.
+4. **`scripts/check.sh`** — the actual Phase 1 artifact of the new
+   direction: detects disk/memory/service/security/log issues on a host
+   and returns JSON (`issues[]`, `suggestions[]` with
+   `risk ∈ safe|risky|scary`). Installed onto monitored hosts by
+   `scripts/bootstrap_linux.sh` (keep the two copies in sync — bootstrap
+   embeds check.sh verbatim rather than fetching it at install time).
+
+`CapabilityPack.kt` should currently only expose `MONITOR` — v1 scope is
+read-only anomaly detection. If you see `MAINTAIN`/`PROVISION` reappear
+without a deliberate decision to widen scope, that's a regression.
+
+## MCP servers
+
+`.mcp.json` at the repo root registers **stackward-devhost**
+(`mcp-servers/stackward-devhost/`) — a dev-only Node MCP server for
+iterating on `scripts/check.sh` without touching the Android app:
+
+- `run_check_script_locally` — runs `scripts/check.sh` right here (no SSH,
+  no host needed) and validates its JSON against the PRD schema. Use this
+  for the fast loop while changing detection logic.
+- `list_dev_hosts`, `check_host`, `run_diagnostic` — optional, SSH-based
+  tools for validating against a real dev/test host. Require
+  `mcp-servers/stackward-devhost/hosts.json` (gitignored; copy from
+  `hosts.example.json`). Never accept free-form shell — `run_diagnostic`
+  only runs a hardcoded allowlist mirroring check.sh's own commands, and
+  host keys are TOFU-pinned the same way the app itself pins them.
+
+First use in a session needs `npm install` inside
+`mcp-servers/stackward-devhost/` (its `node_modules` is gitignored and not
+committed). See that directory's README for the full tool list and setup.
+
+## Subagents
+
+`.claude/agents/project-strategist.md` (Claude Code) and
+`.cursor/agents/projekt-stratege.md` (Cursor, responds in German) do the
+same job: read STRATEGY.md/PRD.md against the actual repo state and
+recommend prioritized next steps. They analyze and recommend only — they
+don't implement. Invoke proactively at the start of a session, after large
+changes, or whenever it's unclear whether check.sh, the app, or docs are
+next.
+
 ## Cursor Cloud specific instructions
 
 ### What the environment provides (already installed in the VM snapshot)
