@@ -5,32 +5,48 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-/** Debug-only onboarding prefills from root `local.properties` (gitignored). */
-fun loadLocalProperties(): Properties {
-    val props = Properties()
-    val file = rootProject.file("local.properties")
-    if (file.exists()) {
-        file.inputStream().use { props.load(it) }
+val keystoreProperties = Properties().apply {
+    val propsFile = rootProject.file("keystore.properties")
+    if (propsFile.exists()) {
+        load(propsFile.inputStream())
     }
-    return props
 }
 
-fun Properties.dev(key: String, default: String = ""): String {
-    val raw = getProperty("stackward.dev.$key", default).orEmpty().trim()
-    // Properties does not treat quotes as delimiters — strip accidental wrapping.
-    return when {
+val localProperties = Properties().apply {
+    val propsFile = rootProject.file("local.properties")
+    if (propsFile.exists()) {
+        load(propsFile.inputStream())
+    }
+}
+
+fun signingProp(name: String, envVar: String, default: String): String =
+    keystoreProperties.getProperty(name) ?: System.getenv(envVar) ?: default
+
+fun stripQuotes(raw: String): String =
+    when {
         raw.length >= 2 &&
             ((raw.startsWith('"') && raw.endsWith('"')) ||
                 (raw.startsWith('\'') && raw.endsWith('\''))) ->
             raw.substring(1, raw.length - 1)
         else -> raw
     }
+
+fun localProp(key: String, default: String = "", vararg aliases: String): String {
+    val candidates = listOf(key) + aliases
+    for (candidate in candidates) {
+        val raw = localProperties.getProperty(candidate)?.trim().orEmpty()
+        if (raw.isNotBlank()) return stripQuotes(raw)
+    }
+    return default
 }
 
-fun String.asBuildConfigString(): String =
-    "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
+fun localBool(key: String, default: Boolean = false, vararg aliases: String): Boolean {
+    val raw = localProp(key, aliases = aliases)
+    return if (raw.isBlank()) default else raw.equals("true", ignoreCase = true)
+}
 
-val localProps = loadLocalProperties()
+fun buildConfigString(value: String): String =
+    "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 android {
     namespace = "dev.stackward"
@@ -40,60 +56,111 @@ android {
         applicationId = "dev.stackward"
         minSdk = 28
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.5.5-dogfood"
+        versionCode = 11
+        versionName = "0.5.10-dogfood"
 
-        // Empty defaults so release / CI never bake in secrets.
         buildConfigField("boolean", "DEV_PREFILL", "false")
         buildConfigField("String", "DEV_HOST", "\"\"")
-        buildConfigField("String", "DEV_PORT", "\"22\"")
+        buildConfigField("String", "DEV_PORT", "\"\"")
         buildConfigField("String", "DEV_USERNAME", "\"\"")
         buildConfigField("String", "DEV_SSH_PASSWORD", "\"\"")
         buildConfigField("String", "DEV_KNOCK_SEQUENCE", "\"\"")
         buildConfigField("boolean", "DEV_USE_JUMP_HOST", "false")
         buildConfigField("String", "DEV_JUMP_HOST", "\"\"")
-        buildConfigField("String", "DEV_JUMP_PORT", "\"22\"")
+        buildConfigField("String", "DEV_JUMP_PORT", "\"\"")
+    }
+
+    signingConfigs {
+        create("dogfood") {
+            storeFile = file(signingProp("dogfood.storeFile", "DOGFOOD_STORE_FILE", "dogfood.keystore"))
+            storePassword = signingProp("dogfood.storePassword", "DOGFOOD_STORE_PASSWORD", "dogfood")
+            keyAlias = signingProp("dogfood.keyAlias", "DOGFOOD_KEY_ALIAS", "dogfood")
+            keyPassword = signingProp("dogfood.keyPassword", "DOGFOOD_KEY_PASSWORD", "dogfood")
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = false
+        }
     }
 
     buildTypes {
         debug {
-            val prefill = localProps.dev("prefill", "false").equals("true", ignoreCase = true)
-            buildConfigField("boolean", "DEV_PREFILL", prefill.toString())
-            buildConfigField("String", "DEV_HOST", localProps.dev("host").asBuildConfigString())
-            buildConfigField("String", "DEV_PORT", localProps.dev("port", "22").asBuildConfigString())
-            buildConfigField("String", "DEV_USERNAME", localProps.dev("username").asBuildConfigString())
-            buildConfigField(
-                "String",
-                "DEV_SSH_PASSWORD",
-                localProps.dev("ssh_password").asBuildConfigString(),
-            )
-            buildConfigField(
-                "String",
-                "DEV_KNOCK_SEQUENCE",
-                localProps.dev("knock_sequence").asBuildConfigString(),
-            )
-            buildConfigField(
-                "boolean",
-                "DEV_USE_JUMP_HOST",
-                localProps.dev("use_jump_host", "false").equals("true", ignoreCase = true).toString(),
-            )
-            buildConfigField(
-                "String",
-                "DEV_JUMP_HOST",
-                localProps.dev("jump_host").asBuildConfigString(),
-            )
-            buildConfigField(
-                "String",
-                "DEV_JUMP_PORT",
-                localProps.dev("jump_port", "22").asBuildConfigString(),
-            )
+            signingConfig = signingConfigs.getByName("dogfood")
+            val devPrefill = localBool("stackward.dev.prefill")
+            buildConfigField("boolean", "DEV_PREFILL", devPrefill.toString())
+            if (devPrefill) {
+                buildConfigField("String", "DEV_HOST", buildConfigString(localProp("stackward.dev.host")))
+                buildConfigField("String", "DEV_PORT", buildConfigString(localProp("stackward.dev.port", "22")))
+                buildConfigField("String", "DEV_USERNAME", buildConfigString(localProp("stackward.dev.username")))
+                buildConfigField(
+                    "String",
+                    "DEV_SSH_PASSWORD",
+                    buildConfigString(
+                        localProp("stackward.dev.sshPassword", aliases = arrayOf("stackward.dev.ssh_password")),
+                    ),
+                )
+                buildConfigField(
+                    "String",
+                    "DEV_KNOCK_SEQUENCE",
+                    buildConfigString(
+                        localProp("stackward.dev.knockSequence", aliases = arrayOf("stackward.dev.knock_sequence")),
+                    ),
+                )
+                buildConfigField(
+                    "boolean",
+                    "DEV_USE_JUMP_HOST",
+                    localBool(
+                        "stackward.dev.useJumpHost",
+                        aliases = arrayOf("stackward.dev.use_jump_host"),
+                    ).toString(),
+                )
+                buildConfigField(
+                    "String",
+                    "DEV_JUMP_HOST",
+                    buildConfigString(
+                        localProp("stackward.dev.jumpHost", aliases = arrayOf("stackward.dev.jump_host")),
+                    ),
+                )
+                buildConfigField(
+                    "String",
+                    "DEV_JUMP_PORT",
+                    buildConfigString(
+                        localProp(
+                            "stackward.dev.jumpPort",
+                            default = "22",
+                            aliases = arrayOf("stackward.dev.jump_port"),
+                        ),
+                    ),
+                )
+            }
         }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("dogfood")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        create("dogfood") {
+            initWith(getByName("release"))
+            // Separate package ID avoids signature conflicts with older installs.
+            applicationIdSuffix = ".dogfood"
+            isDebuggable = false
+            ndk {
+                abiFilters.clear()
+                abiFilters += "arm64-v8a"
+            }
+            matchingFallbacks += listOf("release")
+            signingConfig = signingConfigs.getByName("dogfood")
+        }
+        // Tiny install-probe APK (no native libs) to diagnose sideload failures.
+        create("smoke") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".smoke"
+            versionNameSuffix = "-smoke"
+            isDebuggable = false
+            matchingFallbacks += listOf("release")
+            signingConfig = signingConfigs.getByName("dogfood")
         }
     }
 
@@ -108,13 +175,28 @@ android {
     }
 
     packaging {
+        jniLibs {
+            // Compress native libs and extract at install time. Avoids Pixel
+            // PackageInstaller failures with large uncompressed MediaPipe .so files.
+            useLegacyPackaging = true
+        }
         resources {
             excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            // BouncyCastle ships LICENSE/NOTICE in bcprov, bcpkix, and bcutil.
+            excludes += "/META-INF/LICENSE.md"
+            excludes += "/META-INF/NOTICE.md"
         }
     }
 
     testOptions {
         unitTests.isIncludeAndroidResources = false
+    }
+}
+
+androidComponents {
+    onVariants(selector().withBuildType("smoke")) { variant ->
+        // Strip every .so so the probe APK is small and has no 16 KB / ELF concerns.
+        variant.packaging.jniLibs.excludes.add("**/*.so")
     }
 }
 
@@ -125,11 +207,11 @@ kotlin {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
+    val composeBom = platform("androidx.compose:compose-bom:2026.08.00")
 
     implementation("androidx.core:core-ktx:1.19.0")
-    implementation("androidx.activity:activity-compose:1.9.3")
-    implementation("androidx.fragment:fragment-ktx:1.8.5")
+    implementation("androidx.activity:activity-compose:1.13.0")
+    implementation("androidx.fragment:fragment-ktx:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
 
@@ -140,7 +222,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
 
     implementation("androidx.biometric:biometric:1.1.0")
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.security:security-crypto:1.1.0")
 
     implementation("androidx.work:work-runtime-ktx:2.10.0")
 
@@ -149,11 +231,11 @@ dependencies {
 
     // SSH — Phase 1 (full BC replaces Android's stripped provider for X25519/Ed25519)
     implementation("com.hierynomus:sshj:0.40.0")
-    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
-    implementation("org.bouncycastle:bcpkix-jdk18on:1.78.1")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.85")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.85")
 
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.json:json:20240303")
+    testImplementation("org.json:json:20260814")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

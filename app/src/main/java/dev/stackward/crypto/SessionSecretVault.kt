@@ -1,19 +1,16 @@
 package dev.stackward.crypto
 
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
-import java.nio.ByteBuffer
-import java.security.KeyStore
+import java.security.SecureRandom
+import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 /**
- * Ephemeral AES-256-GCM vault for bootstrap secrets.
+ * In-memory store for one-time bootstrap credentials (SSH password, pasted PEM).
  *
- * Ciphertext is held only in process memory. The wrapping key lives in
- * Android Keystore. Secrets are never written to disk / SharedPreferences.
+ * Values are AES-256-CBC encrypted with an ephemeral session key and are never
+ * written to disk. [clear] wipes all slots — call after key install or on failure.
  */
 class SessionSecretVault {
 
@@ -23,88 +20,61 @@ class SessionSecretVault {
         PRIVATE_KEY_PASSPHRASE,
     }
 
-    private val keyStore: KeyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
-    private val sealed = mutableMapOf<Slot, ByteArray>()
+    private val sessionKey: ByteArray = ByteArray(KEY_BYTES).also { SecureRandom().nextBytes(it) }
+    private val secrets = ConcurrentHashMap<Slot, ByteArray>()
 
-    fun put(slot: Slot, plaintext: String) {
-        if (plaintext.isEmpty()) {
+    fun put(slot: Slot, value: String) {
+        if (value.isEmpty()) {
             clear(slot)
             return
         }
-        val previous = sealed.put(slot, encrypt(plaintext.toByteArray(Charsets.UTF_8)))
-        previous?.fill(0)
+        secrets[slot] = encrypt(value.toByteArray(Charsets.UTF_8))
     }
 
     fun get(slot: Slot): String? {
-        val blob = sealed[slot] ?: return null
-        val plain = decrypt(blob)
-        return try {
-            String(plain, Charsets.UTF_8)
-        } finally {
-            plain.fill(0)
-        }
+        val sealed = secrets[slot] ?: return null
+        return runCatching {
+            String(decrypt(sealed), Charsets.UTF_8)
+        }.getOrNull()
     }
 
-    fun has(slot: Slot): Boolean = sealed.containsKey(slot)
+    fun has(slot: Slot): Boolean = get(slot)?.isNotBlank() == true
 
-    fun clear(slot: Slot? = null) {
-        if (slot == null) {
-            sealed.values.forEach { it.fill(0) }
-            sealed.clear()
-            return
-        }
-        sealed.remove(slot)?.fill(0)
+    fun clear(slot: Slot) {
+        secrets.remove(slot)?.let(::zeroize)
+    }
+
+    fun clear() {
+        secrets.keys.toList().forEach(::clear)
     }
 
     private fun encrypt(plaintext: ByteArray): ByteArray {
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
-        val iv = cipher.iv
+        val iv = ByteArray(IV_BYTES).also { SecureRandom().nextBytes(it) }
+        val cipher = Cipher.getInstance(CIPHER)
+        cipher.init(Cipher.ENCRYPT_MODE, keySpec(), IvParameterSpec(iv))
         val ciphertext = cipher.doFinal(plaintext)
-        return ByteBuffer.allocate(4 + iv.size + ciphertext.size)
-            .putInt(iv.size)
-            .put(iv)
-            .put(ciphertext)
-            .array()
+        return iv + ciphertext
     }
 
-    private fun decrypt(blob: ByteArray): ByteArray {
-        val buffer = ByteBuffer.wrap(blob)
-        val ivSize = buffer.int
-        require(ivSize in 12..32) { "Invalid IV size" }
-        val iv = ByteArray(ivSize)
-        buffer.get(iv)
-        val ciphertext = ByteArray(buffer.remaining())
-        buffer.get(ciphertext)
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
+    private fun decrypt(sealed: ByteArray): ByteArray {
+        require(sealed.size > IV_BYTES) { "Invalid sealed payload" }
+        val iv = sealed.copyOfRange(0, IV_BYTES)
+        val ciphertext = sealed.copyOfRange(IV_BYTES, sealed.size)
+        val cipher = Cipher.getInstance(CIPHER)
+        cipher.init(Cipher.DECRYPT_MODE, keySpec(), IvParameterSpec(iv))
         return cipher.doFinal(ciphertext)
     }
 
-    private fun getOrCreateKey(): SecretKey {
-        if (keyStore.containsAlias(KEY_ALIAS)) {
-            val entry = keyStore.getEntry(KEY_ALIAS, null) as KeyStore.SecretKeyEntry
-            return entry.secretKey
-        }
-        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER)
-        generator.init(
-            KeyGenParameterSpec.Builder(
-                KEY_ALIAS,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
-            )
-                .setKeySize(256)
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setRandomizedEncryptionRequired(true)
-                .build(),
-        )
-        return generator.generateKey()
+    private fun keySpec(): SecretKeySpec =
+        SecretKeySpec(sessionKey.copyOf(), "AES")
+
+    private fun zeroize(data: ByteArray) {
+        data.fill(0)
     }
 
     companion object {
-        private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
-        private const val KEY_ALIAS = "stackward_session_secret_aes"
-        private const val TRANSFORMATION = "AES/GCM/NoPadding"
-        private const val GCM_TAG_BITS = 128
+        private const val CIPHER = "AES/CBC/PKCS5Padding"
+        private const val KEY_BYTES = 32
+        private const val IV_BYTES = 16
     }
 }

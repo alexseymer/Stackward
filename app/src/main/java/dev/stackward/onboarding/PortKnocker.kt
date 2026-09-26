@@ -1,43 +1,33 @@
 package dev.stackward.onboarding
 
-import android.util.Log
 import java.net.InetSocketAddress
 import java.net.Socket
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 
 /**
- * Optional TCP port-knock sequence before SSH (memory-only config, never persisted).
+ * Optional TCP port knock before SSH connect (comma/space/semicolon separated ports).
  */
 object PortKnocker {
 
-    private const val TAG = "Stackward"
-
-    suspend fun knock(
-        host: String,
-        ports: List<Int>,
-        delayMs: Long = 200L,
-        connectTimeoutMs: Int = 400,
-    ) = withContext(Dispatchers.IO) {
-        Log.i(TAG, "PortKnock: $host ports=$ports")
-        for (port in ports) {
-            require(port in 1..65535) { "Invalid knock port: $port" }
-            val ok = runCatching {
-                Socket().use { socket ->
-                    socket.connect(InetSocketAddress(host, port), connectTimeoutMs)
-                }
-            }.isSuccess
-            Log.d(TAG, "PortKnock: $host:$port connected=$ok")
-            delay(delayMs)
-        }
-    }
+    private const val CONNECT_TIMEOUT_MS = 500
+    private const val INTER_KNOCK_DELAY_MS = 200L
 
     fun parseSequence(raw: String): List<Int> {
         if (raw.isBlank()) return emptyList()
-        return raw.split(',', ' ', ';')
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .map { it.toInt() }
+        return raw.split(',', ';', ' ')
+            .mapNotNull { token -> token.trim().toIntOrNull()?.takeIf { port -> port in 1..65535 } }
+    }
+
+    fun knock(host: String, ports: List<Int>) {
+        if (ports.isEmpty()) return
+        for (port in ports) {
+            runCatching {
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
+                }
+            }
+            if (port != ports.last()) {
+                Thread.sleep(INTER_KNOCK_DELAY_MS)
+            }
+        }
     }
 }

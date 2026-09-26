@@ -19,9 +19,11 @@ captures/
 .externalNativeBuild/
 .cxx/
 
-# Keystore files (never commit)
+# Keystore files (never commit — except the shared dogfood test key)
 *.jks
 *.keystore
+!app/dogfood.keystore
+keystore.properties
 
 # Log files
 *.log

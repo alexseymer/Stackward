@@ -11,6 +11,8 @@ import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.connection.channel.direct.DirectConnection
 import net.schmizz.sshj.connection.channel.direct.Session
 import net.schmizz.sshj.userauth.keyprovider.OpenSSHKeyFile
+import net.schmizz.sshj.userauth.password.PasswordUtils
+import java.io.StringReader
 import java.util.concurrent.TimeUnit
 
 /**
@@ -154,6 +156,32 @@ class SshConnectionManager(
             command = command,
             expectedFingerprint = expectedFingerprint,
             keyAlias = null,
+            jumpHost = jumpHost,
+            jumpHostPort = jumpHostPort,
+            jumpHostKeyFingerprint = jumpHostKeyFingerprint,
+        )
+    }
+
+    suspend fun installAuthorizedKey(
+        config: SshConnectionConfig,
+        publicKeyOpenSsh: String,
+        jumpHost: String? = null,
+        jumpHostPort: Int = 22,
+        jumpHostKeyFingerprint: String? = null,
+    ): SshCommandResult {
+        val trimmedKey = publicKeyOpenSsh.trim()
+        require(trimmedKey.isNotEmpty()) { "Public key required" }
+        val quotedKey = shellSingleQuote(trimmedKey)
+        val command = """
+            set -e
+            mkdir -p ~/.ssh && chmod 700 ~/.ssh
+            touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+            grep -Fqx $quotedKey ~/.ssh/authorized_keys || echo $quotedKey >> ~/.ssh/authorized_keys
+            echo STACKWARD_KEY_INSTALLED=1
+        """.trimIndent()
+        return executeCommand(
+            config = config,
+            command = command,
             jumpHost = jumpHost,
             jumpHostPort = jumpHostPort,
             jumpHostKeyFingerprint = jumpHostKeyFingerprint,
@@ -356,12 +384,12 @@ class SshConnectionManager(
                     client.authPublickey(config.username, AgentSshKeyProvider(keyPair))
                 }
                 !config.privateKeyPem.isNullOrBlank() -> {
-                    val keyFile = OpenSSHKeyFile()
-                    keyFile.init(
-                        config.privateKeyPem,
-                        config.privateKeyPassphrase ?: "",
+                    val keyProvider = OpenSSHKeyFile()
+                    keyProvider.init(
+                        StringReader(config.privateKeyPem),
+                        PasswordUtils.createOneOff(config.privateKeyPassphrase?.toCharArray()),
                     )
-                    client.authPublickey(config.username, keyFile)
+                    client.authPublickey(config.username, keyProvider)
                 }
                 !config.password.isNullOrBlank() -> {
                     client.authPassword(config.username, config.password)

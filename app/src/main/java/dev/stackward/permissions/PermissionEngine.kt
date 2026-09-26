@@ -68,7 +68,12 @@ class PermissionEngine(
 
     fun currentTier1Rules(): List<String> = tier1Rules
 
-    fun evaluate(proposal: ActionProposal): PermissionDecision {
+    fun evaluate(
+        proposal: ActionProposal,
+        capabilityPack: CapabilityPack = CapabilityPack.MONITOR,
+    ): PermissionDecision {
+        capabilityDenial(proposal, capabilityPack)?.let { return it }
+
         return when (proposal.tier) {
             PermissionTier.ROUTINE -> {
                 if (isAllowedRoutine(proposal)) {
@@ -94,6 +99,24 @@ class PermissionEngine(
                 proposal,
                 suggestedDiff = buildSudoersDiff(proposal),
             )
+        }
+    }
+
+    private fun capabilityDenial(
+        proposal: ActionProposal,
+        capabilityPack: CapabilityPack,
+    ): PermissionDecision? {
+        return when (capabilityPack) {
+            CapabilityPack.MONITOR -> {
+                if (proposal.tier != PermissionTier.ROUTINE) {
+                    PermissionDecision.Deny(
+                        proposal,
+                        "v1 Monitor tier only supports read-only checks. Risk-based action gating coming in Phase 3.",
+                    )
+                } else {
+                    null
+                }
+            }
         }
     }
 

@@ -4,9 +4,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.stackward.ui.analyzer.LogAnalyzerScreen
+import dev.stackward.ui.analyzer.LogAnalyzerViewModel
 import dev.stackward.ui.connections.ConnectionsScreen
 import dev.stackward.ui.connections.ConnectionsViewModel
 import dev.stackward.ui.logs.LogsScreen
@@ -19,6 +22,7 @@ private enum class AppDestination {
     CONNECTIONS,
     ONBOARDING,
     LOGS,
+    ANALYZER,
     SETTINGS,
 }
 
@@ -32,10 +36,12 @@ fun StackwardApp() {
     var selectedProfileId by rememberSaveable(key = "selected_profile_v2") {
         mutableStateOf<String?>(null)
     }
+    var analyzerInitialLogs by remember { mutableStateOf<String?>(null) }
 
     val connectionsViewModel: ConnectionsViewModel = viewModel()
     val onboardingViewModel: OnboardingViewModel = viewModel()
     val logsViewModel: LogsViewModel = viewModel()
+    val logAnalyzerViewModel: LogAnalyzerViewModel = viewModel()
     val settingsViewModel: SettingsViewModel = viewModel()
 
     LaunchedEffect(destination, selectedProfileId) {
@@ -67,6 +73,18 @@ fun StackwardApp() {
                 destination = AppDestination.CONNECTIONS
             },
             onOpenSettings = { destination = AppDestination.SETTINGS },
+            onOpenAnalyzer = { logs ->
+                analyzerInitialLogs = logs
+                destination = AppDestination.ANALYZER
+            },
+        )
+        AppDestination.ANALYZER -> LogAnalyzerScreen(
+            viewModel = logAnalyzerViewModel,
+            initialLogs = analyzerInitialLogs,
+            onBack = {
+                analyzerInitialLogs = null
+                destination = AppDestination.LOGS
+            },
         )
         AppDestination.SETTINGS -> SettingsScreen(
             viewModel = settingsViewModel,

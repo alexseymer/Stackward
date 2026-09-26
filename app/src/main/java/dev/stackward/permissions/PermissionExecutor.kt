@@ -3,6 +3,7 @@ package dev.stackward.permissions
 import dev.stackward.onboarding.ServerProfile
 import dev.stackward.proxmox.ProxmoxApiClient
 import dev.stackward.proxmox.ProxmoxCommands
+import dev.stackward.security.SecuritySettingsRepository
 
 data class ExecutionResult(
     val success: Boolean,
@@ -16,11 +17,12 @@ data class ExecutionResult(
 class PermissionExecutor(
     private val engine: PermissionEngine,
     private val auditLog: AuditLogRepository,
+    private val securitySettings: SecuritySettingsRepository,
     private val proxmoxApi: ProxmoxApiClient? = null,
 ) {
 
     fun evaluate(proposal: ActionProposal): PermissionDecision {
-        return engine.evaluate(proposal)
+        return engine.evaluate(proposal, securitySettings.getCapabilityPack())
     }
 
     suspend fun executeApproved(
@@ -28,7 +30,7 @@ class PermissionExecutor(
         proposal: ActionProposal,
         sshExecutor: suspend (command: String) -> String,
     ): ExecutionResult {
-        val decision = engine.evaluate(proposal)
+        val decision = evaluate(proposal)
         if (decision is PermissionDecision.Deny) {
             val entry = auditDenied(proposal, decision.reason)
             return ExecutionResult(success = false, output = decision.reason, auditEntry = entry)

@@ -1,18 +1,16 @@
-## Android SDK (required — Android Studio usually writes this)
-# sdk.dir=C\:\\Users\\you\\AppData\\Local\\Android\\Sdk
+# Copy to local.properties (gitignored) for debug dogfooding prefill.
+# Requires stackward.dev.prefill=true and a debug build.
+# Do NOT wrap values in quotes — they become part of the value.
+# Snake_case aliases (ssh_password, knock_sequence, …) are also accepted.
 
-## Debug onboarding prefills (optional)
-## Copy these keys into your gitignored local.properties, then rebuild the debug APK.
-## Never commit real passwords. Release builds always ignore these.
+sdk.dir=/path/to/Android/Sdk
 
-stackward.dev.prefill=true
-stackward.dev.host=192.168.1.10
-stackward.dev.port=22
-stackward.dev.username=deploy
-# Do NOT wrap values in quotes — they become part of the password.
-stackward.dev.ssh_password=changeme
-stackward.dev.sudo_password=changeme
-# stackward.dev.knock_sequence=7000,8000,9000
-# stackward.dev.use_jump_host=false
-# stackward.dev.jump_host=
-# stackward.dev.jump_port=22
+# stackward.dev.prefill=true
+# stackward.dev.host=192.168.1.10
+# stackward.dev.port=22
+# stackward.dev.username=stackward-agent
+# stackward.dev.sshPassword=
+# stackward.dev.knockSequence=
+# stackward.dev.useJumpHost=false
+# stackward.dev.jumpHost=
+# stackward.dev.jumpPort=22

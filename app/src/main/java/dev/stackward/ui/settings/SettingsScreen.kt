@@ -20,6 +20,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import dev.stackward.permissions.CapabilityPack
 import dev.stackward.ui.security.BiometricGate
 import dev.stackward.util.findFragmentActivity
 import java.text.SimpleDateFormat
@@ -165,6 +167,8 @@ fun SettingsScreen(
 
             ConnectionCard(uiState = uiState)
 
+            CapabilityPackCard()
+
             Tier1Card(
                 uiState = uiState,
                 onSync = viewModel::syncTier1Rules,
@@ -194,6 +198,26 @@ fun SettingsScreen(
             uiState.tier1SyncResult?.let { result ->
                 Tier1SyncResultCard(result = result)
             }
+        }
+    }
+}
+
+@Composable
+private fun CapabilityPackCard() {
+    val selected = CapabilityPack.MONITOR
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Monitor tier", style = MaterialTheme.typography.titleSmall)
+            Text(
+                selected.summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                "Risk-based action gating (safe/risky/scary) coming in Phase 3.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v5.6.0
+        uses: actions/setup-java@v6.0.1
         with:
           distribution: temurin
           java-version: 17
@@ -40,6 +40,21 @@ jobs:
 
       - name: Assemble debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Verify debug APK signature
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -maxdepth 1 -mindepth 1 -type d | sort -V | tail -n 1)/apksigner"
+          "${APKSIGNER}" verify --verbose "${APK}"
+
+      - name: Assemble dogfood APK
+        run: ./gradlew :app:assembleDogfood --stacktrace
+
+      - name: Verify dogfood APK signature
+        run: |
+          APK="app/build/outputs/apk/dogfood/app-dogfood.apk"
+          APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -maxdepth 1 -mindepth 1 -type d | sort -V | tail -n 1)/apksigner"
+          "${APKSIGNER}" verify --verbose "${APK}"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
@@ -75,5 +90,6 @@ jobs:
             scripts/bootstrap_linux.sh \
             scripts/bootstrap_proxmox.sh \
             scripts/protect-main-branch.sh \
+            scripts/release_apk.sh \
             app/src/main/assets/scripts/bootstrap_linux.sh \
             app/src/main/assets/scripts/bootstrap_proxmox.sh

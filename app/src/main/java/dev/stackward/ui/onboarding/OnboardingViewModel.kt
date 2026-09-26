@@ -13,6 +13,8 @@ import dev.stackward.onboarding.BootstrapResult
 import dev.stackward.onboarding.HostType
 import dev.stackward.onboarding.PortKnocker
 import dev.stackward.onboarding.ServerProfile
+import dev.stackward.permissions.AuditEntry
+import dev.stackward.permissions.PermissionTier
 import dev.stackward.ui.security.BiometricGate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -471,6 +473,20 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     private fun applyBootstrapSuccess(result: BootstrapResult) {
+        val state = _uiState.value
+        if (state.elevatedPrivilegeDetected && state.elevatedPrivilegeAcknowledged) {
+            container.auditLogRepository.append(
+                AuditEntry(
+                    timestamp = System.currentTimeMillis(),
+                    tier = PermissionTier.BOUNDARY_CHANGE,
+                    command = "onboarding_elevated_identity_ack",
+                    approved = true,
+                    output = "${result.profile.username}@${result.profile.host}:${result.profile.port}",
+                    reason = "User acknowledged elevated SSH identity during onboarding",
+                ),
+            )
+        }
+
         pendingProxmoxTokenId = result.proxmoxTokenId
         pendingProxmoxTokenSecret = result.proxmoxTokenSecret
         val needsProxmoxToken = result.proxmoxTokenId != null && result.proxmoxTokenSecret != null

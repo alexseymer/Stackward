@@ -48,6 +48,37 @@ class LogReader(
         return LogReadResult(content = content, truncated = truncated, source = LogSource.DOCKER)
     }
 
+    suspend fun readDockerContainerContext(
+        profile: ServerProfile,
+        containerId: String,
+        tail: Int = 200,
+    ): LogReadResult {
+        val safeId = ShellEscape.validateContainerId(containerId)
+        val inspectCommand = buildString {
+            append("if command -v docker >/dev/null 2>&1; then ")
+            append("docker inspect --format ")
+            append("'status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' ")
+            append(safeId)
+            append(" 2>/dev/null; else echo inspect_unavailable; fi")
+        }
+        val inspect = runCatching { ssh.execute(profile, inspectCommand).trim() }
+            .getOrDefault("inspect_unavailable")
+        val logs = readDockerLogs(profile, containerId, tail)
+        val combined = buildString {
+            appendLine("=== container inspect ===")
+            appendLine(inspect)
+            appendLine()
+            appendLine("=== recent logs ===")
+            append(logs.content)
+        }
+        val (content, truncated) = LogTruncate.truncate(combined)
+        return LogReadResult(
+            content = content,
+            truncated = truncated || logs.truncated,
+            source = LogSource.DOCKER,
+        )
+    }
+
     suspend fun listContainers(profile: ServerProfile): List<DockerContainer> {
         val output = ssh.execute(profile, "ls -1 /var/lib/docker/containers/ 2>/dev/null || true")
         return output.lineSequence()
@@ -68,14 +99,16 @@ class LogReader(
         )
 
         val dockerSection = runCatching {
-            val containers = listContainers(profile).take(5)
+            val containers = listContainers(profile).take(3)
             if (containers.isEmpty()) {
                 "No Docker container log directories visible."
             } else {
                 buildString {
-                    appendLine("Docker containers (${containers.size} visible):")
+                    appendLine("Docker containers (${containers.size} sampled):")
                     containers.forEach { container ->
-                        appendLine("- ${container.shortId}")
+                        appendLine("--- ${container.shortId} ---")
+                        val tail = readDockerLogs(profile, container.id, tail = 30)
+                        appendLine(tail.content.ifBlank { "(no log lines)" })
                     }
                 }
             }
@@ -89,7 +122,20 @@ class LogReader(
             else -> ""
         }
 
+        val anomalyFlags = DigestAnomalyDetector.detect(
+            journalContent = journal.content,
+            dockerSection = dockerSection,
+            proxmoxSection = proxmoxSection,
+        )
+
         val combined = buildString {
+            if (anomalyFlags.isNotEmpty()) {
+                appendLine("=== Anomaly flags ===")
+                anomalyFlags.forEach { flag ->
+                    appendLine("- ${DigestAnomalyDetector.label(flag)}")
+                }
+                appendLine()
+            }
             appendLine("=== systemd journal (errors, last hour) ===")
             appendLine(journal.content.ifBlank { "(no entries)" })
             appendLine()
@@ -107,6 +153,7 @@ class LogReader(
             content = content,
             truncated = truncated,
             generatedAt = System.currentTimeMillis(),
+            anomalyFlags = anomalyFlags,
         )
     }
 }
@@ -115,4 +162,5 @@ data class LogDigest(
     val content: String,
     val truncated: Boolean,
     val generatedAt: Long,
+    val anomalyFlags: List<String> = emptyList(),
 )

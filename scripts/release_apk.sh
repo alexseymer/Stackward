@@ -1,0 +1,298 @@
+#!/usr/bin/env bash
+# release_apk.sh — Bump version, build signed dogfood APK, and publish a GitHub Release.
+#
+# Pushes only to the `builds` branch (never `main`). Creates the branch from
+# origin/main on first run; subsequent runs reset `builds` to latest main, bump
+# the version, build, commit, push, and tag a release with the APK attached.
+#
+# Usage:
+#   ./scripts/release_apk.sh
+#
+# Optional environment variables:
+#   SOURCE_REF   Git ref to build from (default: origin/main)
+#   DRY_RUN=1    Print planned actions without mutating git or creating a release
+#
+# Agent trigger phrase: "cut a new build" (runs this script end-to-end).
+# Install probe: BUILD_TYPE=smoke ./scripts/release_apk.sh
+#
+# Optional environment variables:
+#   SOURCE_REF   Git ref to build from (default: origin/main)
+#   BUILD_TYPE   dogfood (default) or smoke
+#   DRY_RUN=1    Print planned actions without mutating git or creating a release
+
+set -euo pipefail
+
+SOURCE_REF="${SOURCE_REF:-origin/main}"
+BUILDS_BRANCH="builds"
+BUILD_FILE="app/build.gradle.kts"
+# dogfood (default) or smoke — smoke is a tiny no-native-libs install probe.
+BUILD_TYPE="${BUILD_TYPE:-dogfood}"
+case "${BUILD_TYPE}" in
+  dogfood)
+    GRADLE_TASK=":app:assembleDogfood"
+    APK_PATH="app/build/outputs/apk/dogfood/app-dogfood.apk"
+    APK_ASSET_NAME="app-dogfood.apk"
+    ;;
+  smoke)
+    GRADLE_TASK=":app:assembleSmoke"
+    APK_PATH="app/build/outputs/apk/smoke/app-smoke.apk"
+    APK_ASSET_NAME="app-smoke.apk"
+    ;;
+  *)
+    echo "error: BUILD_TYPE must be dogfood or smoke (got ${BUILD_TYPE})" >&2
+    exit 1
+    ;;
+esac
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+cd "${REPO_ROOT}"
+
+die() {
+  echo "error: $*" >&2
+  exit 1
+}
+
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || die "${1} is required"
+}
+
+find_apksigner() {
+  local sdk_dir build_tools
+
+  if [[ -n "${ANDROID_HOME:-}" ]]; then
+    sdk_dir="${ANDROID_HOME}"
+  elif [[ -f local.properties ]]; then
+    sdk_dir="$(grep '^sdk.dir=' local.properties | cut -d= -f2- | tr -d '\r' | sed 's/\\:/:/g' | sed 's/^"//;s/"$//')"
+  fi
+
+  if [[ -n "${sdk_dir}" && -d "${sdk_dir}/build-tools" ]]; then
+    build_tools="$(find "${sdk_dir}/build-tools" -maxdepth 1 -mindepth 1 -type d | sort -V | tail -n 1)"
+    if [[ -x "${build_tools}/apksigner" ]]; then
+      echo "${build_tools}/apksigner"
+      return
+    fi
+  fi
+
+  if command -v apksigner >/dev/null 2>&1; then
+    echo apksigner
+    return
+  fi
+
+  die "apksigner not found (set ANDROID_HOME or install Android SDK build-tools)"
+}
+
+verify_apk_signed() {
+  local apksigner verify_output
+  apksigner="$(find_apksigner)"
+
+  echo "==> Verifying APK signature"
+  verify_output="$("${apksigner}" verify --verbose "${APK_PATH}" 2>&1)" || {
+    echo "${verify_output}" >&2
+    die "APK failed signature verification — release aborted"
+  }
+  echo "${verify_output}"
+
+  if ! grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' <<<"${verify_output}"; then
+    die "APK must include v2 signing (required for targetSdk 35 sideload installs)"
+  fi
+
+  if find_aapt | xargs -I{} {} dump badging "${APK_PATH}" 2>/dev/null | grep -q 'application-debuggable'; then
+    die "APK is debuggable — sideload installs are often blocked on Pixel devices"
+  fi
+}
+
+find_aapt() {
+  local sdk_dir build_tools
+  if [[ -n "${ANDROID_HOME:-}" ]]; then
+    sdk_dir="${ANDROID_HOME}"
+  elif [[ -f local.properties ]]; then
+    sdk_dir="$(grep '^sdk.dir=' local.properties | cut -d= -f2- | tr -d '\r' | sed 's/\\:/:/g' | sed 's/^"//;s/"$//')"
+  fi
+  if [[ -n "${sdk_dir}" && -d "${sdk_dir}/build-tools" ]]; then
+    build_tools="$(find "${sdk_dir}/build-tools" -maxdepth 1 -mindepth 1 -type d | sort -V | tail -n 1)"
+    if [[ -x "${build_tools}/aapt" ]]; then
+      echo "${build_tools}/aapt"
+      return
+    fi
+  fi
+  command -v aapt 2>/dev/null || true
+}
+
+read_version_fields() {
+  VERSION_CODE="$(grep -E '^\s*versionCode\s*=' "${BUILD_FILE}" | sed -E 's/.*versionCode\s*=\s*([0-9]+).*/\1/')"
+  VERSION_NAME="$(grep -E '^\s*versionName\s*=' "${BUILD_FILE}" | sed -E 's/.*versionName\s*=\s*"([^"]+)".*/\1/')"
+  [[ -n "${VERSION_CODE}" && -n "${VERSION_NAME}" ]] || die "could not parse version from ${BUILD_FILE}"
+}
+
+bump_version() {
+  read_version_fields
+
+  if [[ "${VERSION_NAME}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(.*)$ ]]; then
+    local major="${BASH_REMATCH[1]}"
+    local minor="${BASH_REMATCH[2]}"
+    local patch="${BASH_REMATCH[3]}"
+    local suffix="${BASH_REMATCH[4]}"
+    local new_patch=$((patch + 1))
+    NEW_VERSION_NAME="${major}.${minor}.${new_patch}${suffix}"
+  else
+    die "versionName \"${VERSION_NAME}\" is not semver (expected X.Y.Z or X.Y.Z-suffix)"
+  fi
+
+  NEW_VERSION_CODE=$((VERSION_CODE + 1))
+  TAG="v${NEW_VERSION_NAME}"
+}
+
+write_version_fields() {
+  sed -i \
+    -e "s/^\([[:space:]]*versionCode[[:space:]]*=[[:space:]]*\)[0-9]\+/\1${NEW_VERSION_CODE}/" \
+    -e "s/^\([[:space:]]*versionName[[:space:]]*=[[:space:]]*\)\"[^\"]*\"/\1\"${NEW_VERSION_NAME}\"/" \
+    "${BUILD_FILE}"
+}
+
+restore_version_fields() {
+  if [[ -n "${VERSION_CODE:-}" && -n "${VERSION_NAME:-}" ]]; then
+    sed -i \
+      -e "s/^\([[:space:]]*versionCode[[:space:]]*=[[:space:]]*\)[0-9]\+/\1${VERSION_CODE}/" \
+      -e "s/^\([[:space:]]*versionName[[:space:]]*=[[:space:]]*\)\"[^\"]*\"/\1\"${VERSION_NAME}\"/" \
+      "${BUILD_FILE}" || true
+  fi
+}
+
+summarize_changes() {
+  local last_tag range
+  last_tag="$(git tag -l 'v*' --sort=-version:refname | head -n 1 || true)"
+
+  if [[ -n "${last_tag}" ]]; then
+    range="${last_tag}..HEAD"
+  else
+    range="HEAD"
+  fi
+
+  git log "${range}" --pretty=format:'%s' --no-merges -n 1 2>/dev/null \
+    || git log "${range}" --pretty=format:'%s' -n 1
+}
+
+prepare_builds_branch() {
+  local starting_branch
+  starting_branch="$(git branch --show-current)"
+
+  git fetch origin main "${BUILDS_BRANCH}" 2>/dev/null || git fetch origin main
+
+  if git show-ref --verify --quiet "refs/remotes/origin/${BUILDS_BRANCH}"; then
+    git checkout "${BUILDS_BRANCH}"
+    git reset --hard "${SOURCE_REF}"
+  else
+    git checkout -B "${BUILDS_BRANCH}" "${SOURCE_REF}"
+  fi
+
+  STARTING_BRANCH="${starting_branch}"
+}
+
+print_download_url() {
+  local repo url
+  repo="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
+  url="$(gh release view "${TAG}" --json assets \
+    --jq ".assets[] | select(.name == \"${APK_ASSET_NAME}\") | .url")"
+  [[ -n "${url}" ]] || die "could not find ${APK_ASSET_NAME} on release ${TAG}"
+
+  echo ""
+  echo "==> Release ready"
+  echo "    Tag:     ${TAG}"
+  echo "    Branch:  ${BUILDS_BRANCH}"
+  echo "    APK URL: ${url}"
+  echo "    SHA256:  ${APK_SHA256}"
+  echo "    Size:    ${APK_BYTES} bytes"
+  echo ""
+  echo "Open on your phone:"
+  echo "  https://github.com/${repo}/releases/tag/${TAG}"
+  echo ""
+  echo "Install tips (Pixel / Android 2026):"
+  echo "  Preferred — USB debugging:"
+  echo "    adb install -r ${APK_ASSET_NAME}"
+  echo "  That prints the real PackageManager error if install fails."
+  echo ""
+  echo "  Sideload:"
+  echo "    1. Download in Chrome (not GitHub app); confirm size = ${APK_BYTES} bytes."
+  echo "    2. Settings → Apps → Special access → Install unknown apps → Chrome → Allow."
+  echo "    3. Temporarily turn off Play Protect scanning (Play Store → profile → Play Protect → Settings)."
+  echo "    4. Tap the APK → Install. If blocked as unverified developer, enable Developer options"
+  echo "       and use the advanced sideload / ADB path (Google's Aug 2026 verification rollout)."
+}
+
+main() {
+  require_cmd git
+  require_cmd gh
+  require_cmd sed
+
+  [[ -f "${BUILD_FILE}" ]] || die "${BUILD_FILE} not found (run from repo root)"
+  [[ -f "./gradlew" ]] || die "./gradlew not found (run from repo root)"
+
+  bump_version
+
+  echo "==> Planned release"
+  echo "    versionCode: ${VERSION_CODE} -> ${NEW_VERSION_CODE}"
+  echo "    versionName: ${VERSION_NAME} -> ${NEW_VERSION_NAME}"
+  echo "    tag:         ${TAG}"
+  echo "    build:       ${BUILD_TYPE}"
+  echo "    source:      ${SOURCE_REF}"
+  echo "    branch:      ${BUILDS_BRANCH}"
+
+  if [[ "${DRY_RUN:-}" == "1" ]]; then
+    echo ""
+    echo "DRY_RUN=1 — stopping before git/gradle/release changes."
+    exit 0
+  fi
+
+  prepare_builds_branch
+
+  write_version_fields
+
+  echo "==> Building signed ${BUILD_TYPE} APK"
+  if ! ./gradlew "${GRADLE_TASK}"; then
+    restore_version_fields
+    die "Gradle build failed — version bump reverted, no release created"
+  fi
+
+  [[ -f "${APK_PATH}" ]] || die "expected APK at ${APK_PATH} after build"
+  verify_apk_signed
+
+  APK_SHA256="$(sha256sum "${APK_PATH}" | awk '{print $1}')"
+  APK_BYTES="$(wc -c < "${APK_PATH}" | tr -d ' ')"
+
+  local summary notes
+  summary="$(summarize_changes)"
+  notes="${TAG} (${BUILD_TYPE})
+
+${summary}
+
+SHA256: ${APK_SHA256}
+Size: ${APK_BYTES} bytes
+
+Install with ADB (most reliable on Pixel in 2026):
+  adb install -r ${APK_ASSET_NAME}
+
+If ADB prints an error code, that is the real reason — Chrome's \"App not installed\" hides it."
+
+  git add "${BUILD_FILE}"
+  # Also commit keystore if it changed (SHA256 regen).
+  git add -A -- app/dogfood.keystore 2>/dev/null || true
+  git commit -m "chore: bump version to ${TAG}"
+
+  echo "==> Pushing ${BUILDS_BRANCH}"
+  git push --force-with-lease -u origin "${BUILDS_BRANCH}"
+
+  echo "==> Creating GitHub release ${TAG}"
+  gh release create "${TAG}" \
+    "${APK_PATH}" \
+    --target "${BUILDS_BRANCH}" \
+    --title "${TAG}" \
+    --notes "${notes}"
+
+  print_download_url
+
+  if [[ -n "${STARTING_BRANCH:-}" && "${STARTING_BRANCH}" != "${BUILDS_BRANCH}" ]]; then
+    git checkout "${STARTING_BRANCH}" >/dev/null 2>&1 || true
+  fi
+}
+
+main "$@"

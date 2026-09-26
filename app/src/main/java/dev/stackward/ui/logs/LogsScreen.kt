@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.OpenInBrowser
@@ -35,6 +36,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -53,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import dev.stackward.inference.CatalogModel
 import dev.stackward.inference.ModelVariant
 import dev.stackward.inference.StandardModelCatalog
+import dev.stackward.logs.DigestAnomalyDetector
 import dev.stackward.logs.JournalPriority
 import dev.stackward.logs.JournalSince
 import dev.stackward.permissions.AuditEntry
@@ -68,6 +71,7 @@ fun LogsScreen(
     viewModel: LogsViewModel,
     onBack: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onOpenAnalyzer: (String?) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val profile = uiState.profile
@@ -112,6 +116,9 @@ fun LogsScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { onOpenAnalyzer(uiState.logOutput) }) {
+                        Icon(Icons.Default.Analytics, contentDescription = "Log analyzer")
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
@@ -129,9 +136,19 @@ fun LogsScreen(
                     .fillMaxSize()
                     .padding(padding)
                     .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text("No connection selected.")
+                Text(
+                    text = "You can still try the offline Log Analyzer with sample logs — no SSH required.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(modifier = Modifier.height(8.dp))
+                Button(onClick = { onOpenAnalyzer(null) }) {
+                    Icon(Icons.Default.Analytics, contentDescription = null)
+                    Text("Open Log Analyzer", modifier = Modifier.padding(start = 4.dp))
+                }
                 Button(onClick = onBack) {
                     Text("Back to connections")
                 }
@@ -177,6 +194,7 @@ fun LogsScreen(
                     onBrowseHuggingFace = { openUrl(context, StandardModelCatalog.HUGGING_FACE_BROWSE_URL) },
                     onBrowseModelPage = { url -> openUrl(context, url) },
                     onSummarize = viewModel::summarizeCurrentLogs,
+                    onSummaryQuestionChange = viewModel::onSummaryQuestionChange,
                 )
 
                 when (uiState.selectedTab) {
@@ -192,10 +210,21 @@ fun LogsScreen(
                         selectedId = uiState.selectedContainerId,
                         onSelect = viewModel::onContainerSelected,
                     )
-                    LogTab.DIGEST -> Text(
-                        text = "Hourly digest across journal + Docker (read-only, Tier 1).",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    LogTab.DIGEST -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Hourly digest across journal + Docker (read-only, Tier 1).",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        if (uiState.digestAnomalyFlags.isNotEmpty()) {
+                            Text(
+                                text = "Flagged: " + uiState.digestAnomalyFlags.joinToString { flag ->
+                                    DigestAnomalyDetector.label(flag)
+                                },
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.tertiary,
+                            )
+                        }
+                    }
                 }
 
                 if (uiState.isLoading || uiState.isExecutingProposal) {
@@ -338,6 +367,7 @@ private fun ModelStatusCard(
     onBrowseHuggingFace: () -> Unit,
     onBrowseModelPage: (String) -> Unit,
     onSummarize: () -> Unit,
+    onSummaryQuestionChange: (String) -> Unit,
 ) {
     val capability = uiState.deviceCapability
     val busy = uiState.isImportingModel || uiState.isDownloadingModel
@@ -429,7 +459,6 @@ private fun ModelStatusCard(
                     }
                 }
             }
-
             if (uiState.isDownloadingModel) {
                 LinearProgressIndicator(
                     progress = { uiState.downloadProgress.coerceIn(0f, 1f) },
@@ -447,6 +476,17 @@ private fun ModelStatusCard(
                 Text("Importing local file…", style = MaterialTheme.typography.labelSmall)
             }
 
+            OutlinedTextField(
+                value = uiState.summaryQuestion,
+                onValueChange = onSummaryQuestionChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Question (optional)") },
+                placeholder = { Text("Why is container X unhealthy?") },
+                singleLine = false,
+                minLines = 1,
+                maxLines = 3,
+                enabled = uiState.modelConfigured,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = onBrowseHuggingFace,
