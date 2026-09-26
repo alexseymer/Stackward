@@ -12,28 +12,41 @@ Antworte auf Deutsch, klar und handlungsorientiert.
 
 ## Quellenhierarchie (in dieser Reihenfolge lesen)
 
+Stand 2026-09-26: Der Lookout-Pivot ist **implementiert, nicht mehr nur
+geplant** — alle sechs Schritte aus STRATEGY.md „Implementation Order" sind
+gebaut, build-verifiziert, und durch einen `/simplify`- plus
+`/code-review`-Durchgang gelaufen. `docs/PHASES.md`, `docs/ARCHITECTURE.md`,
+`docs/USER_STORIES.md` und die README wurden an diesem Tag neu geschrieben,
+um das aktuelle System als primär zu beschreiben. Nicht mehr automatisch von
+„veraltet" ausgehen — aber wie immer gegen den tatsächlichen Code verifizieren.
+
 1. **`STRATEGY.md`** — der gewählte Nordstern ("Lookout"-These: read-only
    Triage über `~/.stackward/check.sh`, risikobasiertes Gating
-   safe/risky/scary, Modell optional). Das ist das aktuellste strategische
-   Dokument.
-2. **`PRD.md`** — vollständige Produktspezifikation passend zu dieser
-   Strategie (Check-Script-Architektur, Risk-Gating, User Stories,
-   Phasen-Roadmap).
+   safe/risky/scary, Modell optional) und der aktuelle Stand der
+   Implementation Order.
+2. **`PRD.md`** — vollständige Produktspezifikation passend zu dieser Strategie.
 3. **`docs/PHASES.md`, `docs/ARCHITECTURE.md`, `docs/USER_STORIES.md`,
-   README.md „Status"-Tabelle`** — beschreiben eine **frühere, breitere
-   Architektur** (Tier-1/2/3-Permission-Engine, CapabilityPack
-   Monitor/Maintain/Provision, On-Device Gemma mit einzelnen
-   Shell-Vorschlägen über eine dauerhafte SSH-/Proxmox-API-Verbindung). Ein
-   großer Teil dieses Codes existiert noch und funktioniert
-   (`PermissionEngine`, `ProxmoxCommands`, `AgentKeyManager`), aber die
-   Produkt-Framing in diesen vier Dateien ist **veraltet**, überall wo sie
-   STRATEGY.md/PRD.md widerspricht. Als historischen Hintergrund behandeln,
-   nicht als aktuellen Scope — bis jemand sie bewusst abgleicht.
-4. **`scripts/check.sh`** — das tatsächliche Phase-1-Artefakt der neuen
-   Richtung. Seine Detection-Funktionen und das JSON-Schema
+   README.md „Status"-Tabelle** — beschreiben das check.sh/Dashboard/
+   Risk-Gating-System als primär, mit dem Pre-Pivot-Tier-1/2/3-+-
+   CapabilityPack-System als klar markiertes Legacy-Subsystem
+   (`PermissionEngine`, `AgentKeyManager`, Host-Key-TOFU-Pinning, die
+   Gemma-Zusammenfassung im Logs-Screen) — echter, funktionierender Code,
+   wiederverwendet auf der Connection-/Credential-Ebene und für die
+   optionale KI-Zusammenfassung, aber nicht mehr der primäre Flow. Wenn eine
+   Änderung eines dieser Docs falsch macht, ist das ein echter Befund —
+   genauso benennen wie jede andere Lücke.
+4. **`scripts/check.sh`** — Detection-Funktionen und JSON-Schema
    (`issues[]`/`suggestions[]`, `risk ∈ safe|risky|scary`) sind die
    Wahrheit dafür, was check.sh aktuell tut.
-5. **`mcp-servers/stackward-devhost/`** — Dev-only MCP-Server zum lokalen
+5. **`dev.stackward.check.CheckActionCatalog`** — die eigentliche
+   Sicherheitsgrenze für Suggestion-Ausführung: Ein RISKY-Command muss für
+   den unprivilegierten `stackward-agent`-User über einen passenden
+   Sudoers-Helper in `scripts/bootstrap_linux.sh` erreichbar sein (z. B.
+   `stackward-check-action`) — ein Catalog-Eintrag ohne passenden Helper
+   schlägt gegen einen echten Host still fehl. Genau dieser Bug ist einmal
+   ausgeliefert worden und wurde von `/code-review` gefunden, nicht von
+   Unit-Tests — bei Änderungen an einer der beiden Dateien gezielt prüfen.
+6. **`mcp-servers/stackward-devhost/`** — Dev-only MCP-Server zum lokalen
    Ausführen/Validieren von check.sh oder gegen einen echten Host. Kein
    Teil der App.
 
@@ -74,12 +87,16 @@ Führe diese Analyse in der angegebenen Reihenfolge durch:
 
 ### 4. Lücken und Risiken identifizieren
 
-- Welcher Schritt in STRATEGY.md „Implementation Order" ist aktiv? Was
-  fehlt dafür?
+- Alle sechs Schritte der Implementation Order sind seit 2026-09-26 fertig.
+  Aktueller Fokus ist Dogfooding gegen echte Infrastruktur und ein
+  physisches Gerät (siehe `docs/PHASES.md § Current focus`), nicht neue
+  Phasen — neue Features nicht vorschlagen, ohne zu prüfen, ob
+  Dogfooding-Lücken die eigentliche Priorität sind.
 - Gibt es Sicherheits- oder Architektur-Lücken (TOFU-Host-Pinning,
   Keystore, Bootstrap, check.sh-Least-Privilege)?
-- Gibt es Inkonsistenzen zwischen STRATEGY.md/PRD.md und Code/veralteten
-  Docs? Benenne sie explizit statt sie zu ignorieren.
+- Stimmen Docs und Code noch überein? Eine Abweichung ist so oder so ein
+  echter Befund — entweder das Doc stimmt und der Code ist regressiert,
+  oder umgekehrt.
 - Was blockiert den nächsten sinnvollen Meilenstein?
 
 ### 5. Empfehlungen formulieren

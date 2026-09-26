@@ -9,33 +9,48 @@ APK plus the user's own external infrastructure. See `README.md`, `PRD.md`, and
 
 ## Product direction & source of truth
 
-Read these in order when the current direction is unclear — they are not
-all mutually consistent, because the product pivoted mid-flight:
+The Lookout pivot is now **implemented, not just planned** — all six
+`STRATEGY.md` Implementation Order steps are built, build-verified
+(`:app:testDebugUnitTest`/`:app:assembleDebug`/`:app:lintDebug` all green),
+and past a `/simplify` + `/code-review` pass. Docs were updated to match on
+2026-09-26; none of the "superseded" banners from before that date apply
+anymore.
 
 1. **`STRATEGY.md`** — the chosen north star ("Lookout": read-only triage
    via `~/.stackward/check.sh`, risk-based safe/risky/scary gating, model
-   optional). Most current strategic document.
+   optional) and the Implementation Order status.
 2. **`PRD.md`** — full spec matching that strategy.
 3. **`docs/PHASES.md`, `docs/ARCHITECTURE.md`, `docs/USER_STORIES.md`,
-   the README "Status" table** — describe an **earlier, broader
-   architecture** (Tier 1/2/3 permission engine, CapabilityPack
-   Monitor/Maintain/Provision, Gemma emitting individual shell proposals
-   over a persistent SSH/Proxmox-API connection). Flagged inline as
-   superseded, but still accurate about *what code exists* — a lot of it
-   (`PermissionEngine`, `ProxmoxCommands`, `AgentKeyManager`, host-key
-   TOFU pinning) still works and is reused by the new direction. Treat as
-   historical background, not current scope, wherever it conflicts with
-   STRATEGY.md/PRD.md.
-4. **`scripts/check.sh`** — the actual Phase 1 artifact of the new
-   direction: detects disk/memory/service/security/log issues on a host
-   and returns JSON (`issues[]`, `suggestions[]` with
+   the README "Status" table** — now describe the **current** architecture
+   (check.sh + dashboard + risk-gated actions) as primary, with the
+   pre-pivot Tier 1/2/3 + CapabilityPack system kept as a clearly-marked
+   "legacy" subsystem — it's still real, functional code
+   (`PermissionEngine`, `AgentKeyManager`, host-key TOFU pinning, the Logs
+   screen's Gemma summarization), reused by the new direction at the
+   connection/credential layer and for the optional AI summary, just no
+   longer the primary flow. Trust these docs' current-state claims; if a
+   change here makes them wrong, update them in the same commit rather
+   than letting them drift again.
+4. **`scripts/check.sh`** — detects disk/memory/service/security/log
+   issues on a host and returns JSON (`issues[]`, `suggestions[]` with
    `risk ∈ safe|risky|scary`). Installed onto monitored hosts by
-   `scripts/bootstrap_linux.sh` (keep the two copies in sync — bootstrap
-   embeds check.sh verbatim rather than fetching it at install time).
+   `scripts/bootstrap_linux.sh`, which embeds it verbatim — run
+   `scripts/verify_check_sh_sync.sh` after touching either file; it caught
+   real drift once already.
+5. **`dev.stackward.check.CheckActionCatalog`** — the actual security
+   boundary for check.sh suggestions: phone-side, fixed, never trusts a
+   suggestion's self-reported risk. A RISKY action's command must be
+   reachable by the `stackward-agent` SSH user — currently via the
+   `stackward-check-action` sudoers helper (`scripts/bootstrap_linux.sh`),
+   which independently re-validates the action id. Adding a new RISKY
+   catalog entry means adding a matching case there too, or it will
+   silently fail against a real host (this exact bug shipped once and was
+   caught by `/code-review`, not by unit tests).
 
-`CapabilityPack.kt` should currently only expose `MONITOR` — v1 scope is
-read-only anomaly detection. If you see `MAINTAIN`/`PROVISION` reappear
-without a deliberate decision to widen scope, that's a regression.
+`CapabilityPack.kt` should currently only expose `MONITOR` — that's the
+*legacy* subsystem's scope, unrelated to check.sh's own risk gate. If you
+see `MAINTAIN`/`PROVISION` reappear without a deliberate decision to widen
+scope, that's a regression.
 
 ## MCP servers
 

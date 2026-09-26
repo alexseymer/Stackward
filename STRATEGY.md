@@ -116,12 +116,20 @@ Returns JSON with issues (detected problems) and suggestions (proposed actions).
 
 ## Implementation Order
 
-1. **Check script core** — Implement `~/.stackward/check.sh` with log/disk/service/security detection
-2. **Bootstrap integration** — Fold `check.sh` install into `scripts/bootstrap_linux.sh`
-3. **Phone app refactor** — Update Android app for dashboard view, per-host polling, risk-based gating
-4. **Risk-gated actions** — Implement safe/risky/scary gates; biometric confirmation for risky
-5. **Gemma optional layer** — Make summarization opt-in; verify no-model degradation works
-6. **Notifications** — Add critical-issue alerts (configurable per host)
+All six steps below are implemented on `claude/stackward-github-review-67l3hd`
+as of 2026-09-26 — build-verified (`:app:testDebugUnitTest`,
+`:app:assembleDebug`, `:app:lintDebug` all green) and past two review passes
+(`/simplify` for reuse/efficiency, `/code-review` for correctness — two real
+bugs found and fixed: a RISKY suggestion's missing privilege escalation, and
+panic-revoke not clearing per-host check.sh state). Not yet dogfooded against
+real infrastructure or a physical device — see docs/PHASES.md.
+
+1. ✅ **Check script core** — `scripts/check.sh`: log/disk/service/security detection, JSON output
+2. ✅ **Bootstrap integration** — `scripts/bootstrap_linux.sh` embeds `check.sh` verbatim, installs a dedicated sudoers helper (`stackward-check-action`) for the one RISKY suggestion that needs root
+3. ✅ **Phone app refactor** — `dev.stackward.ui.dashboard`: multi-host dashboard, per-host detail screen, per-host polling toggle
+4. ✅ **Risk-gated actions** — `dev.stackward.check.CheckActionCatalog`/`CheckSuggestionGate`: phone-side risk classification (never trusts the host's self-reported risk), biometric confirmation for risky, manual-only for scary/unknown
+5. ✅ **Gemma optional layer** — Host detail screen reuses the existing `LogSummarizer` pipeline; degrades identically to the Logs screen (no model → explains why, inference failure → shows the error, structured issues/suggestions always visible)
+6. ✅ **Notifications** — `CheckNotifier`: critical-issue-only, best-effort (missing POST_NOTIFICATIONS permission just means no alert, checks still run)
 
 ## Relationship to Ideation Doc (2026-09-15)
 
