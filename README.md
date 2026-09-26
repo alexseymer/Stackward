@@ -13,64 +13,94 @@
 [![Release](https://img.shields.io/badge/release-0.5.11--dogfood-orange.svg)](docs/PHASES.md)
 [![Status: dogfood](https://img.shields.io/badge/status-dogfood-yellow.svg)](#status)
 
-On-device (Gemma E2B/E4B) Android agent for monitoring and managing
-self-hosted infrastructure — plain Linux hosts, Proxmox, and Docker — over
-SSH, with a tiered, human-confirmed permission model. No credentials,
-logs, or biometric data ever leave the device except over your own
-SSH/API connections to your own infrastructure.
+An Android "lookout" for self-hosted infrastructure — plain Linux hosts,
+Proxmox, and Docker. The phone queries a lightweight script
+(`~/.stackward/check.sh`) installed on each host over SSH, gets back
+structured anomalies, and gates any suggested fix by risk: safe runs
+immediately, risky needs a fresh biometric confirmation, scary is never
+automated at all. An optional on-device Gemma model can summarize what it
+found in plain English. No credentials, logs, or biometric data ever leave
+the device except over your own SSH connection to your own infrastructure —
+never a cloud API.
 
-See [PRD.md](PRD.md) for the full product spec, [docs/USER_STORIES.md](docs/USER_STORIES.md)
-for acceptance criteria, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-for the system design, and [docs/PHASES.md](docs/PHASES.md) for the build
-order.
+See [STRATEGY.md](STRATEGY.md) for the thesis, [PRD.md](PRD.md) for the full
+product spec, [docs/USER_STORIES.md](docs/USER_STORIES.md) for acceptance
+criteria, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the system
+design, and [docs/PHASES.md](docs/PHASES.md) for the pre-pivot build this
+was built on top of.
 
 ## Why Stackward
 
-- **Local-first, private.** All inference runs on the phone via the MediaPipe
-  LLM Inference API. Prompts, logs, and command output never touch a third-party
-  cloud — only your own SSH/API endpoints.
-- **The model proposes, the human disposes.** Gemma emits *structured* action
-  proposals (never raw shell); a permission engine gates every one before it
-  reaches a server.
-- **Least-privilege by construction.** A dedicated `stackward-agent` identity per host
-  (SSH-key-only, hardware-backed Keystore key) and a scoped Proxmox API token —
-  no standing broad `sudo`, no `docker` group by default.
+- **Local-first, private.** check.sh runs on your own host; the phone reads
+  its JSON output over your own SSH connection. Any on-device Gemma inference
+  never leaves the phone either — no cloud API, ever.
+- **The phone decides risk, not the host.** A suggestion's own claimed risk
+  is display-only — `CheckActionCatalog` independently classifies every
+  suggestion id against its own allowlist before deciding whether to run it,
+  so a compromised or buggy check.sh can't talk its way past the gate.
+- **Least-privilege by construction.** A dedicated `stackward-agent` identity
+  per host (SSH-key-only, hardware-backed Keystore key) with a handful of
+  narrow, single-purpose sudoers helpers — no standing broad `sudo`, no
+  `docker` group by default.
 
 ## Features
 
+- **Dashboard** — every configured host at a glance, colored by worst issue
+  severity found; tap one to see its issues and suggestions.
 - **Guided key install** — create `stackward-agent` on the host (`sudo adduser
   stackward-agent`), then enter IP + one-time password; the app installs its
-  SSH key (ssh-copy-id style) and wipes the password. Optional admin-run
-  bootstrap scripts add sudoers helpers and Proxmox tokens.
-- **Unified log reading** — systemd journal, Docker container logs, and Proxmox
-  task logs through one read-only, zero-elevation pipeline.
-- **Scheduled digests** — hourly anomaly digest across all three sources via
-  WorkManager, with reconnect-and-backoff for unattended runs.
-- **On-device summarization** — ask "what's wrong with container X" and get a
-  correlated summary; degrades gracefully to raw logs when no model is imported.
-- **Tiered, biometric-gated actions** — one-time service restarts / VM power
-  actions require an explicit confirmation of the literal command plus a fresh
-  biometric check; boundary changes are human-only.
+  SSH key (ssh-copy-id style) and wipes the password.
+- **Per-host polling** — manual-only, or auto-check every 4 hours via
+  WorkManager, with critical-issue-only notifications (best-effort — checks
+  still run even without notification permission).
+- **Risk-gated suggestions** — safe runs immediately and is logged; risky
+  shows the literal command and requires a fresh biometric confirmation;
+  scary/unrecognized actions are never executed, just shown as a manual
+  workaround.
+- **On-device summarization (optional)** — summarize a host's current issues
+  in plain English via an imported Gemma model; degrades to the structured
+  list with no model imported or if inference fails.
 - **Jump-host support** — reach LAN-only infra via `ProxyJump`-style tunneling
   with per-hop host-key pinning (TOFU).
-- **Hardening** — audit-log export, key rotation, one-tap panic revoke, and a
-  periodic Tier 1 rule review reminder.
+- **Hardening** — audit-log export, key rotation, one-tap panic revoke
+  (clears per-host check.sh state and cancels scheduled polling too).
+
+<details>
+<summary>Also present: the pre-pivot log-reading/tiered-action system</summary>
+
+Before the Lookout pivot, Stackward had a broader design where an on-device
+Gemma model read raw journal/Docker/Proxmox logs directly and proposed
+individual shell commands, gated by a three-tier permission engine
+(read-only / one-time elevation / boundary change). That code
+(`PermissionEngine`, `LogSummarizer`, the Logs screen's journal/Docker tabs)
+still exists and still works — reachable from the dashboard's toolbar — but
+it's no longer the primary flow. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+for how the two fit together.
+
+</details>
 
 ## Status
 
-**Early scaffold — dogfood build (`0.5.11-dogfood` latest release), not yet production-ready.**
+**"Lookout" is implemented: read-only triage via a host-side check script,
+model optional, risk-based action gating.** See [STRATEGY.md](STRATEGY.md)
+for the thesis and [PRD.md](PRD.md) for the full spec.
 
-All planned phases are feature-complete at scaffold level; current focus is
-dogfooding and stabilization on real hardware. See [docs/PHASES.md](docs/PHASES.md)
-for the roadmap and per-task detail.
+| Area | Scope | State |
+|------|-------|-------|
+| Check script | `~/.stackward/check.sh`: log/disk/service/security detection, JSON output | ✅ Implemented |
+| Bootstrap | `scripts/bootstrap_linux.sh` installs `check.sh` + a dedicated sudoers helper for the one RISKY suggestion that needs root | ✅ Implemented |
+| Dashboard | Multi-host list (`dev.stackward.ui.dashboard`), per-host detail, per-host manual/auto-4h polling | ✅ Implemented |
+| Risk-gated actions | `CheckActionCatalog`/`CheckSuggestionGate`: phone decides risk, never trusts the host's self-reported label; safe auto-runs, risky needs biometric, scary/unknown are manual-only | ✅ Implemented |
+| Gemma summary | Host detail screen reuses the existing `LogSummarizer` pipeline; degrades the same way the Logs screen does (no model / inference failure / success) | ✅ Implemented |
+| Notifications | `CheckNotifier`: critical-issue-only, best-effort on the POST_NOTIFICATIONS permission | ✅ Implemented |
 
-| Phase | Scope | State |
-|-------|-------|-------|
-| 0 / 1 | Bootstrap, SSH user/key & Proxmox token provisioning, jump-host support | ✅ Implemented |
-| 2 | On-device Gemma summarization (MediaPipe LLM Inference API) | ✅ Implemented |
-| 3 | Tiered permission engine (sudoers + Proxmox role backend) | ✅ Implemented |
-| 4 | MVP: unified log reading (journal + Docker + Proxmox), read-only | ✅ Implemented |
-| 5 | Hardening: key rotation, panic revoke, audit export, Tier 1 review | ✅ Implemented |
+Verified: `:app:testDebugUnitTest`, `:app:assembleDebug`, `:app:lintDebug` all
+green; two review passes (`/simplify` for reuse/efficiency, `/code-review` for
+correctness) both ran clean after fixing what they found. **Not yet
+dogfooded** against real infrastructure or a physical device — see
+[docs/PHASES.md](docs/PHASES.md) for the pre-pivot architecture this was
+built on top of (`PermissionEngine`, `AgentKeyManager`, host-key TOFU pinning
+— all still in use) and what dogfooding still needs to cover.
 
 See [docs/MODEL_SETUP.md](docs/MODEL_SETUP.md) for importing an on-device model.
 
@@ -99,22 +129,25 @@ Release builds never include these values.
 
 ## Security model, in short
 
-**Invariants:** on-device inference; the model proposes, you (or a rule you
-approved) dispose.
+**Invariants:** check.sh runs on your host, not the phone; the phone reads
+its output and decides risk itself — it never trusts what a suggestion
+claims about its own risk.
 
-**User policy:** how privileged the SSH/API identity is, and which work is
-in scope — safe defaults (`stackward-agent`, read/maintenance), elevated
-accounts and broader scopes only with explicit acknowledgment.
+- **Safe:** read-only (tail logs, list failed units) — runs immediately, logged.
+- **Risky:** needs root the agent user doesn't have by default (e.g. vacuuming
+  the journal) — literal command shown, fresh biometric confirmation required,
+  executed via a narrow single-purpose sudoers helper, never a broad grant.
+- **Scary / unrecognized:** never executed — shown as a manual workaround
+  instead (e.g. disabling SSH password auth).
 
-- **Tier 1 (routine):** read-only or pre-vetted actions, no prompt.
-- **Tier 2 (one-timer):** named elevation, explicit confirmation +
-  biometric, single-use.
-- **Tier 3 (boundary change):** editing what the agent is allowed to do —
-  never automated, human-only.
+The dedicated `stackward-agent` identity has no standing `sudo` beyond a
+handful of named helper scripts, each independently re-validating its own
+input rather than trusting the phone. See [PRD.md § 5](PRD.md#5-core-concepts)
+for details.
 
-The model never gets raw shell access. It emits structured proposals that
-pass through a permission engine before any command reaches a server.
-See [PRD.md § 5](PRD.md#5-core-concepts) for details.
+The pre-pivot Logs screen's tiered permission engine (routine / one-time
+elevation / boundary change, gating individual Gemma-proposed shell commands)
+still exists alongside this — see the collapsed section above.
 
 ## Repo layout
 
