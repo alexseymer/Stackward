@@ -13,6 +13,13 @@ enum class ActionRisk {
  * [command] is the literal command this device will run for [ActionRisk.SAFE]/[RISKY]
  * actions — never anything check.sh sends over the wire. Null for [ActionRisk.SCARY]
  * and [ActionRisk.UNKNOWN], which are never executed.
+ *
+ * SAFE commands run unprivileged as the stackward-agent SSH user. RISKY commands need
+ * root the agent user doesn't have by default, so they run via
+ * `sudo /usr/local/sbin/stackward-check-action <action-id>` — a narrow, single-purpose
+ * sudoers helper (installed by scripts/bootstrap_linux.sh) that re-validates the action
+ * id against its own fixed table before running anything, the same defense-in-depth
+ * `stackward-onetimer` uses for Tier 2 model-proposed actions.
  */
 data class CatalogEntry(
     val risk: ActionRisk,
@@ -44,7 +51,7 @@ object CheckActionCatalog {
         ),
         "cleanup_old_logs" to CatalogEntry(
             risk = ActionRisk.RISKY,
-            command = "journalctl --vacuum-time=7d",
+            command = "sudo /usr/local/sbin/stackward-check-action cleanup_old_logs",
             description = "Vacuum journal entries older than 7 days to free disk space",
         ),
         "disable_ssh_password_auth" to CatalogEntry(

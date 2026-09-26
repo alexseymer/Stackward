@@ -95,6 +95,7 @@ stackward-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-push-key *
 stackward-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-revoke-key *
 stackward-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-panic-revoke
 stackward-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-sudoers-snapshot
+stackward-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-check-action *
 SUDOERS_EOF
 chmod 440 "${SUDOERS_FILE}"
 visudo -c -f "${SUDOERS_FILE}"
@@ -134,6 +135,40 @@ case "${CMD}" in
 esac
 HELPER_EOF
 chmod 755 /usr/local/sbin/stackward-onetimer
+
+echo "==> Installing check.sh RISKY-suggestion helper (stackward-check-action)"
+cat > /usr/local/sbin/stackward-check-action << 'HELPER_EOF'
+#!/usr/bin/env bash
+# stackward-check-action — execute one pre-vetted check.sh RISKY suggestion as root.
+# Usage: stackward-check-action <action-id>
+#
+# The action-id -> command mapping here must match CheckActionCatalog.kt on the
+# phone. This script re-validates the id against its own fixed list rather than
+# trusting the caller — the phone decides an action is safe to send, this script
+# independently decides it's safe to run, same defense-in-depth as stackward-onetimer.
+set -euo pipefail
+
+if [[ $EUID -ne 0 ]]; then
+    echo "stackward-check-action must run as root via sudo" >&2
+    exit 1
+fi
+
+if [[ $# -lt 1 ]]; then
+    echo "usage: stackward-check-action <action-id>" >&2
+    exit 1
+fi
+
+case "$1" in
+    cleanup_old_logs)
+        journalctl --vacuum-time=7d
+        ;;
+    *)
+        echo "unknown or non-privileged action id: $1" >&2
+        exit 1
+        ;;
+esac
+HELPER_EOF
+chmod 755 /usr/local/sbin/stackward-check-action
 
 echo "==> Installing Stackward security helpers"
 cat > /usr/local/sbin/stackward-push-key << 'HELPER_EOF'

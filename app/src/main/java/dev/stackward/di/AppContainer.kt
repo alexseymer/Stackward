@@ -72,6 +72,7 @@ class AppContainer(context: Context) {
         auditLog = auditLogRepository,
     )
     val panicRevokeService = PanicRevokeService(
+        context = appContext,
         ssh = ssh,
         keyManager = keyManager,
         securitySettings = securitySettings,
@@ -81,6 +82,8 @@ class AppContainer(context: Context) {
         tier1RulesRepository = tier1RulesRepository,
         connectionHealth = connectionHealth,
         proxmoxTokenStore = proxmoxTokenStore,
+        checkResultStore = checkResultStore,
+        hostPollingRepository = hostPollingRepository,
     )
     val onboardingFlow = OnboardingFlow(
         context = appContext,
