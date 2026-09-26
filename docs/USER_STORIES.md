@@ -1,400 +1,268 @@
 # Stackward — User Stories & Acceptance Criteria
 
-> ⚠️ **Superseded by the Lookout pivot.** These stories (Epics A–G) match
-> the pre-pivot Tier 1/2/3 + CapabilityPack Monitor/Maintain/Provision
-> architecture. Current user stories live in
-> [PRD.md §6](../PRD.md#6-key-user-stories) and reflect the check.sh /
-> risk-based (safe/risky/scary) model instead. Epic D ("Tier 1/2/3") and D5
-> ("Monitor/Maintain/Provision capability pack") in particular no longer
-> match the code — v1 is Monitor-only, see `CapabilityPack.kt`. Keep this
-> file for what was historically tested, not as the current acceptance
-> checklist.
-
 Detailed acceptance criteria for dogfood testing. High-level outcomes live in
 [PRD.md §6](../PRD.md#6-key-user-stories).
 
 **Status key:** ✅ implemented · ⚠️ partial / scaffold · ❌ not yet · 🔮 v1.1 stretch
 
+Epics G–J below are the current primary flow (Lookout: dashboard, check.sh,
+risk-gated actions). Epics A–F describe the pre-pivot log/Gemma subsystem —
+still functional and reachable from the dashboard's toolbar, but no longer
+the app's front door. Onboarding (Epic A) is shared by both.
+
 ---
 
-## Epic A — Onboarding & identity
+## Epic G — Dashboard & multi-host
 
-### A1 — Prep guidance
+### G1 — Dashboard glance
 
-**Story:** As a user, I see how to create the recommended `stackward-agent` OS
-account before connecting.
+**Story:** As a user, I open the app and see all my configured hosts at
+once, colored by their worst current issue severity, without picking one
+host first.
 
 | AC | Status |
 |----|--------|
-| Prep screen shows `sudo adduser stackward-agent` (Debian/Ubuntu) | ✅ |
-| Copy explains the app does not create the OS user — admin creates it out-of-band | ✅ |
+| Dashboard lists every configured `ServerProfile` | ✅ |
+| Each row colored by worst issue severity from its last check (green = clean, red = critical) | ✅ |
+| Tap a host to see its issues + suggestions | ✅ |
+| "+" adds another host via the existing onboarding wizard | ✅ |
 
-**Phase:** [Phase 0](PHASES.md#phase-0--bootstrap-problem)
+**Phase:** [Phase C](PHASES.md#phase-c--dashboard--per-host-polling)
 
 ---
 
-### A2 — One-time password login + ssh-copy-id-style key install
+### G2 — Host detail
 
-**Story:** As a user, I log in once with password and the app installs its SSH
-public key into `~/.ssh/authorized_keys`, then wipes the password.
+**Story:** As a user, tapping a host shows me exactly what's wrong and what
+I can do about it.
 
 | AC | Status |
 |----|--------|
-| Given a reachable host and existing `stackward-agent` user, when I complete onboarding, then my device public key appears in `~stackward-agent/.ssh/authorized_keys` | ✅ |
-| Remote install script prints `STACKWARD_KEY_INSTALLED=1` on success | ✅ |
-| Bootstrap password is wiped from memory/storage after key install | ✅ |
-| Post-setup SSH sessions use the username chosen at onboarding (stored in `ServerProfile`) | ✅ |
+| Issues list: type, severity, message | ✅ |
+| Suggestions list: reason + Apply button per suggestion | ✅ |
+| "Check now" re-runs check.sh on demand | ✅ |
+| Last-checked timestamp shown | ✅ |
 
-**Known gaps:** none for core onboarding path. Remaining v1 gaps: push notifications (B3), host-key UI (E6), docker-group opt-in (F3).
-
-**Phase:** [Phase 0/1](PHASES.md#phase-1--key--user-provisioning)
+**Phase:** [Phase C](PHASES.md#phase-c--dashboard--per-host-polling)
 
 ---
 
-### A3 — Elevated account detection + acknowledgment
+## Epic H — Risk-gated check.sh suggestions
 
-**Story:** As a user, if I connect with root or passwordless sudo, the app warns
-me and requires explicit acknowledgment before key install.
+### H1 — Safe action runs immediately
+
+**Story:** As a user, tapping "Apply" on a safe suggestion (e.g. tail the
+journal) runs it immediately, no confirmation needed, and is logged.
 
 | AC | Status |
 |----|--------|
-| Login probe detects root and/or passwordless sudo | ✅ |
-| UI blocks provision until acknowledgment checkbox/tap | ✅ |
-| Elevated identity noted in audit trail | ✅ |
+| `CheckActionCatalog` classifies the action id as SAFE | ✅ |
+| Runs via SSH immediately, no dialog | ✅ |
+| Recorded to the audit log | ✅ |
 
-**Phase:** [Phase 0](PHASES.md#phase-0--bootstrap-problem)
+**Phase:** [Phase D](PHASES.md#phase-d--risk-gated-suggestion-execution)
 
 ---
 
-### A4 — Jump-host / port-knock connect
+### H2 — Risky action requires biometric and actually works
 
-**Story:** As a user, I reach LAN-only targets via a jump host (and optional
-port knock) during onboarding.
+**Story:** As a user, tapping "Apply" on a risky suggestion (e.g. clean up
+old logs) shows me the literal command, requires a fresh biometric
+confirmation, and then actually succeeds against my host.
 
 | AC | Status |
 |----|--------|
-| Jump host fields in onboarding UI | ✅ |
-| Agent key installed on bastion for ProxyJump auth | ✅ |
-| Per-hop host key pinning (TOFU) | ✅ |
-| Bastion is **not** saved as a monitored `ServerProfile` | ✅ |
+| Literal command shown before confirming | ✅ |
+| Fresh biometric prompt required | ✅ |
+| Runs via a privileged sudoers helper the agent user can actually invoke | ✅ (fixed by `/code-review` — the first version ran an unprivileged command that would always fail) |
+| Helper independently re-validates the action id before running anything | ✅ |
+| Success/failure recorded to the audit log | ✅ |
 
-**Phase:** [Phase 0/1](PHASES.md#phase-1--key--user-provisioning)
+**Phase:** [Phase D](PHASES.md#phase-d--risk-gated-suggestion-execution)
+
+**Known gap:** only one action (`cleanup_old_logs`) is currently RISKY;
+extending the catalog with more risky actions requires adding both a
+catalog entry and a matching case in the `stackward-check-action` sudoers
+helper.
 
 ---
 
-### A5 — Proxmox token import (out-of-band)
+### H3 — Scary or unrecognized action is manual-only
 
-**Story:** As a user on a Proxmox host, I import a scoped API token created by
-an admin via `scripts/bootstrap_proxmox.sh`.
+**Story:** As a user, the app never automates a boundary-changing action
+(e.g. disabling SSH password auth) or one it doesn't recognize — it shows me
+the exact manual steps instead.
 
 | AC | Status |
 |----|--------|
-| App detects Proxmox host type after connect | ✅ |
-| Token stored in Android Keystore with biometric gate | ✅ |
-| Default Proxmox user is `stackward-agent@pve` with role `stackward-agent` | ✅ |
-| App does not auto-create tokens (admin runs script) | ✅ |
+| SCARY actions (e.g. `disable_ssh_password_auth`) show a manual workaround, never execute | ✅ |
+| An action id not in the catalog is treated as UNKNOWN — same manual-only treatment | ✅ |
 
-**Phase:** [Phase 1](PHASES.md#phase-1--key--user-provisioning)
+**Phase:** [Phase D](PHASES.md#phase-d--risk-gated-suggestion-execution)
 
 ---
 
-### A6 — Host-type auto-detection
+### H4 — The phone decides risk, not the host
 
-**Story:** As a user, the app detects plain Linux / Proxmox / Docker after
-connect without me declaring it upfront.
+**Story:** As a user, I'm protected even if check.sh itself is compromised
+or buggy and mislabels a dangerous action as safe.
 
 | AC | Status |
 |----|--------|
-| Probe distinguishes proxmox / docker / linux | ✅ |
-| Optional manual override in Settings | ❌ (future) |
+| A suggestion's self-reported `risk` field is never used for gating | ✅ |
+| `CheckSuggestionGate` resolves purely from the phone's own `CheckActionCatalog` | ✅ |
+| Unit-tested: host claiming "safe" for an unknown or actually-risky action id still gets gated correctly | ✅ (`CheckSuggestionGateTest`) |
 
-**PRD decision:** auto-detect; Settings override later.
+**PRD reference:** [§8 risk table](../PRD.md#8-risks--mitigations) — "Check
+script is compromised or returns malicious suggestions."
 
 ---
 
-## Epic B — Monitoring & digests
+## Epic I — Polling & notifications
 
-### B1 — Hourly background fetch
+### I1 — Per-host polling
 
-**Story:** As a user, the app fetches journal, Docker, and Proxmox data on a
-schedule without me opening the app.
+**Story:** As a user, I choose per host whether it's checked only when I
+tap, or automatically every 4 hours.
 
 | AC | Status |
 |----|--------|
-| WorkManager runs hourly digest worker | ✅ |
-| Journal: error-level entries from last hour | ✅ |
-| Docker: container log tails (not just container IDs) | ✅ |
-| Proxmox: task log via scoped API token (when configured) | ✅ |
-| Heuristic anomaly flags (errors, failed tasks, restart loops) | ✅ |
+| Manual / Auto-4h toggle per host | ✅ |
+| Auto mode schedules a `CheckWorker` (WorkManager periodic job) | ✅ |
+| Switching back to manual cancels the scheduled job | ✅ |
 
-**Clarification:** v1 "anomaly" means heuristic flags, not raw log dumps only.
-Optional on-device AI summary when a Gemma model is loaded.
-
-**Phase:** [Phase 4](PHASES.md#phase-4--mvp-unified-log-reading)
+**Phase:** [Phase C](PHASES.md#phase-c--dashboard--per-host-polling)
 
 ---
 
-### B2 — Digest visible in app
+### I2 — Critical-issue notification
 
-**Story:** As a user, I open the Digest tab and see the latest aggregated
-results.
+**Story:** As a user with auto-polling enabled, I get notified if a
+scheduled background check finds something critical — but not spammed for
+routine checks or manual ones.
 
 | AC | Status |
 |----|--------|
-| Digest persisted locally between runs | ✅ |
-| Digest tab shows last fetch time and content | ✅ |
+| Notification fires only when the result contains a CRITICAL-severity issue | ✅ |
+| Fires from scheduled `CheckWorker` runs only, not manual "check now" | ✅ |
+| Missing `POST_NOTIFICATIONS` permission degrades silently — checks still run | ✅ |
+| Permission requested when a host is first switched to Auto-4h | ✅ |
+
+**Phase:** [Phase F](PHASES.md#phase-f--notifications)
 
 ---
 
-### B3 — Push notification on anomalies
+### I3 — Panic revoke clears check.sh state too
 
-**Story:** As a user, I get notified when a digest contains flagged problems.
+**Story:** As a user hitting the panic-revoke button, I expect *everything*
+wiped — including per-host check.sh results and any scheduled background
+polling, not just credentials.
 
 | AC | Status |
 |----|--------|
-| Android notification when heuristic flags fire | 🔮 v1.1 |
+| Every host's `CheckResultStore` entry cleared | ✅ (fixed by `/code-review` — previously left behind) |
+| Every host's scheduled `CheckWorker` job cancelled | ✅ (fixed by `/code-review` — previously kept firing indefinitely) |
+| Existing credential/profile/audit wipe still happens | ✅ |
+
+**Phase:** [Phase F](PHASES.md#phase-f--notifications)
 
 ---
 
-### B4 — Reconnect / backoff on network failure
+## Epic J — Optional on-device summary
 
-**Story:** As a user, scheduled digests retry after transient network failures.
+### J1 — Summarize a host's issues
+
+**Story:** As a user with a Gemma model imported, I can get a plain-English
+summary of a host's current issues and suggestions.
 
 | AC | Status |
 |----|--------|
-| SSH retry with exponential backoff | ✅ |
-| WorkManager backoff on worker failure | ✅ |
+| "Summarize with Gemma" button on host detail | ✅ |
+| Reuses the existing `LogSummarizer` pipeline unchanged | ✅ |
+| Ignores model-proposed actions — text summary only, no new execution path | ✅ (deliberate) |
 
-**Phase:** [Phase 4](PHASES.md#phase-4--mvp-unified-log-reading), [Phase 5](PHASES.md#phase-5--hardening)
+**Phase:** [Phase E](PHASES.md#phase-e--optional-gemma-summary)
 
 ---
 
-## Epic C — AI-assisted investigation
+### J2 — Graceful degradation without a model
 
-### C1 — Import Gemma model
-
-**Story:** As a user, I import a Gemma E2B/E4B model and the app selects the
-variant based on device RAM.
+**Story:** As a user without a model imported, the app still shows me
+everything useful — it just doesn't offer a natural-language summary.
 
 | AC | Status |
 |----|--------|
-| User import flow (no bundled multi-GB model) | ✅ |
-| E2B vs E4B auto-select | ✅ |
-| Device capability check on first launch | ✅ |
+| No model imported → explains why, structured list still fully visible | ✅ |
+| Inference failure → shows the error, same degradation | ✅ |
+| Stale summary cleared when the host is re-checked (never shows a summary for results no longer on screen) | ✅ |
 
-**Phase:** [Phase 2](PHASES.md#phase-2--local-model-integration) · See [MODEL_SETUP.md](MODEL_SETUP.md)
-
----
-
-### C2 — Summarize loaded logs
-
-**Story:** As a user, I summarize the logs currently on screen; without a
-model, the app shows raw logs only.
-
-| AC | Status |
-|----|--------|
-| Summarize button invokes on-device inference | ✅ |
-| Graceful degradation when no model imported | ✅ |
+**Phase:** [Phase E](PHASES.md#phase-e--optional-gemma-summary)
 
 ---
 
-### C3 — Natural-language question
-
-**Story:** As a user, I type a question like "why is container X unhealthy?"
-and get an on-device summary tied to that question.
-
-| AC | Status |
-|----|--------|
-| Question text field on Logs screen | ✅ |
-| `summarizeCurrentLogs(userQuestion)` receives the question | ✅ |
-
----
-
-### C4 — Container health context
-
-**Story:** As a user asking about a container, the summary includes health
-status and recent logs, not logs alone.
-
-| AC | Status |
-|----|--------|
-| `docker inspect` health/status included in context | ✅ (when `docker` CLI available) |
-| Recent json-log tail for selected container | ✅ |
-
----
-
-## Epic D — Safe actions (permission engine)
-
-### D1 — Tier 1 read-only execution
-
-**Story:** As a user, pre-vetted read-only actions run without a prompt and
-are logged.
-
-| AC | Status |
-|----|--------|
-| Tier 1 proposals execute automatically | ✅ |
-| Every Tier 1 action written to audit log | ✅ |
-
-**Phase:** [Phase 3](PHASES.md#phase-3--tiered-permission-engine)
-
----
-
-### D2 — Tier 2 confirmation + biometric
-
-**Story:** As a user, I approve a one-time maintenance action after reviewing
-the literal command string and model reasoning, with a fresh biometric check.
-
-| AC | Status |
-|----|--------|
-| Confirmation dialog shows exact command (not paraphrase) | ✅ |
-| Biometric required before execution | ✅ |
-| Single-use sudoers grant via `stackward-onetimer` | ✅ (requires host helper) |
-
----
-
-### D3 — Tier 3 draft-only
-
-**Story:** As a user, boundary-change proposals appear as drafts I apply
-manually — never auto-executed.
-
-| AC | Status |
-|----|--------|
-| Tier 3 blocked from automated path | ✅ |
-| Draft diff shown in UI | ✅ |
-
----
-
-### D4 — Proxmox power actions as Tier 2
-
-**Story:** As a user, VM/LXC start/stop/restart requires Tier 2 confirmation.
-
-| AC | Status |
-|----|--------|
-| Power actions classified Tier 2 | ✅ |
-| Config/allocation actions blocked (Tier 3) | ✅ |
-
----
-
-### D5 — Capability pack gates proposals
-
-**Story:** As a user, I choose Monitor / Maintain / Provision in Settings;
-the model may only propose actions allowed by my pack. Human gates unchanged.
-
-| Pack | Allows |
-|------|--------|
-| **Monitor** (default) | Tier 1 reads + digests |
-| **Maintain** | Monitor + Tier 2 one-timers |
-| **Provision** | Off in v1; future broader proposals, still human-gated |
-
-| AC | Status |
-|----|--------|
-| Settings selector for capability pack | ✅ |
-| PermissionEngine rejects out-of-pack proposals | ✅ |
-
-**PRD decision:** [§10 Capability packs](../PRD.md#10-decisions-resolved)
-
----
-
-## Epic E — Security & recovery
-
-### E1 — Panic revoke (in-app)
-
-**Story:** As a user with my phone, I revoke all agent keys on the server and
-wipe local credentials in one emergency action.
-
-| AC | Status |
-|----|--------|
-| Settings panic button with biometric gate | ✅ |
-| Server: `stackward-panic-revoke` helper | ✅ (requires bootstrap script) |
-| Local credentials and profiles wiped | ✅ |
-| Audit log exported on panic | ✅ |
-
-**Phase:** [Phase 5](PHASES.md#phase-5--hardening)
-
----
-
-### E2 — Lost-phone admin revoke
-
-**Story:** As a user whose phone is lost, I revoke agent access via a separate
-admin path without the app.
-
-| AC | Status |
-|----|--------|
-| Documented admin procedure (SSH as admin → `stackward-panic-revoke` or manual `authorized_keys` edit) | ✅ ([INSTALL.md](INSTALL.md)) |
-| In-app revoke useless without phone (expected) | ✅ |
-
----
-
-### E3 — Key rotation
-
-**Story:** As a user, I rotate the device SSH key without re-onboarding.
-
-| AC | Status |
-|----|--------|
-| Push new key, verify, revoke old marker | ✅ |
-| Audit entry for rotation | ✅ |
-
----
-
-### E4 — Audit log export
-
-**Story:** As a user, I export the full audit trail as JSON.
-
-| AC | Status |
-|----|--------|
-| Export from Settings | ✅ |
-
----
-
-### E5 — Tier 1 rule review reminder
-
-**Story:** As a user, I am reminded every 30 days to review sudoers Tier 1 rules.
-
-| AC | Status |
-|----|--------|
-| Reminder in Settings when overdue | ✅ |
-| Sync rules from server sudoers snapshot | ✅ |
-
----
-
-### E6 — Host key change recovery
-
-**Story:** As a user, when a host key changes, I see a clear alert and can
-re-pin after verification — not a silent connect failure.
-
-| AC | Status |
-|----|--------|
-| TOFU rejects changed keys | ✅ |
-| User-facing alert + re-pin flow | ❌ |
-
----
-
-## Epic F — Settings & policy
-
-### F1 — Capability pack selector
-
-See [D5](#d5--capability-pack-gates-proposals).
-
----
-
-### F2 — Elevated-identity acknowledgment in audit
-
-**Story:** As a user, my choice to use an elevated SSH identity is recorded.
-
-| AC | Status |
-|----|--------|
-| Audit entry at onboarding when elevated ack given | ✅ |
-
----
-
-### F3 — Docker log ACL default; docker-group opt-in
-
-**Story:** As a user, Docker logs are read via file ACL by default; joining the
-`docker` group requires explicit opt-in with a root-equivalent warning.
-
-| AC | Status |
-|----|--------|
-| Default: log-file ACL via `bootstrap_linux.sh` | ✅ (script) |
-| In-app docker-group opt-in toggle + warning | ❌ |
+## Legacy: Log/Gemma Subsystem Stories
+
+Pre-dates the Lookout pivot. Onboarding (Epic A) is shared with the
+dashboard's "add host" flow; Epics B–F describe the Logs-screen-only path,
+still functional but no longer primary.
+
+### Epic A — Onboarding & identity (shared)
+
+| Story | AC | Status |
+|-------|-----|--------|
+| A1 — Prep guidance | Prep screen shows `sudo adduser stackward-agent`; app doesn't create the OS user itself | ✅ |
+| A2 — Password login + key install | Device public key lands in `authorized_keys`; bootstrap password wiped after | ✅ |
+| A3 — Elevated account acknowledgment | Root/passwordless-sudo detected; UI blocks until acknowledged; noted in audit trail | ✅ |
+| A4 — Jump-host connect | Jump host fields in onboarding; per-hop TOFU; bastion never saved as a monitored profile | ✅ |
+| A5 — Proxmox token import | Token stored in Keystore with biometric gate; admin runs `bootstrap_proxmox.sh` out-of-band | ✅ |
+| A6 — Host-type auto-detection | Probe distinguishes proxmox/docker/linux; manual override in Settings | ⚠️ (auto-detect done, override ❌) |
+
+### Epic B — Legacy monitoring & digests
+
+| Story | AC | Status |
+|-------|-----|--------|
+| B1 — Hourly background fetch | WorkManager fetches journal/Docker/Proxmox hourly; heuristic anomaly flags | ✅ |
+| B2 — Digest visible in app | Digest tab shows last fetch time + content | ✅ |
+| B3 — Push notification on anomalies | Notification when heuristic flags fire | 🔮 (superseded by Epic I's critical-issue notifications for the Lookout flow) |
+| B4 — Reconnect / backoff | SSH retry + WorkManager backoff on failure | ✅ |
+
+### Epic C — Legacy AI-assisted investigation
+
+| Story | AC | Status |
+|-------|-----|--------|
+| C1 — Import Gemma model | User import flow; E2B/E4B auto-select by device RAM | ✅ |
+| C2 — Summarize loaded logs | Summarize button; degrades to raw logs with no model | ✅ |
+| C3 — Natural-language question | Question field feeds `summarizeCurrentLogs(userQuestion)` | ✅ |
+| C4 — Container health context | `docker inspect` health/status included when available | ✅ |
+
+### Epic D — Legacy permission engine
+
+| Story | AC | Status |
+|-------|-----|--------|
+| D1 — Routine read-only execution | Auto-executes, logged | ✅ |
+| D2 — One-timer confirmation + biometric | Literal command shown; biometric required; `stackward-onetimer` helper | ✅ |
+| D3 — Boundary-change draft-only | Never auto-executed; draft diff shown | ✅ |
+| D4 — Proxmox power actions | Classified One-timer; config/allocation blocked | ✅ |
+| D5 — Capability pack | v1 is Monitor-only — see `CapabilityPack.kt`; broader packs deferred, replaced in spirit by Epic H's risk-based gate for the Lookout flow | ✅ (narrowed, not removed) |
+
+### Epic E — Security & recovery (shared)
+
+| Story | AC | Status |
+|-------|-----|--------|
+| E1 — Panic revoke (in-app) | Biometric-gated; wipes credentials, profiles, **and now check.sh state** (Epic I3) | ✅ |
+| E2 — Lost-phone admin revoke | Documented admin procedure via `stackward-panic-revoke` | ✅ |
+| E3 — Key rotation | Push new key, verify, revoke old marker | ✅ |
+| E4 — Audit log export | JSON export from Settings | ✅ |
+| E5 — Tier 1 rule review reminder | 30-day reminder; sync from server sudoers snapshot | ✅ |
+| E6 — Host key change recovery | TOFU rejects changed keys; user-facing re-pin flow | ⚠️ (reject ✅, re-pin UI ❌) |
+
+### Epic F — Legacy settings & policy
+
+| Story | AC | Status |
+|-------|-----|--------|
+| F1 — Capability pack selector | See D5 | ✅ (Monitor-only) |
+| F2 — Elevated-identity ack in audit | Recorded at onboarding | ✅ |
+| F3 — Docker log ACL default | File ACL by default; docker-group opt-in toggle | ⚠️ (ACL ✅, in-app toggle ❌) |
 
 ---
 
@@ -408,48 +276,42 @@ See [D5](#d5--capability-pack-gates-proposals).
 | API token name | `stackward` → `stackward-agent@pve!stackward` |
 | Sudoers file | `/etc/sudoers.d/stackward-agent` |
 | SSH key comment | `stackward-agent-ssh` |
+| RISKY check.sh suggestion helper | `/usr/local/sbin/stackward-check-action` |
+| Legacy Tier 2 helper | `/usr/local/sbin/stackward-onetimer` |
 
 Legacy `gemma-agent` references have been removed; use the canonical names above.
-
----
-
-## Story ↔ phase map
-
-| Epic | Primary phases |
-|------|----------------|
-| A — Onboarding | 0, 1 |
-| B — Digests | 4, 5 |
-| C — AI investigation | 2, 4 |
-| D — Permissions | 3 |
-| E — Security | 1, 5 |
-| F — Policy | 3, 5 (+ new Settings work) |
 
 ---
 
 ## Dogfood exit checklist
 
 Minimum stories that must pass on **Pixel 8 + live Linux/Proxmox/Docker host**
-before calling v1 production-ready:
+before calling v1 production-ready. Lookout stories first — they're the
+primary flow; legacy stories are secondary since that subsystem already
+shipped a dogfood round before the pivot.
 
-- [ ] **A2** — Full onboarding: password → key install → verify → password wiped
-- [ ] **A3** — Elevated-account warning path tested once
-- [ ] **A4** — Jump-host path tested (if used in your infra)
-- [ ] **A5** — Proxmox token import + API digest (if Proxmox)
-- [ ] **B1/B2** — Hourly digest with heuristic flags (not raw-only)
-- [ ] **C1/C2** — Gemma model imported; summarization works on real logs
-- [ ] **C3** — Natural-language question UI
-- [ ] **D2** — Tier 2 service restart end-to-end with biometric
+**Lookout (primary):**
+- [ ] **G1/G2** — Dashboard shows real hosts; host detail shows real issues/suggestions
+- [ ] **H1** — Safe suggestion runs and is logged
+- [ ] **H2** — Risky suggestion (`cleanup_old_logs`) succeeds end-to-end against a real host, not just in code review
+- [ ] **H3** — Scary suggestion shown as manual workaround, never executes
+- [ ] **I1** — Auto-4h polling actually fires on schedule
+- [ ] **I2** — Critical issue on a real host produces a real notification
+- [ ] **I3** — Panic revoke actually stops a scheduled `CheckWorker` job (verify in `adb shell dumpsys jobscheduler` or WorkManager's own inspection)
+- [ ] **J1/J2** — Gemma summary works with a model imported; degrades cleanly without one
+
+**Legacy (secondary — re-verify nothing regressed):**
+- [ ] **A2** — Full onboarding still works from the dashboard's "+" button
+- [ ] **D2** — Legacy Tier 2 service restart end-to-end via the Logs screen
 - [ ] **E1** — Panic revoke tested on a throwaway host
-- [ ] **E2** — Admin revoke procedure documented and exercised once
-- [ ] **E3** — Key rotation on a live host
-- [ ] **D5/F1** — Capability pack selector (Monitor vs Maintain)
 
-**Stretch (v1.1):** B3 push notifications, C4 container health, E6 host-key UI,
-multi-host profiles.
+**Stretch (v1.1):** A6 host-type override, E6 re-pin UI, F3 docker-group
+in-app toggle, additional RISKY actions in the check.sh catalog.
 
 ---
 
 ## Future epic (out of v1 scope)
 
-**G — Multi-host profiles:** Repository supports a list; UI currently uses
-`firstOrNull()` only. Defer until single-host dogfood loop is solid.
+**K — Multi-host profiles at scale:** the dashboard handles a homelab's worth
+of hosts (5–20); nothing has been tested or tuned for substantially larger
+fleets.
