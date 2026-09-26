@@ -23,6 +23,14 @@ class CheckSuggestionGateTest {
         val decision = CheckSuggestionGate.resolve(suggestion)
 
         assertTrue(decision is SuggestionDecision.RequireConfirmation)
+        // Must run through the stackward-check-action sudoers helper (bootstrap_linux.sh),
+        // not the raw command directly — the agent user has no privilege to vacuum the
+        // journal on its own. Regression check for a real bug: this used to be the
+        // unprivileged command, which silently failed against an actual host.
+        assertEquals(
+            "sudo /usr/local/sbin/stackward-check-action cleanup_old_logs",
+            (decision as SuggestionDecision.RequireConfirmation).command,
+        )
     }
 
     @Test
