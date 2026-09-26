@@ -5,9 +5,11 @@
 # public key into ~/.ssh/authorized_keys of a user-chosen SSH account
 # (recommended default on Debian: sudo adduser stackward-agent).
 #
-# This script is for administrators who optionally want journal/Docker ACLs
-# or narrow sudoers helpers on the host. Run as root (or a real admin with
-# sudo) — not as stackward-agent. Review carefully before use.
+# For Lookout monitoring (check.sh + risk-gated helper), use the maintained
+# admin installer at the repo root instead:
+#   sudo ./scripts/bootstrap_linux.sh <ssh-public-key>
+# This assets copy is a smaller optional ACL/sudoers helper set and may lag
+# the Lookout install path intentionally.
 #
 # Usage (admin, on the server):
 #   sudo ./bootstrap_linux.sh <ssh-public-key>

@@ -91,5 +91,9 @@ jobs:
             scripts/bootstrap_proxmox.sh \
             scripts/protect-main-branch.sh \
             scripts/release_apk.sh \
+            scripts/verify_check_sh_sync.sh \
             app/src/main/assets/scripts/bootstrap_linux.sh \
             app/src/main/assets/scripts/bootstrap_proxmox.sh
+
+      - name: Verify check.sh embedded copy stays in sync
+        run: scripts/verify_check_sh_sync.sh
