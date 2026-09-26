@@ -2,20 +2,21 @@ package dev.stackward.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.stackward.ui.connections.ConnectionsScreen
+import dev.stackward.ui.connections.ConnectionsViewModel
 import dev.stackward.ui.logs.LogsScreen
 import dev.stackward.ui.logs.LogsViewModel
 import dev.stackward.ui.onboarding.OnboardingViewModel
-import dev.stackward.ui.onboarding.ProvisionStep
 import dev.stackward.ui.settings.SettingsScreen
 import dev.stackward.ui.settings.SettingsViewModel
 
 private enum class AppDestination {
+    CONNECTIONS,
     ONBOARDING,
     LOGS,
     SETTINGS,
@@ -23,45 +24,69 @@ private enum class AppDestination {
 
 @Composable
 fun StackwardApp() {
-    var destination by rememberSaveable { mutableStateOf<AppDestination?>(null) }
+    // Hub is always the start screen — never auto-open setup or the first host.
+    // Key bump invalidates any previously saved LOGS/ONBOARDING instance state.
+    var destination by rememberSaveable(key = "app_dest_v2") {
+        mutableStateOf(AppDestination.CONNECTIONS)
+    }
+    var selectedProfileId by rememberSaveable(key = "selected_profile_v2") {
+        mutableStateOf<String?>(null)
+    }
+
+    val connectionsViewModel: ConnectionsViewModel = viewModel()
     val onboardingViewModel: OnboardingViewModel = viewModel()
     val logsViewModel: LogsViewModel = viewModel()
     val settingsViewModel: SettingsViewModel = viewModel()
-    val onboardingState by onboardingViewModel.uiState.collectAsState()
 
-    if (destination == null) {
-        destination = when {
-            onboardingState.provisionedProfile != null ||
-                onboardingState.step == ProvisionStep.SUCCESS -> AppDestination.LOGS
-            else -> AppDestination.ONBOARDING
-        }
-    }
-
-    LaunchedEffect(destination) {
+    LaunchedEffect(destination, selectedProfileId) {
         when (destination) {
-            AppDestination.LOGS -> logsViewModel.reloadProfile()
-            AppDestination.SETTINGS -> settingsViewModel.refresh()
+            AppDestination.CONNECTIONS -> connectionsViewModel.refresh()
+            AppDestination.LOGS -> logsViewModel.reloadProfile(selectedProfileId)
+            AppDestination.SETTINGS -> settingsViewModel.refresh(selectedProfileId)
             else -> Unit
         }
     }
 
     when (destination) {
+        AppDestination.CONNECTIONS -> ConnectionsScreen(
+            viewModel = connectionsViewModel,
+            onOpenConnection = { profileId ->
+                selectedProfileId = profileId
+                destination = AppDestination.LOGS
+            },
+            onAddConnection = {
+                selectedProfileId = null
+                onboardingViewModel.startFresh()
+                destination = AppDestination.ONBOARDING
+            },
+        )
         AppDestination.LOGS -> LogsScreen(
             viewModel = logsViewModel,
+            onBack = {
+                selectedProfileId = null
+                destination = AppDestination.CONNECTIONS
+            },
             onOpenSettings = { destination = AppDestination.SETTINGS },
         )
         AppDestination.SETTINGS -> SettingsScreen(
             viewModel = settingsViewModel,
             onBack = { destination = AppDestination.LOGS },
             onPanicRevoked = {
+                selectedProfileId = null
                 onboardingViewModel.resetAfterRevoke()
-                destination = AppDestination.ONBOARDING
+                destination = AppDestination.CONNECTIONS
             },
         )
         AppDestination.ONBOARDING -> OnboardingScreen(
             viewModel = onboardingViewModel,
-            onProvisioned = { destination = AppDestination.LOGS },
+            onProvisioned = {
+                selectedProfileId = null
+                connectionsViewModel.refresh()
+                destination = AppDestination.CONNECTIONS
+            },
+            onCancel = {
+                destination = AppDestination.CONNECTIONS
+            },
         )
-        null -> Unit
     }
 }

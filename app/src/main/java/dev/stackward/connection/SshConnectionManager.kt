@@ -1,5 +1,6 @@
 package dev.stackward.connection
 
+import android.util.Log
 import dev.stackward.crypto.AgentKeyManager
 import dev.stackward.onboarding.ServerProfile
 import dev.stackward.security.SecuritySettingsRepository
@@ -9,7 +10,7 @@ import kotlinx.coroutines.withContext
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.connection.channel.direct.DirectConnection
 import net.schmizz.sshj.connection.channel.direct.Session
-import java.nio.charset.StandardCharsets
+import net.schmizz.sshj.userauth.keyprovider.OpenSSHKeyFile
 import java.util.concurrent.TimeUnit
 
 /**
@@ -25,7 +26,7 @@ class SshConnectionManager(
     suspend fun execute(
         profile: ServerProfile,
         command: String,
-        username: String = AGENT_USERNAME,
+        username: String = profile.username,
         keyAlias: String? = null,
     ): String = executeWithRetry(
         profile = profile,
@@ -37,7 +38,7 @@ class SshConnectionManager(
     suspend fun executeWithRetry(
         profile: ServerProfile,
         command: String,
-        username: String = AGENT_USERNAME,
+        username: String = profile.username,
         keyAlias: String? = null,
         maxAttempts: Int = DEFAULT_RETRY_ATTEMPTS,
     ): String = withContext(Dispatchers.IO) {
@@ -54,6 +55,7 @@ class SshConnectionManager(
                 return@withContext result.outputOrThrow()
             } catch (error: Exception) {
                 lastError = error
+                Log.w(TAG, "SSH attempt ${attempt + 1}/$maxAttempts failed for ${profile.host}", error)
                 connectionHealth.recordFailure(profile.id, error.message)
                 if (attempt < maxAttempts - 1) {
                     delay(backoffDelayMs(attempt))
@@ -115,47 +117,54 @@ class SshConnectionManager(
         )
     }
 
-    suspend fun runScriptWithSudoPassword(
+    /**
+     * Installs [publicKeyOpenSsh] into the remote user's `~/.ssh/authorized_keys`
+     * (home directory only — no root/sudo). Equivalent to a minimal ssh-copy-id.
+     */
+    suspend fun installAuthorizedKey(
         config: SshConnectionConfig,
-        script: String,
-        scriptArgument: String,
-        sudoPassword: String,
+        publicKeyOpenSsh: String,
         expectedFingerprint: String? = null,
         jumpHost: String? = null,
         jumpHostPort: Int = 22,
         jumpHostKeyFingerprint: String? = null,
-    ): SshCommandResult = withContext(Dispatchers.IO) {
-        val resources = connect(
+    ): SshCommandResult {
+        val keyLine = publicKeyOpenSsh.trim()
+        require(keyLine.isNotEmpty()) { "Public key must not be empty" }
+        require('\n' !in keyLine && '\r' !in keyLine) { "Public key must be a single line" }
+
+        val quotedKey = shellSingleQuote(keyLine)
+        val remoteScript = """
+            set -euo pipefail
+            umask 077
+            mkdir -p "${'$'}HOME/.ssh"
+            chmod 700 "${'$'}HOME/.ssh"
+            touch "${'$'}HOME/.ssh/authorized_keys"
+            chmod 600 "${'$'}HOME/.ssh/authorized_keys"
+            if ! grep -qxF -- $quotedKey "${'$'}HOME/.ssh/authorized_keys"; then
+              printf '%s\n' $quotedKey >> "${'$'}HOME/.ssh/authorized_keys"
+            fi
+            echo STACKWARD_KEY_INSTALLED=1
+            whoami
+        """.trimIndent()
+        val command = "bash -c ${shellSingleQuote(remoteScript)}"
+
+        return executeCommand(
             config = config,
+            command = command,
             expectedFingerprint = expectedFingerprint,
             keyAlias = null,
             jumpHost = jumpHost,
             jumpHostPort = jumpHostPort,
             jumpHostKeyFingerprint = jumpHostKeyFingerprint,
         )
-        try {
-            resources.target.startSession().use { session ->
-                val remoteCommand = buildSudoScriptCommand(scriptArgument)
-                session.exec(remoteCommand).use { stream ->
-                    stream.outputStream.use { stdin ->
-                        stdin.write("$sudoPassword\n".toByteArray(StandardCharsets.UTF_8))
-                        stdin.write(script.toByteArray(StandardCharsets.UTF_8))
-                        stdin.flush()
-                    }
-                    readCommandResult(stream)
-                }
-            }
-        } finally {
-            if (resources.target.isConnected) resources.target.disconnect()
-            resources.tunnel?.close()
-            if (resources.jump?.isConnected == true) resources.jump.disconnect()
-        }
     }
 
     suspend fun verifyAgentConnection(
         host: String,
         port: Int,
         expectedFingerprint: String,
+        username: String = AGENT_USERNAME,
         keyAlias: String? = null,
         jumpHost: String? = null,
         jumpHostPort: Int = 22,
@@ -164,7 +173,7 @@ class SshConnectionManager(
         config = SshConnectionConfig(
             host = host,
             port = port,
-            username = AGENT_USERNAME,
+            username = username,
             useAgentKey = true,
         ),
         command = "whoami && id -Gn",
@@ -193,7 +202,7 @@ class SshConnectionManager(
             config = SshConnectionConfig(
                 host = profile.host,
                 port = profile.port,
-                username = AGENT_USERNAME,
+                username = profile.username,
                 useAgentKey = true,
             ),
             expectedFingerprint = profile.hostKeyFingerprint,
@@ -230,22 +239,29 @@ class SshConnectionManager(
             else -> securitySettings.getActiveKeyAlias()
         }
 
-        return if (!jumpHost.isNullOrBlank()) {
-            connectViaJumpHost(
-                config = config,
-                expectedFingerprint = expectedFingerprint,
-                keyAlias = resolvedAlias,
-                jumpHost = jumpHost,
-                jumpHostPort = jumpHostPort,
-                jumpHostKeyFingerprint = jumpHostKeyFingerprint,
-            )
-        } else {
-            val target = connectDirect(
-                config = config,
-                expectedFingerprint = expectedFingerprint,
-                keyAlias = resolvedAlias,
-            )
-            ConnectedClients(target = target, jump = null, tunnel = null)
+        return try {
+            if (!jumpHost.isNullOrBlank()) {
+                Log.i(TAG, "SSH connect ${config.username}@${config.host}:${config.port} via $jumpHost:$jumpHostPort")
+                connectViaJumpHost(
+                    config = config,
+                    expectedFingerprint = expectedFingerprint,
+                    keyAlias = resolvedAlias,
+                    jumpHost = jumpHost,
+                    jumpHostPort = jumpHostPort,
+                    jumpHostKeyFingerprint = jumpHostKeyFingerprint,
+                )
+            } else {
+                Log.i(TAG, "SSH connect ${config.username}@${config.host}:${config.port} direct")
+                val target = connectDirect(
+                    config = config,
+                    expectedFingerprint = expectedFingerprint,
+                    keyAlias = resolvedAlias,
+                )
+                ConnectedClients(target = target, jump = null, tunnel = null)
+            }
+        } catch (error: Exception) {
+            Log.e(TAG, "SSH connect failed ${config.username}@${config.host}:${config.port}", error)
+            throw error
         }
     }
 
@@ -263,6 +279,8 @@ class SshConnectionManager(
             username = config.username,
             useAgentKey = config.useAgentKey,
             password = config.password,
+            privateKeyPem = config.privateKeyPem,
+            privateKeyPassphrase = config.privateKeyPassphrase,
         )
         val jumpClient = connectDirect(
             config = jumpConfig,
@@ -322,17 +340,37 @@ class SshConnectionManager(
         config: SshConnectionConfig,
         keyAlias: String?,
     ) {
-        when {
-            config.useAgentKey -> {
-                val alias = keyAlias ?: securitySettings.getActiveKeyAlias()
-                val keyPair = keyManager.getKeyPair(alias)
-                    ?: throw SshException("Agent SSH key not found on device ($alias)")
-                client.authPublickey(config.username, AgentSshKeyProvider(keyPair))
+        val method = when {
+            config.useAgentKey -> "agent-key"
+            !config.privateKeyPem.isNullOrBlank() -> "private-key"
+            !config.password.isNullOrBlank() -> "password"
+            else -> "none"
+        }
+        Log.i(TAG, "SSH auth $method as ${config.username}@${config.host}")
+        try {
+            when {
+                config.useAgentKey -> {
+                    val alias = keyAlias ?: securitySettings.getActiveKeyAlias()
+                    val keyPair = keyManager.getKeyPair(alias)
+                        ?: throw SshException("Agent SSH key not found on device ($alias)")
+                    client.authPublickey(config.username, AgentSshKeyProvider(keyPair))
+                }
+                !config.privateKeyPem.isNullOrBlank() -> {
+                    val keyFile = OpenSSHKeyFile()
+                    keyFile.init(
+                        config.privateKeyPem,
+                        config.privateKeyPassphrase ?: "",
+                    )
+                    client.authPublickey(config.username, keyFile)
+                }
+                !config.password.isNullOrBlank() -> {
+                    client.authPassword(config.username, config.password)
+                }
+                else -> throw SshException("No SSH authentication method configured")
             }
-            !config.password.isNullOrBlank() -> {
-                client.authPassword(config.username, config.password)
-            }
-            else -> throw SshException("No SSH authentication method configured")
+        } catch (error: Exception) {
+            Log.e(TAG, "SSH auth failed ($method) ${config.username}@${config.host}", error)
+            throw error
         }
 
         if (!client.isAuthenticated) {
@@ -352,11 +390,6 @@ class SshConnectionManager(
         )
     }
 
-    private fun buildSudoScriptCommand(scriptArgument: String): String {
-        val escapedArgument = shellSingleQuote(scriptArgument)
-        return "sudo -S bash -s -- $escapedArgument"
-    }
-
     private fun shellSingleQuote(value: String): String {
         return "'" + value.replace("'", "'\"'\"'") + "'"
     }
@@ -372,7 +405,9 @@ class SshConnectionManager(
     )
 
     companion object {
-        const val AGENT_USERNAME = "gemma-agent"
+        private const val TAG = "Stackward"
+        /** Default agent account username (recommended least-privilege identity). */
+        const val AGENT_USERNAME = ServerProfile.DEFAULT_AGENT_USERNAME
         private const val CONNECT_TIMEOUT_MS = 15_000L
         private const val COMMAND_TIMEOUT_MS = 120_000L
         private const val DEFAULT_RETRY_ATTEMPTS = 3

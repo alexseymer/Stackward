@@ -108,7 +108,7 @@ fun SettingsScreen(
             title = { Text("Emergency revoke?") },
             text = {
                 Text(
-                    "Removes all gemma-agent keys on the server and wipes local credentials. " +
+                    "Removes all stackward-agent keys on the server and wipes local credentials. " +
                         "You will need to re-bootstrap. Export audit log first if needed.",
                 )
             },

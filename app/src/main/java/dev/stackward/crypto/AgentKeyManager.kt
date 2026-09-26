@@ -4,7 +4,7 @@ import android.content.Context
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
-import dev.stackward.crypto.SecurePrefs
+import androidx.biometric.BiometricManager
 import net.schmizz.sshj.common.SecurityUtils
 import java.security.KeyPair
 import java.security.KeyPairGenerator
@@ -30,14 +30,14 @@ class AgentKeyManager(
 
     private val keyStore: KeyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
 
-  fun generateKeypair(alias: String = KEY_ALIAS, replaceExisting: Boolean = true): KeyPair {
+    fun generateKeypair(alias: String = KEY_ALIAS, replaceExisting: Boolean = true): KeyPair {
         if (replaceExisting) {
             deleteKeypair(alias)
         } else if (hasKeypair(alias)) {
             throw IllegalStateException("Keypair already exists for alias: $alias")
         }
 
-        if (supportsKeystoreEd25519()) {
+        if (canUseKeystoreEd25519()) {
             try {
                 return generateKeystoreKeypair(alias)
             } catch (error: Exception) {
@@ -45,6 +45,11 @@ class AgentKeyManager(
                 android.util.Log.w(TAG, "Keystore Ed25519 failed, using software key", error)
                 deleteKeypair(alias)
             }
+        } else if (supportsKeystoreEd25519()) {
+            android.util.Log.i(
+                TAG,
+                "Skipping Keystore Ed25519 (no strong biometric enrolled); using software key",
+            )
         }
         return generateSoftwareKeypair(alias)
     }
@@ -171,6 +176,18 @@ class AgentKeyManager(
     private fun softwarePrefs() = SecurePrefs.create(context, PREFS_NAME)
 
     private fun supportsKeystoreEd25519(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+
+    /**
+     * Per-use Keystore keys require an enrolled strong biometric. Skip the
+     * Keystore attempt when none is available (common on emulators) to avoid
+     * a noisy InvalidAlgorithmParameterException fallback.
+     */
+    private fun canUseKeystoreEd25519(): Boolean {
+        if (!supportsKeystoreEd25519()) return false
+        val canAuth = BiometricManager.from(context)
+            .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+        return canAuth == BiometricManager.BIOMETRIC_SUCCESS
+    }
 
     private fun createEd25519Signature(): java.security.Signature {
         return try {

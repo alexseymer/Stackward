@@ -5,8 +5,10 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.stackward.StackwardApplication
+import dev.stackward.inference.CatalogModel
 import dev.stackward.inference.DeviceCapability
 import dev.stackward.inference.ModelVariant
+import dev.stackward.inference.StandardModelCatalog
 import dev.stackward.logs.DockerContainer
 import dev.stackward.logs.JournalPriority
 import dev.stackward.logs.JournalQuery
@@ -19,14 +21,18 @@ import dev.stackward.permissions.ActionProposal
 import dev.stackward.permissions.AuditEntry
 import dev.stackward.permissions.PermissionDecision
 import dev.stackward.ui.security.BiometricGate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.min
 
 enum class LogTab {
     JOURNAL,
@@ -52,6 +58,11 @@ data class LogsUiState(
     val modelConfigured: Boolean = false,
     val modelFileName: String? = null,
     val isImportingModel: Boolean = false,
+    val isDownloadingModel: Boolean = false,
+    val downloadProgress: Float = 0f,
+    val downloadStatusLabel: String? = null,
+    val catalogModels: List<CatalogModel> = StandardModelCatalog.models,
+    val recommendedCatalogModelId: String? = null,
     val isSummarizing: Boolean = false,
     val aiSummary: String? = null,
     val actionProposals: List<ActionProposal> = emptyList(),
@@ -71,9 +82,11 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(LogsUiState())
     val uiState: StateFlow<LogsUiState> = _uiState.asStateFlow()
 
+    private var selectedProfileId: String? = null
+    private var modelDownloadJob: Job? = null
+
     init {
         refreshModelStatus()
-        reloadProfile()
         refreshAuditLog()
     }
 
@@ -81,12 +94,14 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
         val capability = container.deviceCapabilityChecker.assess()
         val modelPath = container.modelRepository.getConfiguredModelPath()
         val variant = container.modelRepository.getConfiguredVariant() ?: capability.recommendedVariant
+        val recommended = StandardModelCatalog.recommended(capability)
         _uiState.update {
             it.copy(
                 deviceCapability = capability,
                 selectedModelVariant = variant,
                 modelConfigured = modelPath != null,
                 modelFileName = modelPath?.let { path -> File(path).name },
+                recommendedCatalogModelId = recommended.id,
             )
         }
     }
@@ -105,7 +120,7 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
                         variant = _uiState.value.selectedModelVariant,
                     )
                 }
-            }.onSuccess { path ->
+            }.onSuccess {
                 container.gemmaEngine.unload()
                 refreshModelStatus()
                 _uiState.update {
@@ -124,6 +139,97 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+    }
+
+    fun downloadCatalogModel(model: CatalogModel) {
+        if (modelDownloadJob?.isActive == true) return
+
+        modelDownloadJob = viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isDownloadingModel = true,
+                    downloadProgress = 0f,
+                    downloadStatusLabel = "Starting ${model.displayName} (${model.approximateSizeLabel})…",
+                    selectedModelVariant = model.variant,
+                    error = null,
+                )
+            }
+            try {
+                withContext(Dispatchers.IO) {
+                    container.modelImporter.downloadCatalogModel(model) { downloaded, total ->
+                        if (!isActive) return@downloadCatalogModel
+                        val progress = if (total > 0) {
+                            min(1f, downloaded.toFloat() / total.toFloat())
+                        } else {
+                            0f
+                        }
+                        val label = if (total > 0) {
+                            "Downloading ${model.displayName}: " +
+                                "${formatBytes(downloaded)} / ${formatBytes(total)}"
+                        } else {
+                            "Downloading ${model.displayName}: ${formatBytes(downloaded)}"
+                        }
+                        _uiState.update {
+                            it.copy(
+                                downloadProgress = progress,
+                                downloadStatusLabel = label,
+                            )
+                        }
+                    }
+                }
+                container.gemmaEngine.unload()
+                refreshModelStatus()
+                _uiState.update {
+                    it.copy(
+                        isDownloadingModel = false,
+                        downloadProgress = 1f,
+                        downloadStatusLabel = null,
+                        aiUnavailableReason = null,
+                        error = null,
+                    )
+                }
+            } catch (error: CancellationException) {
+                _uiState.update {
+                    it.copy(
+                        isDownloadingModel = false,
+                        downloadProgress = 0f,
+                        downloadStatusLabel = null,
+                        error = "Download cancelled",
+                    )
+                }
+                throw error
+            } catch (error: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isDownloadingModel = false,
+                        downloadProgress = 0f,
+                        downloadStatusLabel = null,
+                        error = error.message ?: "Failed to download model",
+                    )
+                }
+            }
+        }
+    }
+
+    fun cancelModelDownload() {
+        modelDownloadJob?.cancel()
+        modelDownloadJob = null
+        _uiState.update {
+            it.copy(
+                isDownloadingModel = false,
+                downloadProgress = 0f,
+                downloadStatusLabel = null,
+            )
+        }
+    }
+
+    private fun formatBytes(bytes: Long): String {
+        if (bytes < 1024) return "$bytes B"
+        val kib = bytes / 1024.0
+        if (kib < 1024) return String.format("%.0f KB", kib)
+        val mib = kib / 1024.0
+        if (mib < 1024) return String.format("%.1f MB", mib)
+        return String.format("%.2f GB", mib / 1024.0)
     }
 
     fun summarizeCurrentLogs(userQuestion: String? = null) {
@@ -233,11 +339,13 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(executionMessage = null, tier3Draft = null) }
     }
 
-    fun reloadProfile() {
-        val profile = container.profileRepository.loadAll().firstOrNull()
+    fun reloadProfile(profileId: String? = selectedProfileId) {
+        selectedProfileId = profileId
+        val profiles = container.profileRepository.loadAll()
+        val profile = profileId?.let { id -> profiles.firstOrNull { it.id == id } }
         val savedDigest = container.logDigestStore.load()
         _uiState.update {
-            it.copy(profile = profile, savedDigest = savedDigest)
+            it.copy(profile = profile, savedDigest = savedDigest, error = null)
         }
         if (profile != null) {
             LogDigestWorker.schedule(getApplication())
@@ -305,7 +413,7 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
                         containers = containers,
                         isLoading = false,
                         error = if (containers.isEmpty()) {
-                            "No Docker log directories visible for gemma-agent."
+                            "No Docker log directories visible for stackward-agent."
                         } else {
                             null
                         },

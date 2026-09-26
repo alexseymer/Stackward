@@ -39,8 +39,14 @@ class ModelRepository(context: Context) {
             .apply()
     }
 
-    fun defaultModelFile(variant: ModelVariant): File {
-        return File(modelsDirectory, "gemma-${variant.name.lowercase()}.task")
+    fun defaultModelFile(variant: ModelVariant, extensionHint: String? = null): File {
+        val extension = when {
+            extensionHint?.endsWith(".litertlm", ignoreCase = true) == true -> "litertlm"
+            extensionHint?.endsWith(".task", ignoreCase = true) == true -> "task"
+            extensionHint?.endsWith(".bin", ignoreCase = true) == true -> "bin"
+            else -> "litertlm"
+        }
+        return File(modelsDirectory, "gemma-${variant.name.lowercase()}.$extension")
     }
 
     fun isModelConfigured(): Boolean = getConfiguredModelPath() != null

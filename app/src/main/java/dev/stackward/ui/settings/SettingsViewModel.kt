@@ -43,12 +43,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
-    init {
-        refresh()
-    }
+    private var selectedProfileId: String? = null
 
-    fun refresh() {
-        val profile = container.profileRepository.loadAll().firstOrNull()
+    fun refresh(profileId: String? = selectedProfileId) {
+        selectedProfileId = profileId
+        val profiles = container.profileRepository.loadAll()
+        val profile = profileId?.let { id -> profiles.firstOrNull { it.id == id } }
         val dateFormat = DateFormat.getDateTimeInstance()
         val lastSuccess = profile?.let { container.connectionHealth.getLastSuccessAt(it.id) }
         val lastFailure = profile?.let { container.connectionHealth.getLastFailureAt(it.id) }
@@ -71,6 +71,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    private fun requireSelectedProfile() =
+        selectedProfileId?.let { id ->
+            container.profileRepository.loadAll().firstOrNull { it.id == id }
+        }
+
     fun clearStatus() {
         _uiState.update { it.copy(statusMessage = null, error = null, tier1SyncResult = null) }
     }
@@ -84,9 +89,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun rotateKey() {
-        val profile = container.profileRepository.loadAll().firstOrNull()
+        val profile = requireSelectedProfile()
         if (profile == null) {
-            _uiState.update { it.copy(error = "No server provisioned") }
+            _uiState.update { it.copy(error = "No server selected") }
             return
         }
 
@@ -122,9 +127,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun panicRevoke(onComplete: () -> Unit) {
-        val profile = container.profileRepository.loadAll().firstOrNull()
+        val profile = requireSelectedProfile()
         if (profile == null) {
-            _uiState.update { it.copy(error = "No server provisioned") }
+            _uiState.update { it.copy(error = "No server selected") }
             return
         }
 
@@ -155,9 +160,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun syncTier1Rules() {
-        val profile = container.profileRepository.loadAll().firstOrNull()
+        val profile = requireSelectedProfile()
         if (profile == null) {
-            _uiState.update { it.copy(error = "No server provisioned") }
+            _uiState.update { it.copy(error = "No server selected") }
             return
         }
 

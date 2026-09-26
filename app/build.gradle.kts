@@ -1,7 +1,36 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+/** Debug-only onboarding prefills from root `local.properties` (gitignored). */
+fun loadLocalProperties(): Properties {
+    val props = Properties()
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        file.inputStream().use { props.load(it) }
+    }
+    return props
+}
+
+fun Properties.dev(key: String, default: String = ""): String {
+    val raw = getProperty("stackward.dev.$key", default).orEmpty().trim()
+    // Properties does not treat quotes as delimiters — strip accidental wrapping.
+    return when {
+        raw.length >= 2 &&
+            ((raw.startsWith('"') && raw.endsWith('"')) ||
+                (raw.startsWith('\'') && raw.endsWith('\''))) ->
+            raw.substring(1, raw.length - 1)
+        else -> raw
+    }
+}
+
+fun String.asBuildConfigString(): String =
+    "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
+val localProps = loadLocalProperties()
 
 android {
     namespace = "dev.stackward"
@@ -11,11 +40,54 @@ android {
         applicationId = "dev.stackward"
         minSdk = 28
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.5.4-dogfood"
+        versionCode = 6
+        versionName = "0.5.5-dogfood"
+
+        // Empty defaults so release / CI never bake in secrets.
+        buildConfigField("boolean", "DEV_PREFILL", "false")
+        buildConfigField("String", "DEV_HOST", "\"\"")
+        buildConfigField("String", "DEV_PORT", "\"22\"")
+        buildConfigField("String", "DEV_USERNAME", "\"\"")
+        buildConfigField("String", "DEV_SSH_PASSWORD", "\"\"")
+        buildConfigField("String", "DEV_KNOCK_SEQUENCE", "\"\"")
+        buildConfigField("boolean", "DEV_USE_JUMP_HOST", "false")
+        buildConfigField("String", "DEV_JUMP_HOST", "\"\"")
+        buildConfigField("String", "DEV_JUMP_PORT", "\"22\"")
     }
 
     buildTypes {
+        debug {
+            val prefill = localProps.dev("prefill", "false").equals("true", ignoreCase = true)
+            buildConfigField("boolean", "DEV_PREFILL", prefill.toString())
+            buildConfigField("String", "DEV_HOST", localProps.dev("host").asBuildConfigString())
+            buildConfigField("String", "DEV_PORT", localProps.dev("port", "22").asBuildConfigString())
+            buildConfigField("String", "DEV_USERNAME", localProps.dev("username").asBuildConfigString())
+            buildConfigField(
+                "String",
+                "DEV_SSH_PASSWORD",
+                localProps.dev("ssh_password").asBuildConfigString(),
+            )
+            buildConfigField(
+                "String",
+                "DEV_KNOCK_SEQUENCE",
+                localProps.dev("knock_sequence").asBuildConfigString(),
+            )
+            buildConfigField(
+                "boolean",
+                "DEV_USE_JUMP_HOST",
+                localProps.dev("use_jump_host", "false").equals("true", ignoreCase = true).toString(),
+            )
+            buildConfigField(
+                "String",
+                "DEV_JUMP_HOST",
+                localProps.dev("jump_host").asBuildConfigString(),
+            )
+            buildConfigField(
+                "String",
+                "DEV_JUMP_PORT",
+                localProps.dev("jump_port", "22").asBuildConfigString(),
+            )
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(

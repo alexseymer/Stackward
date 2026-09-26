@@ -101,7 +101,7 @@ class PermissionEngine(
         return buildString {
             appendLine("# Proposed sudoers.d addition — apply manually via visudo")
             appendLine("# Reason: ${proposal.reason}")
-            append("gemma-agent ALL=(root) NOPASSWD: ${proposal.command}")
+            append("stackward-agent ALL=(root) NOPASSWD: ${proposal.command}")
         }
     }
 

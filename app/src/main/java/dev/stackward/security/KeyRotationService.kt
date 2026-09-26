@@ -52,12 +52,13 @@ class KeyRotationService(
             host = profile.host,
             port = profile.port,
             expectedFingerprint = profile.hostKeyFingerprint,
+            username = profile.username,
             keyAlias = inactiveAlias,
             jumpHost = profile.jumpHost,
             jumpHostPort = profile.jumpHostPort,
             jumpHostKeyFingerprint = profile.jumpHostKeyFingerprint,
         )
-        if (!verify.isSuccess || !verify.stdout.contains(SshConnectionManager.AGENT_USERNAME)) {
+        if (!verify.isSuccess || !verify.stdout.contains(profile.username)) {
             throw IllegalStateException(
                 "New key verification failed: ${verify.stderr.ifBlank { verify.stdout }}",
             )

@@ -1,13 +1,9 @@
 package dev.stackward.onboarding
 
 import android.content.Context
-import dev.stackward.connection.HostKeyPinStore
-import dev.stackward.connection.SshConnectionManager
-import dev.stackward.connection.SshException
-import dev.stackward.crypto.AgentKeyManager
 
 /**
- * Runs the Linux bootstrap script over an admin SSH session.
+ * Loads optional out-of-band admin scripts from assets (not run by the app).
  */
 class BootstrapRunner(
     private val context: Context,
