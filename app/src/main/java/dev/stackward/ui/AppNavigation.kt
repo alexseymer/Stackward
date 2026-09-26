@@ -5,9 +5,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.stackward.ui.analyzer.LogAnalyzerScreen
+import dev.stackward.ui.analyzer.LogAnalyzerViewModel
 import dev.stackward.ui.dashboard.DashboardScreen
 import dev.stackward.ui.dashboard.DashboardViewModel
 import dev.stackward.ui.dashboard.HostDetailScreen
@@ -26,16 +29,19 @@ private sealed class AppDestination : java.io.Serializable {
     data object Dashboard : AppDestination()
     data class HostDetail(val profileId: String) : AppDestination()
     data object Logs : AppDestination()
+    data object Analyzer : AppDestination()
     data object Settings : AppDestination()
 }
 
 @Composable
 fun StackwardApp() {
     var destination by rememberSaveable { mutableStateOf<AppDestination?>(null) }
+    var analyzerInitialLogs by remember { mutableStateOf<String?>(null) }
     val onboardingViewModel: OnboardingViewModel = viewModel()
     val dashboardViewModel: DashboardViewModel = viewModel()
     val hostDetailViewModel: HostDetailViewModel = viewModel()
     val logsViewModel: LogsViewModel = viewModel()
+    val logAnalyzerViewModel: LogAnalyzerViewModel = viewModel()
     val settingsViewModel: SettingsViewModel = viewModel()
     val onboardingState by onboardingViewModel.uiState.collectAsState()
 
@@ -75,7 +81,19 @@ fun StackwardApp() {
         is AppDestination.Logs -> LogsScreen(
             viewModel = logsViewModel,
             onOpenSettings = { destination = AppDestination.Settings },
+            onOpenAnalyzer = { logs ->
+                analyzerInitialLogs = logs
+                destination = AppDestination.Analyzer
+            },
             onBack = { destination = AppDestination.Dashboard },
+        )
+        is AppDestination.Analyzer -> LogAnalyzerScreen(
+            viewModel = logAnalyzerViewModel,
+            initialLogs = analyzerInitialLogs,
+            onBack = {
+                analyzerInitialLogs = null
+                destination = AppDestination.Logs
+            },
         )
         is AppDestination.Settings -> SettingsScreen(
             viewModel = settingsViewModel,
@@ -88,6 +106,7 @@ fun StackwardApp() {
         is AppDestination.Onboarding -> OnboardingScreen(
             viewModel = onboardingViewModel,
             onProvisioned = { destination = AppDestination.Dashboard },
+            onCancel = { destination = AppDestination.Dashboard },
         )
         null -> Unit
     }

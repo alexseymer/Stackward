@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -63,6 +64,7 @@ import java.util.Date
 fun LogsScreen(
     viewModel: LogsViewModel,
     onOpenSettings: () -> Unit = {},
+    onOpenAnalyzer: (String?) -> Unit = {},
     onBack: (() -> Unit)? = null,
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -110,6 +112,9 @@ fun LogsScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { onOpenAnalyzer(uiState.logOutput) }) {
+                        Icon(Icons.Default.Analytics, contentDescription = "Log analyzer")
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
