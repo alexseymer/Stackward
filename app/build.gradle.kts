@@ -230,7 +230,7 @@ dependencies {
     implementation("com.google.mediapipe:tasks-genai:0.10.35")
 
     // SSH — Phase 1 (full BC replaces Android's stripped provider for X25519/Ed25519)
-    implementation("com.hierynomus:sshj:0.40.0")
+    implementation("com.hierynomus:sshj:0.41.1")
     implementation("org.bouncycastle:bcprov-jdk18on:1.85")
     implementation("org.bouncycastle:bcpkix-jdk18on:1.85")
 
