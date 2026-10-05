@@ -1,182 +1,204 @@
 # Stackward — Build Phases
 
-Recommended build order: **0/1 → 4 → 2/3 → 5**
-
-Each phase is independently testable. Do not skip ahead — later phases depend
-on earlier ones being solid.
+Two build sequences: the **pre-pivot phases (0–5)** that built the
+credential/connection layer and the legacy log/Gemma subsystem, and the
+**Lookout phases (A–F)** built on top of them per `STRATEGY.md`'s
+Implementation Order. Both are done; current focus is dogfooding, not new
+phases — see [Current focus](#current-focus) below.
 
 ## Current stage
 
-**All phases (0/1 → 5) are feature-complete at scaffold level** in the
-latest dogfood build, including Proxmox API integration. Every task table below
-is ✅ Done. The project is **not production-ready** — current focus is dogfooding
-on real hardware and closing gaps in [USER_STORIES.md](USER_STORIES.md) rather
-than net-new phases (see [Beyond Phase 5](#beyond-phase-5--current-focus)).
+**All phases, pre-pivot (0–5) and Lookout (A–F), are implemented.**
+`:app:testDebugUnitTest`, `:app:assembleDebug`, and `:app:lintDebug` are all
+green; the code has been through a `/simplify` pass (reuse/efficiency) and a
+`/code-review` pass (correctness — found and fixed a RISKY-action privilege
+gap and a panic-revoke leak). **Not yet dogfooded** against real
+infrastructure or a physical device.
 
 | Phase | Focus | State |
 |-------|-------|-------|
 | 0 / 1 | Bootstrap & credential provisioning (SSH + Proxmox, jump-host) | ✅ Done |
-| 2 | On-device Gemma integration | ✅ Done |
-| 3 | Tiered permission engine | ✅ Done |
-| 4 | MVP: unified log reading | ✅ Done |
-| 5 | Hardening | ✅ Done |
+| 2 | On-device Gemma integration (legacy log-summarization path) | ✅ Done |
+| 3 | Tiered permission engine (legacy path) | ✅ Done, scope narrowed to Monitor-only for v1 |
+| 4 | MVP: unified log reading (legacy path) | ✅ Done |
+| 5 | Hardening | ✅ Done, extended for check.sh state (see F) |
+| A | Check script core (`scripts/check.sh`) | ✅ Done |
+| B | Bootstrap integration (`check.sh` + `stackward-check-action` helper) | ✅ Done |
+| C | Dashboard + per-host polling | ✅ Done |
+| D | Risk-gated suggestion execution (safe/risky/scary) | ✅ Done |
+| E | Optional Gemma summary of check.sh results | ✅ Done |
+| F | Critical-issue notifications | ✅ Done |
 
 ---
 
-## Phase 0 — Bootstrap Problem
+## Lookout Phases (A–F)
 
-**Goal:** Install this device’s SSH public key into a **user-chosen** account’s
-home directory (recommended: pre-created `stackward-agent`). The app does not
-run host bootstrap scripts; elevated identities need explicit acknowledgment.
+See `STRATEGY.md § Implementation Order` for the original plan; this
+section records what actually shipped for each.
+
+### Phase A — Check Script Core
+
+**Goal:** A single host-side script that detects anomalies and reports them
+as structured JSON, replacing the idea of the phone running individual
+diagnostic commands itself.
 
 | Task | Status |
 |------|--------|
-| Prep info screen: recommended `sudo adduser stackward-agent` | Done |
-| Onboarding: host/port + SSH-user login (one-time password) | Done |
-| Optional port knock / jump host | Done |
-| Confirm authorized_keys install (ssh-copy-id style) | Done |
-| Detect elevated identity; require acknowledgment (not hard refuse) | Done |
-| Discard password after key install (never store on disk) | Done |
-| Detect host type: plain Linux / Proxmox / Docker (probe) | Done |
+| Disk & memory detection (warn/critical thresholds) | Done |
+| Failed systemd unit detection | Done |
+| Security checks (SSH password auth, listening port count) | Done |
+| Journal error volume + Docker exited-container detection | Done |
+| JSON output: `{timestamp, hostname, issues[], suggestions[]}` | Done |
 
-**Exit criteria:** User can point the app at a host, install a key for the
-chosen SSH user, and get key-based login; password is wiped afterwards.
-Elevated accounts only proceed after risk acknowledgment.
+**Exit criteria:** `scripts/check.sh` runs standalone and produces valid
+JSON matching the PRD schema. Verified via the `stackward-devhost` MCP
+server's `run_check_script_locally` tool (no host needed).
 
----
+### Phase B — Bootstrap Integration
 
-## Phase 1 — Key & User Provisioning
-
-**Goal:** Automated, secure credential lifecycle on the phone.
+**Goal:** Get `check.sh` onto a monitored host without a second install step.
 
 | Task | Status |
 |------|--------|
-| `AgentKeyManager`: generate ed25519 keypair in Android Keystore | Done (API 33+ Keystore, software fallback API 28–32) |
-| `setUserAuthenticationRequired(true)` — biometric per signing op | Done (Keystore path; biometric on use) |
-| Push public key to `authorized_keys` with `command=` restrictions | Done (via bootstrap) |
-| Verify restricted connection before discarding bootstrap secrets | Done |
-| Host key pinning (TOFU) + change alerting | Done (pin store + verifier) |
-| Jump-host support: provision agent on bastion, tunnel to internal hosts | Done (onboarding UI + bastion relay provision + per-hop TOFU) |
-| Proxmox: run `scripts/bootstrap_proxmox.sh`, store scoped API token | Done (auto during onboarding + biometric store) |
+| Embed `check.sh` verbatim in `scripts/bootstrap_linux.sh` | Done |
+| Keep the two copies in sync | Done (`scripts/verify_check_sh_sync.sh` — catches drift; caught and fixed one real instance) |
+| Install `stackward-check-action` sudoers helper for the one RISKY suggestion needing root | Done |
 
-**Exit criteria:** App connects to target using Keystore key only; bootstrap
-login/sudo secrets are gone; host key is pinned.
+**Exit criteria:** Running `bootstrap_linux.sh` on a fresh host leaves
+`~/.stackward/check.sh` installed and runnable by the `stackward-agent` user.
 
----
+**Re-bootstrap note:** hosts provisioned before this phase need a fresh
+bootstrap (or manual install of `check.sh` and `stackward-check-action`) to
+use the dashboard.
 
-## Phase 4 — MVP: Unified Log Reading
+### Phase C — Dashboard & Per-Host Polling
 
-**Goal:** First real feature. Read-only, zero elevation, validates the full
-pipeline before any write capability exists.
-
-> **Build this before Phase 2/3.** It proves inference → tool call → SSH/API →
-> response loop with zero blast radius.
+**Goal:** Multi-host UI replacing the single-host Logs screen as the landing
+experience.
 
 | Task | Status |
 |------|--------|
-| `journalctl` access via `systemd-journal` group (from bootstrap) | Done |
-| Docker log read via file ACL (not docker group) | Done |
-| Proxmox: VM/LXC status + task log via scoped API token | Done (SSH tunnel + API digest) |
-| Pre-filter / truncate output before sending to model | Done (32k char limit) |
-| On-demand log query UI | Done (Journal / Docker / Digest tabs) |
-| Scheduled hourly digest (no confirmation, read-only) | Done (WorkManager) |
-| Reconnect-with-backoff for unattended digests | Done (WorkManager exponential backoff + SSH retry) |
+| Dashboard: all hosts, colored by worst issue severity | Done |
+| Host detail: issues + suggestions for one host | Done |
+| Per-host polling setting: manual or auto-check every 4h | Done (`HostPollingRepository`, `CheckWorker` — one WorkManager job per host) |
+| "Add host" flow reuses existing onboarding wizard | Done |
+| Legacy Logs screen kept reachable, not removed | Done (toolbar icon) |
 
-**Exit criteria:** User gets an hourly digest of anomalies across all three
-log sources; can ask "what's wrong with container X" and get a summary.
+**Exit criteria:** User opens the app, sees all configured hosts and their
+status without picking one first.
 
----
+### Phase D — Risk-Gated Suggestion Execution
 
-## Phase 2 — Local Model Integration
-
-**Goal:** Run Gemma 4 on-device for summarization and structured proposals.
+**Goal:** Turn a check.sh suggestion into a gated, executable action —
+without trusting the host's own risk claim.
 
 | Task | Status |
 |------|--------|
-| Bundle or download Gemma 4 E2B (quantized) via MediaPipe LLM Inference API | Done (user import flow) |
-| Device capability check (RAM, NPU/GPU) on first launch | Done (RAM-based E2B/E4B) |
-| Auto-select E2B vs E4B based on device | Done |
-| Structured output schema for tool proposals (JSON / function-calling) | Done (ActionProposalParser) |
-| Graceful degradation: no model → no AI summarization (no cloud fallback) | Done |
+| `CheckActionCatalog`: phone-side action-id → {risk, command, description} table | Done |
+| `CheckSuggestionGate`: resolve to AutoApprove/RequireConfirmation/ManualOnly | Done |
+| Safe: auto-run + audit log | Done |
+| Risky: literal command shown, biometric confirm, then run | Done |
+| Scary/unrecognized: never executed, manual workaround shown | Done |
+| Privileged risky execution via a dedicated, re-validating sudoers helper | Done (`code-review` caught this missing; fixed) |
 
-**Exit criteria:** Model summarizes log output and emits structured Tier 1/2
-proposals that the permission engine can parse.
+**Exit criteria:** Applying a safe suggestion runs immediately; a risky one
+requires biometric confirmation and actually succeeds against a real host
+(not just an unprivileged command that silently fails).
 
----
+### Phase E — Optional Gemma Summary
 
-## Phase 3 — Tiered Permission Engine
-
-**Goal:** Enforce the three-tier safety model for mutating actions.
-
-| Task | Status |
-|------|--------|
-| `PermissionEngine`: classify proposals into Tier 1/2/3 | Done |
-| Tier 1: match against `sudoers.d/stackward-agent` rules, log + execute | Done |
-| Tier 2: confirmation UI (literal command + reason) + biometric | Done |
-| Tier 2: temporary single-use sudoers grant (write → execute → delete) | Done (`stackward-onetimer` helper) |
-| Tier 3: draft-only path for sudoers / Proxmox role changes | Done |
-| Proxmox API backend: map tiers to token permissions | Done (read Tier 1, power Tier 2, config blocked Tier 3) |
-| Full audit log (command, tier, approval, output, timestamp) | Done |
-
-**Exit criteria:** User can approve a one-time service restart; Tier 3 changes
-are blocked from automated execution.
-
-> **Re-bootstrap note:** Hosts provisioned before Phase 3 need a fresh bootstrap
-> (or manual install of `/usr/local/sbin/stackward-onetimer`) for Tier 2.
-
----
-
-## Phase 5 — Hardening
-
-**Goal:** Production-readiness for daily use.
+**Goal:** Reuse the existing on-device summarization pipeline for check.sh
+results instead of building a second one.
 
 | Task | Status |
 |------|--------|
-| Audit log export / optional sync to durable storage | Done (JSON export via Settings) |
-| Key rotation flow (regenerate + push new key, revoke old) | Done |
-| Panic revoke: one tap removes `authorized_keys` entry | Done |
-| Tier 1 rule review UI (periodic reminder to audit sudoers.d) | Done (30-day reminder + server sync) |
-| Multi-hop host key pinning verification | Done (SSHJ jump + per-hop TOFU) |
-| Network change / tunnel drop recovery | Done (SSH retry + WorkManager backoff) |
+| Host detail "Summarize with Gemma" button | Done, reuses `LogSummarizer` as-is |
+| Degrades identically to the legacy Logs screen (no model / failure / success) | Done |
+| Ignores model-proposed actions — text summary only | Done, deliberate (see `docs/ARCHITECTURE.md`) |
 
-**Exit criteria:** Lost phone scenario is recoverable; audit trail is complete;
-operator can rotate credentials without re-bootstrap.
+**Exit criteria:** With no model imported, the summary section explains why
+and the structured list is still fully usable; with a model imported, it
+produces a plain-English summary.
 
-> **Re-bootstrap note:** Hosts provisioned before Phase 5 need a fresh bootstrap
-> (or manual install of `stackward-push-key`, `stackward-revoke-key`,
-> `stackward-panic-revoke`, `stackward-sudoers-snapshot`) for hardening helpers.
+### Phase F — Notifications
 
----
+**Goal:** Alert on critical issues from scheduled background checks only.
 
-## Dependency Graph
+| Task | Status |
+|------|--------|
+| `CheckNotifier`: critical-severity-only, best-effort | Done |
+| Fires from `CheckWorker` (scheduled), not manual "check now" | Done |
+| `POST_NOTIFICATIONS` runtime permission requested when enabling auto-polling | Done |
+| Panic revoke cancels scheduled jobs + clears check state | Done (`code-review` caught this missing; fixed) |
 
-```
-Phase 0 ──▶ Phase 1 ──▶ Phase 4 (MVP)
-                │              │
-                │              ▼
-                └──────▶ Phase 2 ──▶ Phase 3 ──▶ Phase 5
-```
-
-Phase 4 can start as soon as Phase 1 provides a working SSH connection —
-it does not require the on-device model (log fetching + display works without
-AI; summarization layers on in Phase 2).
+**Exit criteria:** A critical issue found during a scheduled background
+check produces a notification if permission was granted; checks and the
+rest of the app work identically either way.
 
 ---
 
-## Beyond Phase 5 — current focus
+## Pre-Pivot Phases (0–5)
 
-With all phases feature-complete at scaffold level, work now shifts from building
-new phases to hardening the existing ones through real-world use:
+Condensed — these built the credential/connection layer (still used by both
+subsystems) and the legacy log/Gemma path (still functional, no longer
+primary). Full detail in git history; kept here for what still needs
+re-bootstrapping and why.
 
-- **Dogfooding on real hardware** — validate the full loop (bootstrap → log digest
-  → Tier 2 confirmation → audit) against live Linux/Proxmox/Docker hosts and a
-  physical device running Gemma.
-- **Model integration polish** — tune E2B/E4B selection, prompt/context budgeting,
-  and proposal-parsing robustness against real model output.
-- **Stability & recovery** — exercise reconnect/backoff, tunnel-drop recovery, and
-  host-key-change alerting under flaky-network conditions.
-- **Test coverage** — grow the JVM unit suite around the permission engine, proposal
-  parser, and Proxmox command gating; add instrumented tests where feasible.
-- **Toward production-ready** — close acceptance-criteria gaps in
-  [USER_STORIES.md](USER_STORIES.md) (dogfood exit checklist) observed during
-  real-hardware testing.
+### Phase 0/1 — Bootstrap & Credential Provisioning
+
+Install this device's SSH public key into a user-chosen account (recommended:
+`stackward-agent`); generate an Ed25519 keypair in Android Keystore
+(`setUserAuthenticationRequired(true)`); pin the host key (TOFU); support
+jump hosts; optionally provision a scoped Proxmox API token. All done.
+
+### Phase 2 — Local Model Integration (legacy)
+
+On-device Gemma via MediaPipe LLM Inference API; auto-selects E2B/E4B by
+device RAM; emits structured proposals (`ActionProposalParser`); degrades
+to no-AI when no model is imported. All done. Layer 6 of the new
+architecture reuses this pipeline as-is for check.sh summaries.
+
+### Phase 3 — Tiered Permission Engine (legacy)
+
+`PermissionEngine` classifies model-proposed actions into
+Routine/One-timer/Boundary-change; `stackward-onetimer` sudoers helper
+executes One-timer commands after biometric confirmation; Boundary-change
+is draft-only. Done, but v1's `CapabilityPack.MONITOR` denies anything above
+Routine — see `docs/ARCHITECTURE.md` for why this couldn't just be reused
+for check.sh suggestions.
+
+### Phase 4 — MVP: Unified Log Reading (legacy)
+
+`journalctl`/Docker-log-ACL/Proxmox-task-log reading, pre-filtered before
+inference, scheduled hourly via WorkManager. Done; reachable via the
+dashboard's Logs icon.
+
+### Phase 5 — Hardening
+
+Audit log export, key rotation, panic revoke, periodic Tier-1-rule review
+reminder, multi-hop TOFU verification, reconnect/backoff. Done — panic
+revoke was extended in Phase F to also cover check.sh's per-host state.
+
+**Re-bootstrap note:** hosts provisioned before Phase 3 or 5 need a fresh
+bootstrap (or manual install of the relevant helper scripts) for those
+features to work.
+
+---
+
+## Current focus
+
+With every planned phase implemented, work shifts from building to
+dogfooding:
+
+- **Real infrastructure.** Everything above has been build-verified and
+  code-reviewed, but never run against a live Linux/Proxmox/Docker host —
+  validate `check.sh`'s detection accuracy and the risky-action helper
+  against real conditions, not just unit tests.
+- **Physical device.** On-device Gemma inference needs real hardware
+  (emulators aren't reliable for it) — validate the summarization path and
+  biometric confirmation flows end-to-end.
+- **False-positive tuning.** `check.sh`'s thresholds (disk %, journal error
+  volume, listening port count) are initial guesses — see PRD.md's
+  false-positive-rate success metric.
+- **Acceptance criteria.** [USER_STORIES.md](USER_STORIES.md) has been
+  updated for the Lookout flow; close any gaps found during real-hardware use.

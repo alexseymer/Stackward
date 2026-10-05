@@ -1,0 +1,10 @@
+{
+  "hosts": {
+    "homelab-proxmox": {
+      "host": "10.0.0.5",
+      "port": 22,
+      "username": "stackward-agent",
+      "privateKeyPath": "~/.ssh/id_ed25519_stackward"
+    }
+  }
+}

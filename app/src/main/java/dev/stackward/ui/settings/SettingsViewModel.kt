@@ -48,9 +48,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private var selectedProfileId: String? = null
 
     fun refresh(profileId: String? = selectedProfileId) {
-        selectedProfileId = profileId
         val profiles = container.profileRepository.loadAll()
         val profile = profileId?.let { id -> profiles.firstOrNull { it.id == id } }
+            ?: profiles.firstOrNull()
+        selectedProfileId = profile?.id
         val dateFormat = DateFormat.getDateTimeInstance()
         val lastSuccess = profile?.let { container.connectionHealth.getLastSuccessAt(it.id) }
         val lastFailure = profile?.let { container.connectionHealth.getLastFailureAt(it.id) }
@@ -77,7 +78,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private fun requireSelectedProfile() =
         selectedProfileId?.let { id ->
             container.profileRepository.loadAll().firstOrNull { it.id == id }
-        }
+        } ?: container.profileRepository.loadAll().firstOrNull()
 
     fun setCapabilityPack(pack: CapabilityPack) {
         container.securitySettings.setCapabilityPack(pack)

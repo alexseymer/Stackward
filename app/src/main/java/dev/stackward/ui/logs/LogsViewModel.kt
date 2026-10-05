@@ -349,9 +349,10 @@ class LogsViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun reloadProfile(profileId: String? = selectedProfileId) {
-        selectedProfileId = profileId
         val profiles = container.profileRepository.loadAll()
         val profile = profileId?.let { id -> profiles.firstOrNull { it.id == id } }
+            ?: profiles.firstOrNull()
+        selectedProfileId = profile?.id
         val savedDigest = container.logDigestStore.load()
         _uiState.update {
             it.copy(

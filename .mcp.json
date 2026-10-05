@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "stackward-devhost": {
+      "command": "node",
+      "args": ["mcp-servers/stackward-devhost/src/index.js"]
+    }
+  }
+}
