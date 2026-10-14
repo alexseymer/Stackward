@@ -224,7 +224,7 @@ dependencies {
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.security:security-crypto:1.1.0")
 
-    implementation("androidx.work:work-runtime-ktx:2.10.0")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
 
     // On-device LLM — Phase 2 (MediaPipe LLM Inference API)
     implementation("com.google.mediapipe:tasks-genai:0.10.35")
