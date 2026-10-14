@@ -209,7 +209,10 @@ Outcome-focused stories for v1 dogfood acceptance.
 
 ## 9. Phased Roadmap
 
-See [docs/PHASES.md](docs/PHASES.md) for full detail. Focus is on Monitor tier only in v1.
+**All five phases below are implemented** as of 2026-09-26 — see
+[docs/PHASES.md](docs/PHASES.md) for full detail and current status. Focus
+is on Monitor tier only in v1; current work is dogfooding against real
+infrastructure and a physical device, not new phases.
 
 - **Phase 0/1** — Setup (one-time password → authorized_keys, key install in
   Keystore, `check.sh` deployment via bootstrap script, jump-host support)

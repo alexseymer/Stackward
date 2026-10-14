@@ -1,7 +1,5 @@
 package dev.stackward.ui.logs
 
-import android.content.Intent
-import android.net.Uri as AndroidUri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -19,8 +17,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Upload
@@ -52,9 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import dev.stackward.inference.CatalogModel
 import dev.stackward.inference.ModelVariant
-import dev.stackward.inference.StandardModelCatalog
 import dev.stackward.logs.DigestAnomalyDetector
 import dev.stackward.logs.JournalPriority
 import dev.stackward.logs.JournalSince
@@ -69,9 +63,9 @@ import java.util.Date
 @Composable
 fun LogsScreen(
     viewModel: LogsViewModel,
-    onBack: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenAnalyzer: (String?) -> Unit = {},
+    onBack: (() -> Unit)? = null,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val profile = uiState.profile
@@ -111,8 +105,10 @@ fun LogsScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Connections")
+                    onBack?.let { back ->
+                        IconButton(onClick = back) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
                     }
                 },
                 actions = {
@@ -136,21 +132,11 @@ fun LogsScreen(
                     .fillMaxSize()
                     .padding(padding)
                     .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text("No connection selected.")
-                Text(
-                    text = "You can still try the offline Log Analyzer with sample logs — no SSH required.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text("No server provisioned yet.")
                 Spacer(modifier = Modifier.height(8.dp))
-                Button(onClick = { onOpenAnalyzer(null) }) {
-                    Icon(Icons.Default.Analytics, contentDescription = null)
-                    Text("Open Log Analyzer", modifier = Modifier.padding(start = 4.dp))
-                }
-                Button(onClick = onBack) {
-                    Text("Back to connections")
+                Button(onClick = onOpenSettings) {
+                    Text("Open setup")
                 }
             }
             return@Scaffold
@@ -188,11 +174,7 @@ fun LogsScreen(
                 ModelStatusCard(
                     uiState = uiState,
                     onVariantSelected = viewModel::onModelVariantSelected,
-                    onImport = { importLauncher.launch(arrayOf("*/*", "application/octet-stream")) },
-                    onDownload = viewModel::downloadCatalogModel,
-                    onCancelDownload = viewModel::cancelModelDownload,
-                    onBrowseHuggingFace = { openUrl(context, StandardModelCatalog.HUGGING_FACE_BROWSE_URL) },
-                    onBrowseModelPage = { url -> openUrl(context, url) },
+                    onImport = { importLauncher.launch(arrayOf("*/*")) },
                     onSummarize = viewModel::summarizeCurrentLogs,
                     onSummaryQuestionChange = viewModel::onSummaryQuestionChange,
                 )
@@ -362,15 +344,10 @@ private fun ModelStatusCard(
     uiState: LogsUiState,
     onVariantSelected: (ModelVariant) -> Unit,
     onImport: () -> Unit,
-    onDownload: (CatalogModel) -> Unit,
-    onCancelDownload: () -> Unit,
-    onBrowseHuggingFace: () -> Unit,
-    onBrowseModelPage: (String) -> Unit,
     onSummarize: () -> Unit,
     onSummaryQuestionChange: (String) -> Unit,
 ) {
     val capability = uiState.deviceCapability
-    val busy = uiState.isImportingModel || uiState.isDownloadingModel
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -383,99 +360,30 @@ private fun ModelStatusCard(
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
-
-            if (!uiState.modelConfigured) {
-                Text(
-                    text = "No model on this phone yet. Download a standard LiteRT model below, " +
-                        "or open Hugging Face to pick another .litertlm / .task file.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            } else {
-                Text(
-                    text = "Loaded: ${uiState.modelFileName}",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ModelVariant.entries.forEach { variant ->
                     FilterChip(
                         selected = uiState.selectedModelVariant == variant,
                         onClick = { onVariantSelected(variant) },
                         label = { Text(variant.name) },
-                        enabled = !busy && when (variant) {
+                        enabled = when (variant) {
                             ModelVariant.E2B -> capability?.canRunE2B != false
                             ModelVariant.E4B -> capability?.canRunE4B == true
                         },
                     )
                 }
             }
-
-            Text("Standard downloads", style = MaterialTheme.typography.labelMedium)
-            uiState.catalogModels.forEach { model ->
-                val recommended = model.id == uiState.recommendedCatalogModelId
-                val ramOk = when (model.variant) {
-                    ModelVariant.E2B -> capability?.canRunE2B != false
-                    ModelVariant.E4B -> capability?.canRunE4B == true
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = buildString {
-                            append(model.displayName)
-                            append(" · ")
-                            append(model.approximateSizeLabel)
-                            if (recommended) append(" · recommended")
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Text(
-                        text = model.description,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = { onDownload(model) },
-                            enabled = !busy && ramOk,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Icon(Icons.Default.CloudDownload, contentDescription = null)
-                            Text(
-                                if (recommended && !uiState.modelConfigured) {
-                                    "Download"
-                                } else {
-                                    "Get ${model.variant.name}"
-                                },
-                                modifier = Modifier.padding(start = 4.dp),
-                            )
-                        }
-                        TextButton(
-                            onClick = { onBrowseModelPage(model.repoPageUrl) },
-                            enabled = !busy,
-                        ) {
-                            Text("HF page")
-                        }
-                    }
-                }
-            }
-            if (uiState.isDownloadingModel) {
-                LinearProgressIndicator(
-                    progress = { uiState.downloadProgress.coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(
-                    text = uiState.downloadStatusLabel ?: "Downloading…",
-                    style = MaterialTheme.typography.labelSmall,
-                )
-                TextButton(onClick = onCancelDownload) {
-                    Text("Cancel download")
-                }
-            } else if (uiState.isImportingModel) {
+            Text(
+                text = if (uiState.modelConfigured) {
+                    "Loaded: ${uiState.modelFileName}"
+                } else {
+                    "No model imported — summarization disabled (no cloud fallback)."
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (uiState.isImportingModel) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                Text("Importing local file…", style = MaterialTheme.typography.labelSmall)
             }
-
             OutlinedTextField(
                 value = uiState.summaryQuestion,
                 onValueChange = onSummaryQuestionChange,
@@ -489,46 +397,28 @@ private fun ModelStatusCard(
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
-                    onClick = onBrowseHuggingFace,
-                    enabled = !busy,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(Icons.Default.OpenInBrowser, contentDescription = null)
-                    Text("Hugging Face", modifier = Modifier.padding(start = 4.dp))
-                }
-                OutlinedButton(
                     onClick = onImport,
-                    enabled = !busy,
+                    enabled = !uiState.isImportingModel,
                     modifier = Modifier.weight(1f),
                 ) {
                     Icon(Icons.Default.Upload, contentDescription = null)
-                    Text("Import file", modifier = Modifier.padding(start = 4.dp))
+                    Text("Import model", modifier = Modifier.padding(start = 4.dp))
+                }
+                Button(
+                    onClick = onSummarize,
+                    enabled = uiState.modelConfigured &&
+                        !uiState.isSummarizing &&
+                        !uiState.logOutput.isNullOrBlank(),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                    Text(
+                        if (uiState.isSummarizing) "…" else "Summarize",
+                        modifier = Modifier.padding(start = 4.dp),
+                    )
                 }
             }
-
-            Button(
-                onClick = onSummarize,
-                enabled = uiState.modelConfigured &&
-                    !uiState.isSummarizing &&
-                    !busy &&
-                    !uiState.logOutput.isNullOrBlank(),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                Text(
-                    if (uiState.isSummarizing) "Summarizing…" else "Summarize with Gemma",
-                    modifier = Modifier.padding(start = 4.dp),
-                )
-            }
         }
-    }
-}
-
-private fun openUrl(context: android.content.Context, url: String) {
-    runCatching {
-        context.startActivity(
-            Intent(Intent.ACTION_VIEW, AndroidUri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-        )
     }
 }
 
