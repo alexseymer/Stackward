@@ -127,18 +127,38 @@ read_version_fields() {
 bump_version() {
   read_version_fields
 
-  if [[ "${VERSION_NAME}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(.*)$ ]]; then
-    local major="${BASH_REMATCH[1]}"
-    local minor="${BASH_REMATCH[2]}"
-    local patch="${BASH_REMATCH[3]}"
-    local suffix="${BASH_REMATCH[4]}"
-    local new_patch=$((patch + 1))
-    NEW_VERSION_NAME="${major}.${minor}.${new_patch}${suffix}"
-  else
-    die "versionName \"${VERSION_NAME}\" is not semver (expected X.Y.Z or X.Y.Z-suffix)"
+  [[ "${VERSION_NAME}" =~ ^([0-9]+\.[0-9]+\.[0-9]+)(.*)$ ]] \
+    || die "versionName \"${VERSION_NAME}\" is not semver (expected X.Y.Z or X.Y.Z-suffix)"
+  local base="${BASH_REMATCH[1]}"
+  local suffix="${BASH_REMATCH[2]}"
+  local base_code="${VERSION_CODE}"
+
+  # Bumps are committed to `builds`, never to main, so the newest release tag
+  # is usually ahead of SOURCE_REF's build.gradle.kts. Build past whichever is higher.
+  local last_tag tag_core tag_code
+  last_tag="$(git tag -l 'v[0-9]*' --sort=-version:refname | head -n 1)"
+  if [[ -n "${last_tag}" ]]; then
+    tag_core="${last_tag#v}"
+    tag_core="${tag_core%%-*}"
+    if [[ "$(printf '%s\n%s\n' "${base}" "${tag_core}" | sort -V | tail -n 1)" == "${tag_core}" ]]; then
+      base="${tag_core}"
+    fi
+    tag_code="$(git show "${last_tag}:${BUILD_FILE}" 2>/dev/null \
+      | grep -E '^\s*versionCode\s*=' | head -n 1 | sed -E 's/.*versionCode\s*=\s*([0-9]+).*/\1/' || true)"
+    if [[ -n "${tag_code}" ]] && (( tag_code > base_code )); then
+      base_code="${tag_code}"
+    fi
   fi
 
-  NEW_VERSION_CODE=$((VERSION_CODE + 1))
+  local major minor patch
+  IFS=. read -r major minor patch <<<"${base}"
+  patch=$((patch + 1))
+  while git rev-parse -q --verify "refs/tags/v${major}.${minor}.${patch}${suffix}" >/dev/null; do
+    patch=$((patch + 1))
+  done
+
+  NEW_VERSION_NAME="${major}.${minor}.${patch}${suffix}"
+  NEW_VERSION_CODE=$((base_code + 1))
   TAG="v${NEW_VERSION_NAME}"
 }
 
@@ -227,6 +247,7 @@ main() {
   [[ -f "${BUILD_FILE}" ]] || die "${BUILD_FILE} not found (run from repo root)"
   [[ -f "./gradlew" ]] || die "./gradlew not found (run from repo root)"
 
+  git fetch --tags --quiet origin || die "could not fetch release tags from origin"
   bump_version
 
   echo "==> Planned release"
