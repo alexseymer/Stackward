@@ -56,8 +56,8 @@ android {
         applicationId = "dev.stackward"
         minSdk = 28
         targetSdk = 35
-        versionCode = 11
-        versionName = "0.5.10-dogfood"
+        versionCode = 12
+        versionName = "0.5.12-dogfood"
 
         buildConfigField("boolean", "DEV_PREFILL", "false")
         buildConfigField("String", "DEV_HOST", "\"\"")
