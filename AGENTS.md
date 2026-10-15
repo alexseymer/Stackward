@@ -125,10 +125,21 @@ When the user says **"cut a new build"** (or asks for a test APK release), run:
 ./scripts/release_apk.sh
 ```
 
+It needs an Android SDK and an authenticated GitHub CLI. Where either is
+missing (e.g. Claude Code web sandboxes), trigger the **Release APK** workflow
+instead — it runs this same script on GitHub's runners:
+
+```bash
+gh api repos/alexseymer/Stackward/actions/workflows/release.yml/dispatches \
+  -f ref=main -f 'inputs[build_type]=dogfood'
+```
+
 This script (on the `builds` branch only — never `main`):
 
 1. Resets `builds` to latest `origin/main`
-2. Bumps `versionCode` / `versionName` in `app/build.gradle.kts`
+2. Bumps `versionCode` / `versionName` in `app/build.gradle.kts` past the newest
+   `v*` release tag (bumps are only committed to `builds`, so `main`'s version
+   lags behind the tags)
 3. Runs `./gradlew :app:assembleDogfood` (aborts with Gradle output on failure)
 4. Verifies the APK signature with `apksigner` before publishing
 5. Commits `chore: bump version to vX.Y.Z`, pushes `builds`, and creates a GitHub
