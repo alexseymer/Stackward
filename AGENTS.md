@@ -19,7 +19,10 @@ anymore.
 1. **`STRATEGY.md`** — the chosen north star ("Lookout": read-only triage
    via `~/.stackward/check.sh`, risk-based safe/risky/scary gating, model
    optional) and the Implementation Order status.
-2. **`PRD.md`** — full spec matching that strategy.
+2. **`PRD.md`** — full spec matching that strategy. Its §11 lists where the
+   spec is deliberately **ahead of the code** (since 2026-10-23: no background
+   SSH, `check.sh` installed by onboarding, biometric-bound key use). Treat
+   those rows as open work. Don't "fix" the PRD back to match the code there.
 3. **`docs/PHASES.md`, `docs/ARCHITECTURE.md`, `docs/USER_STORIES.md`,
    the README "Status" table** — now describe the **current** architecture
    (check.sh + dashboard + risk-gated actions) as primary, with the
