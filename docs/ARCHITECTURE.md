@@ -2,6 +2,12 @@
 
 ## Overview
 
+> **Spec vs. code.** [PRD.md](../PRD.md) was revised on 2026-10-23 and is
+> deliberately ahead of the code in a few places (see its
+> [§11](../PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-10-23)). This
+> document describes what the code does **today** and marks those places
+> with *(→ G#)*.
+
 Two subsystems share one credential/connection layer:
 
 1. **Lookout (primary)** — the phone queries `~/.stackward/check.sh` on each
@@ -32,8 +38,8 @@ Two subsystems share one credential/connection layer:
 │  │ Layer (SSH,    │                                                  │
 │  │ TOFU pinning)  │   ┌──────────────┐                               │
 │  └───────┬────────┘   │ Android      │  Keystore-backed SSH key,     │
-│          │            │ Keystore     │  biometric on every sign      │
-│          │            └──────────────┘                               │
+│          │            │ Keystore     │  biometric-bound per use      │
+│          │            └──────────────┘  (→ G2: verify on device)     │
 └──────────┼─────────────────────────────────────────────────────────────┘
            │
            ▼
@@ -41,8 +47,8 @@ Two subsystems share one credential/connection layer:
 │  User's network                          │
 │  ┌──────────────┐                        │
 │  │ Monitored    │  runs ~/.stackward/    │
-│  │ host         │  check.sh on demand     │
-│  │              │  or on a schedule       │
+│  │ host         │  check.sh when asked    │
+│  │              │  (scheduled today → G1) │
 │  └──────────────┘                        │
 └─────────────────────────────────────────┘
 ```
@@ -51,9 +57,15 @@ Two subsystems share one credential/connection layer:
 
 ### 1. Check Script (host-side)
 
-`~/.stackward/check.sh` — installed by `scripts/bootstrap_linux.sh`, which
-embeds it verbatim (kept in sync by `scripts/verify_check_sh_sync.sh`).
-Detects disk/memory/service/security/log issues and prints JSON:
+`~/.stackward/check.sh` — a dependency-free, read-only bash script that runs
+unprivileged as the SSH user. **Today** it reaches a host only through the
+admin-run `scripts/bootstrap_linux.sh`, which embeds it verbatim (kept in sync
+by `scripts/verify_check_sh_sync.sh`); in-app onboarding installs just the SSH
+key. **Per PRD D2 the app should install and refresh it itself** *(→ G3)*.
+It detects disk/memory, failed systemd units, SSH password auth, listening-port
+count, journal errors and exited Docker containers (thresholds overridable via
+env vars; exact table in [PRD §5.1](../PRD.md#51-the-check-script-stackwardchecksh))
+and prints JSON:
 
 ```json
 {
@@ -69,6 +81,7 @@ Detects disk/memory/service/security/log issues and prints JSON:
   via channel forwarding.
 - Host key pinning (TOFU) per hop; a changed key fails closed.
 - Reconnect-with-backoff.
+- Optional port knocking before connecting (`PortKnocker`).
 
 ### 3. Risk Classification (phone-side, the actual security boundary)
 
@@ -97,7 +110,12 @@ Detects disk/memory/service/security/log issues and prints JSON:
   the helper decides it's safe to run — same defense-in-depth as the legacy
   `stackward-onetimer` helper, deliberately not the same mechanism).
 - **Scary / unrecognized** — never executed; the catalog's description is
-  shown as a manual workaround instead.
+  shown as a manual workaround instead. `disable_ssh_password_auth` is scary
+  on purpose: changing it over the SSH connection the phone is using can lock
+  the operator out (PRD D3).
+
+The full v1 catalog is four actions — `tail_journal`, `list_failed_services`
+(safe), `cleanup_old_logs` (risky), `disable_ssh_password_auth` (scary).
 
 **Why this doesn't reuse `PermissionEngine`:** `PermissionEngine.evaluate`'s
 `capabilityDenial` denies any proposal above `PermissionTier.ROUTINE`
@@ -106,20 +124,26 @@ Routing check.sh suggestions through it would silently break the
 risky-confirmation flow before it ever ran. The two mechanisms are kept
 deliberately separate — see `STRATEGY.md`/`PRD.md`.
 
-### 5. Dashboard & Scheduling
+### 5. Dashboard & Scheduling (scheduling → G1)
 
 - **Dashboard** (`dev.stackward.ui.dashboard.DashboardScreen`) — every
-  configured host, colored by its worst current issue severity.
+  configured host, colored by the worst severity in its *last* check, with
+  that check's age.
 - **Host detail** — issues, suggestions with an Apply button per the gate
   above, and an optional AI summary (see layer 6).
-- **Per-host polling** — manual, or `CheckWorker` (a WorkManager periodic
-  job, one per host) every 4 hours. `HostPollingRepository` stores the
-  per-host setting.
-- **Notifications** — `CheckNotifier` fires a critical-issue-only
-  notification from `CheckWorker`'s scheduled runs (not from a manual
-  "check now", since the user is already looking at the app then).
-  Best-effort: missing the `POST_NOTIFICATIONS` permission just means no
-  alert shows — checks still run either way.
+- **Per-host polling** *(shipped, slated for removal — PRD D1 / G1)* —
+  manual, or `CheckWorker` (a WorkManager periodic job, one per host) every 4
+  hours. `HostPollingRepository` stores the per-host setting.
+- **Notifications** *(shipped, slated for removal — PRD D1 / G1)* —
+  `CheckNotifier` fires a critical-issue-only notification from
+  `CheckWorker`'s scheduled runs (not from a manual "check now"). Best-effort:
+  missing the `POST_NOTIFICATIONS` permission just means no alert shows.
+
+**Why these are going away:** a background run opens an SSH session with the
+user absent, which the product no longer allows (PRD invariant 2), and a
+Keystore key that demands biometric on every use can't sign unattended
+anyway. The legacy hourly `LogDigestWorker` has the same problem. Once removed,
+checks happen only from the dashboard/host detail after biometric confirmation.
 
 ### 6. Optional On-Device Summary
 
@@ -134,14 +158,21 @@ gated path (layer 3–4).
 
 ### 7. Credential Store (shared)
 
-- Ed25519 keypair in Android Keystore (`setUserAuthenticationRequired(true)`).
+- Ed25519 keypair in Android Keystore, created with
+  `setUserAuthenticationRequired(true)` and per-use authentication
+  (validity `-1`), invalidated by biometric re-enrollment. This needs
+  Android 13+ and an enrolled strong biometric; otherwise `AgentKeyManager`
+  falls back to a **software key** with no biometric binding (see `log.md`).
+  **Open issue (G2):** `BiometricGate` authenticates without a `CryptoObject`
+  bound to the signature, so whether SSH signing succeeds with the
+  per-use key must be verified on a device.
 - Proxmox API token, same biometric gate (legacy subsystem only).
 - No credentials persisted in plaintext outside Keystore.
 - **Panic revoke** clears both subsystems' local state: keys, profiles, pin
   store, audit log, *and* every host's `CheckResultStore` entry plus its
   scheduled `CheckWorker` job — a gap fixed after `/code-review` found the
   wipe path predated check.sh and left scheduled polling running
-  indefinitely post-wipe.
+  indefinitely post-wipe. (When G1 removes polling, this cleanup shrinks with it.)
 
 ## Bootstrap Flow
 
@@ -150,8 +181,9 @@ Info screen: recommended default — create restricted user
   (Debian: sudo adduser stackward-agent)
          │
          ▼
-Connect as chosen SSH user with one-time password
-  (default: stackward-agent; elevated accounts allowed with ack)
+Connect as chosen SSH user with one-time password or private key
+  (default: stackward-agent; elevated accounts allowed with ack;
+  optional jump host and port-knock sequence)
          │
          ▼
 Login probe: whoami / groups / passwordless sudo?
@@ -168,11 +200,17 @@ App verifies connection with Keystore agent key
          │
          ▼
 Password wiped from memory (never written to disk)
+         │
+         ▼
+(PRD D2, not built yet → G3) App installs/refreshes ~/.stackward/check.sh
 ```
 
 `scripts/bootstrap_linux.sh` is an **out-of-band admin script** — run by a
 real admin on the host, not by the app, and not required for key-only
-onboarding. It installs, beyond the key:
+onboarding. (The app also bundles an older 144-line copy as
+`app/src/main/assets/scripts/bootstrap_linux.sh`, loaded only by the unused
+`BootstrapRunner`; it lacks `check.sh` and the risky-action helper and is
+slated for deletion — G4. Don't use it.) The real script installs, beyond the key:
 
 - `~/.stackward/check.sh` (the Lookout detector, embedded verbatim)
 - `systemd-journal` group membership + Docker log ACL (read-only)
@@ -229,3 +267,6 @@ logs — feed the same summarization pipeline layer 6 reuses.
    onboarding acknowledgment — never silent.
 8. Panic revoke clears state for *both* subsystems, including scheduled
    background jobs — nothing keeps running after an emergency wipe.
+9. **No unattended host access** (PRD invariant 2): every SSH session starts
+   from the user in the app, confirmed by biometric. *Not yet true in the
+   code* — auto-polling and the legacy hourly digest violate it (→ G1).
