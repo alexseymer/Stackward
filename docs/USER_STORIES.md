@@ -1,9 +1,15 @@
 # Stackward — User Stories & Acceptance Criteria
 
 Detailed acceptance criteria for dogfood testing. High-level outcomes live in
-[PRD.md §6](../PRD.md#6-key-user-stories).
+[PRD.md §6](../PRD.md#6-key-user-stories-v1-acceptance).
 
 **Status key:** ✅ implemented · ⚠️ partial / scaffold · ❌ not yet · 🔮 v1.1 stretch
+
+> **2026-10-23:** [PRD](../PRD.md) was revised (decisions D1–D4) and is ahead
+> of the code in places — see [PRD §11](../PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-10-23).
+> Status marks here describe what the **code does today**; stories whose
+> feature the PRD now removes are labelled *to be removed*, and new stories
+> for the not-yet-built parts (G3, G4) are marked ❌.
 
 Epics G–J below are the current primary flow (Lookout: dashboard, check.sh,
 risk-gated actions). Epics A–F describe the pre-pivot log/Gemma subsystem —
@@ -24,6 +30,7 @@ host first.
 |----|--------|
 | Dashboard lists every configured `ServerProfile` | ✅ |
 | Each row colored by worst issue severity from its last check (green = clean, red = critical) | ✅ |
+| Each row shows how long ago it was last checked | ✅ |
 | Tap a host to see its issues + suggestions | ✅ |
 | "+" adds another host via the existing onboarding wizard | ✅ |
 
@@ -44,6 +51,38 @@ I can do about it.
 | Last-checked timestamp shown | ✅ |
 
 **Phase:** [Phase C](PHASES.md#phase-c--dashboard--per-host-polling)
+
+---
+
+### G3 — Onboarding installs check.sh (PRD D2)
+
+**Story:** As a user, after connecting a host through the app's wizard I can
+run a check immediately — I don't have to run an admin script as root first.
+
+| AC | Status |
+|----|--------|
+| Onboarding installs `~/.stackward/check.sh` as the SSH user (no root needed) | ❌ (today only the SSH key is installed; `check.sh` comes from the admin-run `bootstrap_linux.sh`) |
+| The app refreshes the installed copy when its bundled version is newer | ❌ |
+| `verify_check_sh_sync.sh` also covers the app's bundled copy | ❌ |
+| First check on a freshly onboarded host succeeds without the admin script | ❌ |
+
+**PRD reference:** [§5.1 Delivery](../PRD.md#51-the-check-script-stackwardchecksh), gap G3.
+
+---
+
+### G4 — Every check needs me present (PRD invariant 2 / D1)
+
+**Story:** As a user, no SSH session opens to my hosts unless I'm in the app
+and have confirmed with biometric — nothing connects while my phone is locked
+or in my pocket.
+
+| AC | Status |
+|----|--------|
+| Each check/action session is preceded by a biometric confirmation | ❌ (the Keystore key requires one per use, but the signing path never drives the prompt — gap G2, **verify on a device**) |
+| No scheduled/background code opens SSH sessions | ❌ (`CheckWorker` and `LogDigestWorker` still do — gap G1) |
+| Devices that can't make a biometric-bound key are refused or clearly warned | ❌ (today: silent software-key fallback — open question Q2) |
+
+**PRD reference:** [§1 invariant 2](../PRD.md#1-summary), gaps G1/G2.
 
 ---
 
@@ -118,7 +157,13 @@ script is compromised or returns malicious suggestions."
 
 ---
 
-## Epic I — Polling & notifications
+## Epic I — Polling & notifications *(shipped; to be removed — PRD D1, gap G1)*
+
+These stories describe behavior that exists in the code but that the revised
+product no longer allows: background checks open SSH sessions with the user
+absent. Once G1 lands, delete this epic (keeping I3's panic-revoke guarantee,
+which shrinks to "wipes everything local") and mark the dogfood items below
+as N/A.
 
 ### I1 — Per-host polling
 
@@ -211,7 +256,7 @@ still functional but no longer primary.
 | Story | AC | Status |
 |-------|-----|--------|
 | A1 — Prep guidance | Prep screen shows `sudo adduser stackward-agent`; app doesn't create the OS user itself | ✅ |
-| A2 — Password login + key install | Device public key lands in `authorized_keys`; bootstrap password wiped after | ✅ |
+| A2 — Password login + key install | Device public key lands in `authorized_keys`; bootstrap password (or private key) wiped after | ✅ |
 | A3 — Elevated account acknowledgment | Root/passwordless-sudo detected; UI blocks until acknowledged; noted in audit trail | ✅ |
 | A4 — Jump-host connect | Jump host fields in onboarding; per-hop TOFU; bastion never saved as a monitored profile | ✅ |
 | A5 — Proxmox token import | Token stored in Keystore with biometric gate; admin runs `bootstrap_proxmox.sh` out-of-band | ✅ |
@@ -221,9 +266,9 @@ still functional but no longer primary.
 
 | Story | AC | Status |
 |-------|-----|--------|
-| B1 — Hourly background fetch | WorkManager fetches journal/Docker/Proxmox hourly; heuristic anomaly flags | ✅ |
+| B1 — Hourly background fetch | WorkManager fetches journal/Docker/Proxmox hourly; heuristic anomaly flags | ✅ (shipped; to be removed with the other background SSH — G1) |
 | B2 — Digest visible in app | Digest tab shows last fetch time + content | ✅ |
-| B3 — Push notification on anomalies | Notification when heuristic flags fire | 🔮 (superseded by Epic I's critical-issue notifications for the Lookout flow) |
+| B3 — Push notification on anomalies | Notification when heuristic flags fire | 🔮 (dropped — notifications need background SSH, ruled out by PRD D1) |
 | B4 — Reconnect / backoff | SSH retry + WorkManager backoff on failure | ✅ |
 
 ### Epic C — Legacy AI-assisted investigation
@@ -290,14 +335,17 @@ before calling v1 production-ready. Lookout stories first — they're the
 primary flow; legacy stories are secondary since that subsystem already
 shipped a dogfood round before the pivot.
 
+**First, on the phone (blocks everything else):**
+- [ ] **G4 / gap G2** — A manual "Check now" on a real host actually completes over SSH with the per-use biometric Keystore key on Android 13+ (and see what happens on a device without one). If this fails, fix it before anything below.
+
 **Lookout (primary):**
 - [ ] **G1/G2** — Dashboard shows real hosts; host detail shows real issues/suggestions
 - [ ] **H1** — Safe suggestion runs and is logged
 - [ ] **H2** — Risky suggestion (`cleanup_old_logs`) succeeds end-to-end against a real host, not just in code review
 - [ ] **H3** — Scary suggestion shown as manual workaround, never executes
-- [ ] **I1** — Auto-4h polling actually fires on schedule
-- [ ] **I2** — Critical issue on a real host produces a real notification
-- [ ] **I3** — Panic revoke actually stops a scheduled `CheckWorker` job (verify in `adb shell dumpsys jobscheduler` or WorkManager's own inspection)
+- [ ] **G3** — *(after D2 is built)* A host onboarded through the app can be checked without ever running the admin script
+- [ ] **I3** — Panic revoke wipes everything local; while auto-polling still exists, it also stops the scheduled `CheckWorker` job (verify in `adb shell dumpsys jobscheduler` or WorkManager's own inspection)
+- ~~**I1** Auto-4h polling fires on schedule · **I2** critical issue produces a notification~~ — N/A: these features are being removed (PRD D1); instead confirm after G1 that nothing connects to a host in the background
 - [ ] **J1/J2** — Gemma summary works with a model imported; degrades cleanly without one
 
 **Legacy (secondary — re-verify nothing regressed):**
@@ -306,7 +354,10 @@ shipped a dogfood round before the pivot.
 - [ ] **E1** — Panic revoke tested on a throwaway host
 
 **Stretch (v1.1):** A6 host-type override, E6 re-pin UI, F3 docker-group
-in-app toggle, additional RISKY actions in the check.sh catalog.
+in-app toggle, additional RISKY actions in the check.sh catalog (restart a
+service, reboot, package updates — each needs a matching
+`stackward-check-action` case and a design for validating any parameter; see
+[PRD §5.2](../PRD.md#52-risk-based-action-gating)).
 
 ---
 

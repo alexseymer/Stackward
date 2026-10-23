@@ -36,8 +36,9 @@ anymore.
    than letting them drift again.
 4. **`scripts/check.sh`** — detects disk/memory/service/security/log
    issues on a host and returns JSON (`issues[]`, `suggestions[]` with
-   `risk ∈ safe|risky|scary`). Installed onto monitored hosts by
-   `scripts/bootstrap_linux.sh`, which embeds it verbatim — run
+   `risk ∈ safe|risky|scary`). Today it reaches hosts only via the admin-run
+   `scripts/bootstrap_linux.sh`, which embeds it verbatim (PRD D2 says the app
+   should install it during onboarding — gap G3, not built yet) — run
    `scripts/verify_check_sh_sync.sh` after touching either file; it caught
    real drift once already.
 5. **`dev.stackward.check.CheckActionCatalog`** — the actual security
