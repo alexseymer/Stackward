@@ -1,6 +1,6 @@
 # Strategy: Stackward as a Personal Lookout
 
-**Date:** 2026-09-24  
+**Date:** 2026-09-24 (revised 2026-10-23 to match PRD decisions D1–D4)  
 **Status:** Chosen north star (replaces mixed identity from earlier phases)
 
 ## The Thesis
@@ -17,11 +17,11 @@ Not: "I SRE the cluster from my phone" or "I'm a small-business operator with te
 
 - **Detect anomalies** — Read logs, check system metrics, run heuristics to flag errors, 5xx codes, OOM, security risks
 - **Optional Gemma summarization** — Natural-language triage summary, user-imported Gemma 2B/4B
-- **Risk-based improvements** — Phone gates suggested actions:
-  - **Safe** (restart service, check logs): auto-approve, logged
-  - **Risky** (disable SSH password auth, update packages): require biometric confirmation
-  - **Scary** (edit sudoers, change Proxmox permissions): forbidden, documented manual path
-- **Correspondence tempo** — Check every N hours on schedule
+- **Risk-based improvements** — The phone's own catalog gates suggested actions:
+  - **Safe** (read logs, list failed services): runs immediately, logged
+  - **Risky** (clean up old logs): shows the command, requires biometric confirmation
+  - **Scary** (disable SSH password auth, edit sudoers, change Proxmox permissions): never run, manual steps shown
+- **On-demand tempo** — Checks run when you open a host and confirm with biometric; no background polling (PRD D1)
 - **Jump-host support** — Monitor through SSH tunnels (required for most homelabs)
 
 ### Out of Scope (v1 onward)
@@ -49,9 +49,9 @@ Not: "I SRE the cluster from my phone" or "I'm a small-business operator with te
 
 | Risk Level | What | Gate |
 |------------|------|------|
-| **Safe** | Restart service, check logs, verify config | Auto-approve, logged |
-| **Risky** | Disable SSH password auth, update packages, reboot host | Biometric confirmation required |
-| **Scary** | Edit sudoers, modify Proxmox permissions, change SSH port | Forbidden; documented manual workaround |
+| **Safe** | Read-only: tail journal, list failed services | Auto-approve, logged |
+| **Risky** | Recoverable state change needing elevation: clean up old logs | Biometric confirmation required |
+| **Scary** | Access/boundary changes: disable SSH password auth, edit sudoers, modify Proxmox permissions | Forbidden; documented manual workaround |
 
 **Why this over "Tiers":** Old tier language (Maintain/Provision) suggested capability packs. New model is risk-based: phone assesses the action and gates it. No capability switching; same model, different gates per action.
 
@@ -67,7 +67,7 @@ An installable Android APK that:
 
 ## Audience
 
-**Primary:** Solo homelab operators (Proxmox + Docker, ~100–1000 nodes), who want a low-friction triage path from their phone.
+**Primary:** Solo homelab operators (Linux / Proxmox / Docker, typically a handful to a few dozen hosts), who want a low-friction triage path from their phone.
 
 **Secondary:** No small-business operator story in v1. No team story. README clarifies MIT license and "not ready for contribution."
 
@@ -84,27 +84,32 @@ An installable Android APK that:
 
 ### Check Script Monitoring
 
-`~/.stackward/check.sh` detects and reports on:
-- **Logs:** Systemd journal, Docker container logs, Proxmox task logs (errors, warnings, crashes)
-- **Disk & Memory:** Partition %, memory %, swap usage
-- **Service Health:** Failed systemd units, restart counts, status changes
-- **Security Basics:** SSH password auth enabled, open ports, firewall state
+`~/.stackward/check.sh` detects and reports on (exact checks and thresholds: PRD §5.1):
+- **Logs:** error-priority systemd journal entries
+- **Disk & Memory:** filesystem % (85 high / 95 critical), memory % (80)
+- **Service Health:** failed systemd units
+- **Security Basics:** SSH password auth enabled, number of listening ports
+- **Docker:** exited containers
 
-Returns JSON with issues (detected problems) and suggestions (proposed actions).
+Candidates, not yet covered: Proxmox task logs, Docker log contents, swap,
+firewall state, restart counts. Returns JSON with issues (detected problems)
+and suggestions (proposed actions). The app installs it during onboarding
+(PRD D2).
 
 ### Action Risk Levels
 
 | Risk | Actions | Gate | Examples |
 |------|---------|------|----------|
-| **Safe** | Read-only operations | Auto-approve, logged | Read logs, check status, tail journal |
-| **Risky** | State changes, restarts | Biometric required | Restart service, reboot host, disable SSH password auth, update packages |
-| **Scary** | System boundary changes | Forbidden, manual workaround shown | Edit sudoers, change Proxmox perms, modify SSH port |
+| **Safe** | Read-only operations | Auto-approve, logged | Tail journal, list failed services |
+| **Risky** | Recoverable state changes needing elevation | Biometric required | Clean up old logs (candidates: restart a service, reboot, package updates) |
+| **Scary** | Access or system-boundary changes | Forbidden, manual workaround shown | Disable SSH password auth, edit sudoers, change Proxmox perms, modify SSH port |
+
+The phone-side `CheckActionCatalog` is the source of truth for this list (PRD §5.2).
 
 ### Phone App UI & Behavior
 
 - **Dashboard:** Display all configured hosts at once; tap to see issues + suggestions for one host
-- **Polling:** Per-host setting: manual-only or auto-check every 4 hours
-- **Notifications:** Critical issues only (service down, disk >95%, security risk detected)
+- **Checks:** On demand only — "Check now" plus biometric; the dashboard shows each host's last result and its age. No background polling and no notifications (PRD D1: every SSH session needs the user present).
 - **Actions:** User taps "Apply" → if safe, runs immediately; if risky, requires biometric + confirms; if scary, shows manual step
 
 ### Gemma Integration
@@ -123,6 +128,11 @@ as of 2026-09-26 — build-verified (`:app:testDebugUnitTest`,
 bugs found and fixed: a RISKY suggestion's missing privilege escalation, and
 panic-revoke not clearing per-host check.sh state). Not yet dogfooded against
 real infrastructure or a physical device — see docs/PHASES.md.
+
+**Revised 2026-10-23 (PRD D1, D2):** step 3's per-host polling toggle and step
+6 (notifications) are to be removed, because they require SSH with no user
+present. Step 2's `check.sh` delivery moves into app onboarding. The open work
+is tracked in PRD §11.
 
 1. ✅ **Check script core** — `scripts/check.sh`: log/disk/service/security detection, JSON output
 2. ✅ **Bootstrap integration** — `scripts/bootstrap_linux.sh` embeds `check.sh` verbatim, installs a dedicated sudoers helper (`stackward-check-action`) for the one RISKY suggestion that needs root
