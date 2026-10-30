@@ -8,6 +8,16 @@ dialog. That message does **not** mean the APK is corrupt.
 The reliable path is **ADB** (USB or wireless). ADB installs bypass that check
 and print the real PackageManager error if something is actually wrong.
 
+## Get the APK
+
+Download `app-dogfood.apk` from the
+[latest GitHub Release](https://github.com/alexseymer/Stackward/releases/latest)
+**on the computer you'll run `adb` from**, and check the SHA256 in the release
+notes. Releases are cut by `scripts/release_apk.sh` or the manual **Release
+APK** workflow (see [AGENTS.md](../AGENTS.md)). Successive dogfood builds are
+signed with the same committed key, so `adb install -r` upgrades in place
+without losing app data.
+
 ## Install with wireless ADB (no cable)
 
 On the Pixel:

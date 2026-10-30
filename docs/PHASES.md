@@ -6,6 +6,13 @@ credential/connection layer and the legacy log/Gemma subsystem, and the
 Implementation Order. Both are done; current focus is dogfooding, not new
 phases — see [Current focus](#current-focus) below.
 
+> **2026-10-23:** the PRD was revised and is now ahead of the code in places
+> ([PRD §11](../PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-10-23)).
+> Phases C (polling) and F (notifications) below record what shipped, but both
+> are **slated for removal** (decision D1: no background SSH), and Phase B's
+> `check.sh` delivery is changing (D2). The task tables keep their original
+> "Done" status because that's what was built.
+
 ## Current stage
 
 **All phases, pre-pivot (0–5) and Lookout (A–F), are implemented.**
@@ -24,10 +31,10 @@ infrastructure or a physical device.
 | 5 | Hardening | ✅ Done, extended for check.sh state (see F) |
 | A | Check script core (`scripts/check.sh`) | ✅ Done |
 | B | Bootstrap integration (`check.sh` + `stackward-check-action` helper) | ✅ Done |
-| C | Dashboard + per-host polling | ✅ Done |
+| C | Dashboard + per-host polling | ✅ Done — polling part to be removed (D1) |
 | D | Risk-gated suggestion execution (safe/risky/scary) | ✅ Done |
 | E | Optional Gemma summary of check.sh results | ✅ Done |
-| F | Critical-issue notifications | ✅ Done |
+| F | Critical-issue notifications | ✅ Done — to be removed (D1) |
 
 ---
 
@@ -67,6 +74,13 @@ server's `run_check_script_locally` tool (no host needed).
 **Exit criteria:** Running `bootstrap_linux.sh` on a fresh host leaves
 `~/.stackward/check.sh` installed and runnable by the `stackward-agent` user.
 
+**Superseded in part (PRD D2):** this phase made `check.sh` reachable only via
+the *admin* script — in-app onboarding installs just the SSH key, so a host
+set up through the app alone fails its first check. The decided fix is for the
+app to install and refresh `check.sh` itself during onboarding (gap G3); the
+admin script then remains optional, for the risky-action sudoers helper and
+log access.
+
 **Re-bootstrap note:** hosts provisioned before this phase need a fresh
 bootstrap (or manual install of `check.sh` and `stackward-check-action`) to
 use the dashboard.
@@ -80,7 +94,7 @@ experience.
 |------|--------|
 | Dashboard: all hosts, colored by worst issue severity | Done |
 | Host detail: issues + suggestions for one host | Done |
-| Per-host polling setting: manual or auto-check every 4h | Done (`HostPollingRepository`, `CheckWorker` — one WorkManager job per host) |
+| Per-host polling setting: manual or auto-check every 4h | Done (`HostPollingRepository`, `CheckWorker` — one WorkManager job per host). **To be removed — PRD D1** |
 | "Add host" flow reuses existing onboarding wizard | Done |
 | Legacy Logs screen kept reachable, not removed | Done (toolbar icon) |
 
@@ -121,6 +135,10 @@ and the structured list is still fully usable; with a model imported, it
 produces a plain-English summary.
 
 ### Phase F — Notifications
+
+> **To be removed (PRD D1 / G1).** Notifications only fire from scheduled
+> background checks, and background checks need SSH with the user absent,
+> which the revised product rules out.
 
 **Goal:** Alert on critical issues from scheduled background checks only.
 
@@ -170,8 +188,9 @@ for check.sh suggestions.
 ### Phase 4 — MVP: Unified Log Reading (legacy)
 
 `journalctl`/Docker-log-ACL/Proxmox-task-log reading, pre-filtered before
-inference, scheduled hourly via WorkManager. Done; reachable via the
-dashboard's Logs icon.
+inference, scheduled hourly via WorkManager (`LogDigestWorker` — to be removed
+with the other background SSH, G1). Done; reachable via the dashboard's Logs
+icon.
 
 ### Phase 5 — Hardening
 
@@ -185,10 +204,39 @@ features to work.
 
 ---
 
+## Release & build tooling (not a phase, but part of "done")
+
+- `scripts/release_apk.sh` — bump version, build the signed dogfood APK,
+  verify its signature, force-push `builds`, publish a GitHub Release.
+- `.github/workflows/release.yml` — a manual **Release APK** workflow that runs
+  the same script on GitHub's runners, for environments without an Android SDK
+  or authenticated GitHub CLI (added 2026-10-15; first used for
+  `v0.5.12-dogfood`).
+- Version bumps are only ever committed to `builds`, so `main`'s
+  `versionName` lags the release tags; the script now builds past the newest
+  `v*` tag instead of trusting `main`. (Before this fix, it would have chosen
+  the already-taken `v0.5.11-dogfood` and failed after overwriting `builds`.)
+- Launcher icon: the "Glow Terminal" design (dark squircle badge, neon ring,
+  `>_` prompt with amber cursor), with a monochrome layer for Android 13+
+  themed icons.
+
+---
+
 ## Current focus
 
 With every planned phase implemented, work shifts from building to
-dogfooding:
+dogfooding — plus closing the gaps the 2026-10-23 PRD revision opened
+([PRD §11](../PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-10-23)):
+
+- **G2 first, on a real phone.** Does SSH key signing work at all with the
+  per-use biometric Keystore key on Android 13+? Everything else assumes it
+  does. (`BiometricGate` authenticates without a `CryptoObject`, so it
+  probably doesn't.)
+- **G1** remove background SSH (auto-polling, notifications, the hourly log
+  digest). **G3** make onboarding install `check.sh`. **G4** delete the stale
+  bundled `bootstrap_linux.sh` and unused `BootstrapRunner`. **G5** tidy
+  `check.sh`'s header and its `disable_ssh_password_auth` risk label. **G6**
+  finish the docs once G1 lands.
 
 - **Real infrastructure.** Everything above has been build-verified and
   code-reviewed, but never run against a live Linux/Proxmox/Docker host —
