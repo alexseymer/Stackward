@@ -13,6 +13,18 @@
 [![Release](https://img.shields.io/badge/release-0.5.12--dogfood-orange.svg)](https://github.com/alexseymer/Stackward/releases/latest)
 [![Status: dogfood](https://img.shields.io/badge/status-dogfood-yellow.svg)](#status)
 
+> [!WARNING]
+> **This project was built with AI assistance and has not been fully tested.**
+> Most of the code was written by an AI coding assistant. It has automated
+> tests and has passed AI-assisted code reviews, but it has not yet been
+> exercised on a real phone against real infrastructure, and parts of it
+> (notably SSH key handling and the biometric flow) may not work as intended.
+> The app handles SSH credentials and can run commands on your servers, so
+> review the code yourself and use it at your own risk — try it on a test host
+> first, never on production. See [Status](#status) and the
+> [tracking issue](https://github.com/alexseymer/Stackward/issues/96) for the
+> known gaps.
+
 An Android "lookout" for self-hosted infrastructure — plain Linux hosts,
 Proxmox, and Docker. The phone queries a lightweight script
 (`~/.stackward/check.sh`) installed on each host over SSH, gets back
