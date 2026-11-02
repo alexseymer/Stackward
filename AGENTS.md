@@ -40,7 +40,9 @@ anymore.
    `scripts/bootstrap_linux.sh`, which embeds it verbatim (PRD D2 says the app
    should install it during onboarding — gap G3, not built yet) — run
    `scripts/verify_check_sh_sync.sh` after touching either file; it caught
-   real drift once already.
+   real drift once already. Also run `scripts/tests/check_sh_test.sh` (stubbed
+   fixtures; known bugs are pinned as XFAIL) and
+   `scripts/verify_catalog_helper_parity.sh` (CI runs both).
 5. **`dev.stackward.check.CheckActionCatalog`** — the actual security
    boundary for check.sh suggestions: phone-side, fixed, never trusts a
    suggestion's self-reported risk. A RISKY action's command must be

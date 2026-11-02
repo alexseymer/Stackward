@@ -92,8 +92,17 @@ jobs:
             scripts/protect-main-branch.sh \
             scripts/release_apk.sh \
             scripts/verify_check_sh_sync.sh \
+            scripts/verify_catalog_helper_parity.sh \
+            scripts/check.sh \
+            scripts/tests/check_sh_test.sh \
             app/src/main/assets/scripts/bootstrap_linux.sh \
             app/src/main/assets/scripts/bootstrap_proxmox.sh
 
       - name: Verify check.sh embedded copy stays in sync
         run: scripts/verify_check_sh_sync.sh
+
+      - name: Verify action catalog and sudoers helper agree
+        run: scripts/verify_catalog_helper_parity.sh
+
+      - name: Test check.sh against stubbed commands
+        run: scripts/tests/check_sh_test.sh
