@@ -14,6 +14,8 @@ set -uo pipefail
 : "${DISK_WARNING_PCT:=85}"
 : "${DISK_CRITICAL_PCT:=95}"
 : "${MEM_WARNING_PCT:=80}"
+: "${PROC_MEMINFO:=/proc/meminfo}"   # overridable for tests
+: "${SSHD_CONFIG:=/etc/ssh/sshd_config}"  # overridable for tests
 
 # Core detection functions
 detect_disk_issues() {
@@ -31,10 +33,10 @@ detect_disk_issues() {
 }
 
 detect_memory_issues() {
-    if [[ -f /proc/meminfo ]]; then
+    if [[ -f "${PROC_MEMINFO}" ]]; then
         local memtotal memavail mem_used_pct
-        memtotal=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-        memavail=$(grep MemAvailable /proc/meminfo | awk '{print $2}')
+        memtotal=$(grep MemTotal "${PROC_MEMINFO}" | awk '{print $2}')
+        memavail=$(grep MemAvailable "${PROC_MEMINFO}" | awk '{print $2}')
         mem_used_pct=$(( (memtotal - memavail) * 100 / memtotal ))
 
         if [[ $mem_used_pct -gt $MEM_WARNING_PCT ]]; then
@@ -45,10 +47,13 @@ detect_memory_issues() {
 
 detect_service_issues() {
     if command -v systemctl &>/dev/null; then
-        systemctl list-units --state=failed --no-pager --plain 2>/dev/null | grep -v '^UNIT' | while IFS= read -r line; do
+        # --no-legend drops the header and the "N loaded units listed." footer;
+        # also require a unit-looking name (contains a dot) in case a systemd
+        # version prints them anyway, so the footer's "0" is never read as a unit.
+        systemctl list-units --state=failed --no-pager --plain --no-legend 2>/dev/null | while IFS= read -r line; do
             local unit
             unit=$(echo "$line" | awk '{print $1}')
-            [[ -z $unit ]] && continue
+            [[ $unit == *.* ]] || continue
             echo "  { \"type\": \"service\", \"severity\": \"critical\", \"message\": \"Unit $unit failed\" }"
         done || true
     fi
@@ -56,8 +61,8 @@ detect_service_issues() {
 
 detect_security_issues() {
     # SSH password auth check
-    if [[ -f /etc/ssh/sshd_config ]]; then
-        if grep -qE '^\s*PasswordAuthentication\s+yes' /etc/ssh/sshd_config 2>/dev/null; then
+    if [[ -f "${SSHD_CONFIG}" ]]; then
+        if grep -qE '^\s*PasswordAuthentication\s+yes' "${SSHD_CONFIG}" 2>/dev/null; then
             echo "  { \"type\": \"security\", \"severity\": \"critical\", \"message\": \"SSH password authentication enabled\" }"
         fi
     fi
@@ -104,7 +109,7 @@ detect_suggestions() {
     fi
 
     # Suggest SSH hardening if password auth is on
-    if [[ -f /etc/ssh/sshd_config ]] && grep -qE '^\s*PasswordAuthentication\s+yes' /etc/ssh/sshd_config 2>/dev/null; then
+    if [[ -f "${SSHD_CONFIG}" ]] && grep -qE '^\s*PasswordAuthentication\s+yes' "${SSHD_CONFIG}" 2>/dev/null; then
         echo "  { \"id\": \"disable-ssh-pwd\", \"risk\": \"risky\", \"action\": \"disable_ssh_password_auth\", \"reason\": \"Disable SSH password authentication\" }"
     fi
 }
