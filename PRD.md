@@ -246,6 +246,9 @@ and is removed (§11).
 
 ## 7. Success Metrics
 
+How each metric is measured, and the scenarios that must pass for v1, are in
+[docs/ACCEPTANCE.md](docs/ACCEPTANCE.md).
+
 - **Install-to-first-check:** fresh host to first check results in under 5
   minutes, with no model and no admin script required.
 - **Check latency:** under 10 seconds from biometric confirmation to results
