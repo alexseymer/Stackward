@@ -1,7 +1,10 @@
 # Stackward — User Stories & Acceptance Criteria
 
-Detailed acceptance criteria for dogfood testing. High-level outcomes live in
-[PRD.md §6](../PRD.md#6-key-user-stories-v1-acceptance).
+Per-story criteria. High-level outcomes live in
+[PRD.md §6](../PRD.md#6-key-user-stories-v1-acceptance). **The authoritative
+definition of "done" — scenarios, measurable pass criteria, the sign-off log and
+the v1 release gate — is [ACCEPTANCE.md](ACCEPTANCE.md).** The ✅ marks below mean
+*built*, not *verified on a device*.
 
 **Status key:** ✅ implemented · ⚠️ partial / scaffold · ❌ not yet · 🔮 v1.1 stretch
 

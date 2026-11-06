@@ -38,7 +38,8 @@ never a cloud API.
 See [STRATEGY.md](STRATEGY.md) for the thesis, [PRD.md](PRD.md) for the full
 product spec (its [§11](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-10-23)
 lists where the spec is deliberately ahead of the code),
-[docs/USER_STORIES.md](docs/USER_STORIES.md) for acceptance criteria,
+[docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) for the v1 acceptance criteria and release gate,
+[docs/USER_STORIES.md](docs/USER_STORIES.md) for per-story detail,
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the system design,
 [docs/PHASES.md](docs/PHASES.md) for the build history, and
 [docs/INSTALL.md](docs/INSTALL.md) for installing a build on a phone.
@@ -199,7 +200,8 @@ still exists alongside this — see the collapsed section above.
 STRATEGY.md             The chosen direction ("Lookout") and why
 PRD.md                  Product requirements (§11: where the spec is ahead of the code)
 AGENTS.md               Guide for coding agents: source of truth, build, release
-docs/USER_STORIES.md    Acceptance criteria & dogfood checklist
+docs/ACCEPTANCE.md      v1 acceptance scenarios, pass criteria, sign-off log
+docs/USER_STORIES.md    Per-story criteria & dogfood checklist
 docs/ARCHITECTURE.md    System design
 docs/PHASES.md          Build history and current focus
 docs/INSTALL.md         Installing a build on a Pixel (ADB), lost-phone revoke
