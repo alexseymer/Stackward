@@ -25,6 +25,14 @@
 > [tracking issue](https://github.com/alexseymer/Stackward/issues/96) for the
 > known gaps.
 
+> **Scope (decided 2026-11-12):** v1 is a read-only health check for your own Linux
+> hosts — a fingerprint, then "is anything wrong?" in under 10 seconds, with no actions,
+> no on-device model and no Proxmox-specific features. The app as built still contains
+> those features; removing them is tracked in the
+> [tracking issue](https://github.com/alexseymer/Stackward/issues/96) and
+> [PRD §11](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12). Sections below
+> that describe actions, the model or Proxmox describe the code today, not v1.
+
 An Android "lookout" for self-hosted infrastructure — plain Linux hosts,
 Proxmox, and Docker. The phone queries a lightweight script
 (`~/.stackward/check.sh`) installed on each host over SSH, gets back
@@ -36,7 +44,7 @@ the device except over your own SSH connection to your own infrastructure —
 never a cloud API.
 
 See [STRATEGY.md](STRATEGY.md) for the thesis, [PRD.md](PRD.md) for the full
-product spec (its [§11](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-10-23)
+product spec (its [§11](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12)
 lists where the spec is deliberately ahead of the code),
 [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) for the v1 acceptance criteria and release gate,
 [docs/USER_STORIES.md](docs/USER_STORIES.md) for per-story detail,
@@ -72,7 +80,7 @@ lists where the spec is deliberately ahead of the code),
   manual-only, or auto-check every 4 hours via WorkManager with
   critical-issue-only notifications. The PRD (decision D1) now rules out
   background checks, since they need SSH with nobody there to confirm; this
-  is tracked as [gap G1](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-10-23).
+  is tracked as [gap G1](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12).
 - **Risk-gated suggestions** — safe runs immediately and is logged; risky
   shows the literal command and requires a fresh biometric confirmation;
   scary/unrecognized actions are never executed, just shown as a manual
@@ -108,13 +116,13 @@ for the thesis and [PRD.md](PRD.md) for the full spec.
 | Area | Scope | State |
 |------|-------|-------|
 | Check script | `~/.stackward/check.sh`: disk/memory/failed-service/SSH-config/listening-port/journal-error/Docker-exited detection, JSON output | ✅ Implemented |
-| Bootstrap | `scripts/bootstrap_linux.sh` (admin-run) installs `check.sh` + a dedicated sudoers helper for the one RISKY suggestion that needs root. **Per PRD D2, in-app onboarding should install `check.sh` itself — today it only installs the SSH key** | ⚠️ Admin script ✅, in-app install ❌ ([G3](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-10-23)) |
+| Bootstrap | `scripts/bootstrap_linux.sh` (admin-run) installs `check.sh` + a dedicated sudoers helper for the one RISKY suggestion that needs root. **Per PRD D2, in-app onboarding should install `check.sh` itself — today it only installs the SSH key** | ⚠️ Admin script ✅, in-app install ❌ ([G3](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12)) |
 | Dashboard | Multi-host list (`dev.stackward.ui.dashboard`), per-host detail, last-checked age, on-demand "Check now" | ✅ Implemented |
 | Polling | Per-host manual / auto-4h (`CheckWorker`) | ⚠️ Shipped, **to be removed** (PRD D1 / G1) |
 | Risk-gated actions | `CheckActionCatalog`/`CheckSuggestionGate`: phone decides risk, never trusts the host's self-reported label; safe auto-runs, risky needs biometric, scary/unknown are manual-only | ✅ Implemented |
 | Gemma summary | Host detail screen reuses the existing `LogSummarizer` pipeline; degrades the same way the Logs screen does (no model / inference failure / success) | ✅ Implemented |
 | Notifications | `CheckNotifier`: critical-issue-only, best-effort on the POST_NOTIFICATIONS permission | ⚠️ Shipped, **to be removed** (PRD D1 / G1) |
-| Biometric-bound SSH signing | Keystore key requires biometric per use; the signing path doesn't yet drive a per-use prompt | ❌ Needs on-device verification ([G2](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-10-23)) |
+| Biometric-bound SSH signing | Keystore key requires biometric per use; the signing path doesn't yet drive a per-use prompt | ❌ Needs on-device verification ([G2](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12)) |
 
 Verified: `:app:testDebugUnitTest`, `:app:assembleDebug`, `:app:lintDebug` all
 green in CI; two review passes (`/simplify` for reuse/efficiency,
@@ -183,7 +191,7 @@ claims about its own risk; nothing leaves the device except over your own SSH
 
 The shipped action catalog has four entries: `tail_journal` and
 `list_failed_services` (safe), `cleanup_old_logs` (risky), and
-`disable_ssh_password_auth` (scary). See [PRD §5.2](PRD.md#52-risk-based-action-gating).
+`disable_ssh_password_auth` (scary). See [PRD §5.2](PRD.md#52-read-only-guarantee) (the catalog is slated for removal).
 
 The dedicated `stackward-agent` identity has no standing `sudo` beyond a
 handful of named helper scripts, each independently re-validating its own
