@@ -6,7 +6,7 @@
 # (recommended default on Debian: sudo adduser stackward-agent).
 #
 # This script is for administrators who optionally want journal/Docker ACLs
-# or narrow sudoers helpers on the host. Run as root (or a real admin with
+# on the host. No sudo rules are installed: the app never needs root. Run as root (or a real admin with
 # sudo) — not as stackward-agent. Review carefully before use.
 #
 # Usage (admin, on the server):
@@ -19,7 +19,6 @@ set -euo pipefail
 AGENT_USER="stackward-agent"
 AGENT_HOME="/home/${AGENT_USER}"
 AUTHORIZED_KEYS="${AGENT_HOME}/.ssh/authorized_keys"
-SUDOERS_FILE="/etc/sudoers.d/${AGENT_USER}"
 DOCKER_LOG_DIR="/var/lib/docker/containers"
 
 if [[ $# -lt 1 ]]; then
@@ -79,95 +78,6 @@ if [[ -d "${DOCKER_LOG_DIR}" ]]; then
 else
     echo "NOTE: ${DOCKER_LOG_DIR} not found; skipping Docker log ACL." >&2
 fi
-
-echo "==> Creating empty sudoers.d stub"
-cat > "${SUDOERS_FILE}" << 'SUDOERS_EOF'
-# Stackward agent sudoers — key-management helpers only. The app is read-only
-# (PRD D5): there is no sudo helper for running commands on the host.
-# Managed by Stackward app. Do not add wildcards.
-#
-stackward-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-push-key *
-stackward-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-revoke-key *
-stackward-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-panic-revoke
-stackward-agent ALL=(root) NOPASSWD: /usr/local/sbin/stackward-sudoers-snapshot
-SUDOERS_EOF
-chmod 440 "${SUDOERS_FILE}"
-visudo -c -f "${SUDOERS_FILE}"
-
-echo "==> Installing Stackward security helpers"
-cat > /usr/local/sbin/stackward-push-key << 'HELPER_EOF'
-#!/usr/bin/env bash
-# stackward-push-key — append a validated SSH public key for stackward-agent.
-set -euo pipefail
-AGENT_USER="stackward-agent"
-AUTH_KEYS="/home/${AGENT_USER}/.ssh/authorized_keys"
-KEY_LINE="$1"
-if [[ $EUID -ne 0 ]]; then echo "must run as root" >&2; exit 1; fi
-if [[ -z "${KEY_LINE}" ]]; then echo "usage: stackward-push-key <openssh-pubkey-line>" >&2; exit 1; fi
-case "${KEY_LINE}" in
-    ssh-ed25519\ *|ssh-rsa\ *|ecdsa-sha2-*\ *) ;;
-    *) echo "invalid public key format" >&2; exit 1 ;;
-esac
-install -d -m 700 -o "${AGENT_USER}" -g "${AGENT_USER}" "/home/${AGENT_USER}/.ssh"
-touch "${AUTH_KEYS}"
-chown "${AGENT_USER}:${AGENT_USER}" "${AUTH_KEYS}"
-chmod 600 "${AUTH_KEYS}"
-if grep -qF "${KEY_LINE}" "${AUTH_KEYS}"; then
-    echo "key already present"
-    exit 0
-fi
-echo "${KEY_LINE}" >> "${AUTH_KEYS}"
-echo "key pushed"
-HELPER_EOF
-chmod 755 /usr/local/sbin/stackward-push-key
-
-cat > /usr/local/sbin/stackward-revoke-key << 'HELPER_EOF'
-#!/usr/bin/env bash
-# stackward-revoke-key — remove authorized_keys line containing marker (base64 key body).
-set -euo pipefail
-AGENT_USER="stackward-agent"
-AUTH_KEYS="/home/${AGENT_USER}/.ssh/authorized_keys"
-MARKER="$1"
-if [[ $EUID -ne 0 ]]; then echo "must run as root" >&2; exit 1; fi
-if [[ -z "${MARKER}" ]]; then echo "usage: stackward-revoke-key <marker>" >&2; exit 1; fi
-if [[ ! -f "${AUTH_KEYS}" ]]; then echo "no authorized_keys" >&2; exit 0; fi
-tmp="$(mktemp)"
-grep -vF "${MARKER}" "${AUTH_KEYS}" > "${tmp}" || true
-mv "${tmp}" "${AUTH_KEYS}"
-chown "${AGENT_USER}:${AGENT_USER}" "${AUTH_KEYS}"
-chmod 600 "${AUTH_KEYS}"
-echo "key revoked"
-HELPER_EOF
-chmod 755 /usr/local/sbin/stackward-revoke-key
-
-cat > /usr/local/sbin/stackward-panic-revoke << 'HELPER_EOF'
-#!/usr/bin/env bash
-# stackward-panic-revoke — emergency wipe of stackward-agent authorized_keys.
-set -euo pipefail
-AGENT_USER="stackward-agent"
-AUTH_KEYS="/home/${AGENT_USER}/.ssh/authorized_keys"
-if [[ $EUID -ne 0 ]]; then echo "must run as root" >&2; exit 1; fi
-install -d -m 700 -o "${AGENT_USER}" -g "${AGENT_USER}" "/home/${AGENT_USER}/.ssh"
-: > "${AUTH_KEYS}"
-chown "${AGENT_USER}:${AGENT_USER}" "${AUTH_KEYS}"
-chmod 600 "${AUTH_KEYS}"
-echo "all agent keys revoked"
-HELPER_EOF
-chmod 755 /usr/local/sbin/stackward-panic-revoke
-
-cat > /usr/local/sbin/stackward-sudoers-snapshot << 'HELPER_EOF'
-#!/usr/bin/env bash
-# stackward-sudoers-snapshot — output active sudoers.d rules for Tier 1 review.
-set -euo pipefail
-SUDOERS_FILE="/etc/sudoers.d/stackward-agent"
-if [[ $EUID -ne 0 ]]; then echo "must run as root" >&2; exit 1; fi
-if [[ ! -f "${SUDOERS_FILE}" ]]; then
-    echo "# sudoers file missing" >&2
-    exit 1
-fi
-cat "${SUDOERS_FILE}"
-HELPER_EOF
-chmod 755 /usr/local/sbin/stackward-sudoers-snapshot
 
 echo "==> Installing check.sh anomaly detector"
 install -d -m 750 -o "${AGENT_USER}" -g "${AGENT_USER}" "${AGENT_HOME}/.stackward"
@@ -360,6 +270,5 @@ chown "${AGENT_USER}:${AGENT_USER}" "${AGENT_HOME}/.stackward/check.sh"
 echo "==> Bootstrap complete for ${AGENT_USER}"
 echo "    Home:       ${AGENT_HOME}"
 echo "    Check script: ${AGENT_HOME}/.stackward/check.sh"
-echo "    Sudoers:    ${SUDOERS_FILE}"
 echo "    Journal:    systemd-journal group"
 echo "    Docker logs: read-only ACL (if Docker present)"

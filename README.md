@@ -63,8 +63,8 @@ lists where the spec is deliberately ahead of the code),
   so a compromised or buggy check.sh can't talk its way past the gate.
 - **Least-privilege by construction.** A dedicated `stackward-agent` identity
   per host (SSH-key-only, Android Keystore key — biometric-bound on devices
-  that support it) with a handful of narrow, single-purpose sudoers helpers —
-  no standing broad `sudo`, no `docker` group by default.
+  that support it) with no `sudo` at all (key rotation and revoke edit the agent's own
+  `authorized_keys`) — no `docker` group by default.
 - **You're always present.** The product rule ([PRD invariant
   2](PRD.md#1-summary)) is that no SSH session starts without you in the app
   confirming with biometric — no unattended access to your hosts.

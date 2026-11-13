@@ -86,14 +86,13 @@ If the phone is lost or wiped, revoke Stackward's SSH access from an admin accou
 on the host (not via the app):
 
 1. SSH to the host as an admin user (root or sudo).
-2. Run the panic helper installed by [`scripts/bootstrap_linux.sh`](../scripts/bootstrap_linux.sh):
+2. Clear the agent's authorized keys:
 
 ```bash
-sudo /usr/local/sbin/stackward-panic-revoke
+sudo sh -c ': > ~stackward-agent/.ssh/authorized_keys'
 ```
 
-This clears `~stackward-agent/.ssh/authorized_keys`. Alternatively, edit that file
-manually and remove the device's public key line.
+Alternatively, edit that file manually and remove the device's public key line.
 
 3. On Proxmox, revoke the API token if one was issued:
 

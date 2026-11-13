@@ -49,7 +49,7 @@ class PanicRevokeService(
         val serverMessage = runCatching {
             ssh.executeWithRetry(
                 profile = profile,
-                command = "sudo /usr/local/sbin/stackward-panic-revoke",
+                command = AuthorizedKeysCommands.revokeAll(),
                 keyAlias = securitySettings.getActiveKeyAlias(),
             )
         }.getOrElse { error ->
