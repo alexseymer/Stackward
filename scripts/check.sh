@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 # ~/.stackward/check.sh — host anomaly detection for Stackward
+# stackward-check-version: 2
+#
+# Bump the version above whenever this file changes: the app compares it with the
+# `version` this script reports and re-installs the bundled copy when it is newer.
 #
 # Queries system state (logs, disk, memory, services, security) and returns
 # structured JSON: detected issues (each with a text-only `advice`) and a
@@ -10,6 +14,10 @@
 # Called by: Stackward Android app via SSH, on demand only (no scheduled runs).
 
 set -uo pipefail
+
+CHECK_VERSION=$(sed -n 's/^# stackward-check-version: *//p' "$0" 2>/dev/null | head -1)
+CHECK_VERSION=${CHECK_VERSION//[!0-9]/}
+: "${CHECK_VERSION:=0}"
 
 : "${SYSTEMD_JOURNAL_LINES:=100}"
 : "${DOCKER_LOG_LINES:=50}"
@@ -150,6 +158,7 @@ main() {
 
     {
         echo "{"
+        echo "  \"version\": $CHECK_VERSION,"
         echo "  \"timestamp\": \"$timestamp\","
         echo "  \"hostname\": \"$hostname\","
         echo "  \"issues\": ["

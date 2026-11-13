@@ -39,6 +39,13 @@ class CheckScriptParserTest {
     }
 
     @Test
+    fun parse_readsScriptVersion() {
+        val json = """{"version":4,"timestamp":"t","hostname":"h","issues":[]}"""
+        assertEquals(4, CheckScriptParser.parse(json).scriptVersion)
+        assertEquals(0, CheckScriptParser.parse("""{"timestamp":"t","hostname":"h","issues":[]}""").scriptVersion)
+    }
+
+    @Test
     fun parse_ignoresLegacySuggestions() {
         val json = """{"timestamp":"t","hostname":"h","issues":[],"suggestions":[{"id":"a","risk":"safe","action":"rm -rf /"}]}"""
         val result = CheckScriptParser.parse(json)

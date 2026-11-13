@@ -2,6 +2,7 @@ package dev.stackward.di
 
 import android.content.Context
 import dev.stackward.check.CheckResultStore
+import dev.stackward.check.CheckScriptBundle
 import dev.stackward.check.CheckScriptRunner
 import dev.stackward.connection.ConnectionHealthRepository
 import dev.stackward.connection.HostKeyPinStore
@@ -24,7 +25,8 @@ class AppContainer(context: Context) {
     val connectionHealth = ConnectionHealthRepository(appContext)
     val profileRepository = ServerProfileRepository(appContext)
     val ssh = SshConnectionManager(keyManager, pinStore, securitySettings, connectionHealth)
-    val checkScriptRunner = CheckScriptRunner(ssh)
+    val checkScriptBundle = CheckScriptBundle(appContext)
+    val checkScriptRunner = CheckScriptRunner(ssh, checkScriptBundle)
     val checkResultStore = CheckResultStore(appContext)
     val auditLogRepository = AuditLogRepository(appContext)
     val keyRotationService = KeyRotationService(
@@ -50,5 +52,6 @@ class AppContainer(context: Context) {
         ssh = ssh,
         pinStore = pinStore,
         profileRepository = profileRepository,
+        checkScriptRunner = checkScriptRunner,
     )
 }

@@ -28,6 +28,8 @@ data class CheckResult(
     val hostname: String,
     val issues: List<CheckIssue>,
     val coverage: CheckCoverage = CheckCoverage(),
+    /** The `version` the host's check.sh reported; 0 for copies that predate versioning. */
+    val scriptVersion: Int = 0,
 )
 
 /** Ordinal order is significant: later entries outrank earlier ones. */

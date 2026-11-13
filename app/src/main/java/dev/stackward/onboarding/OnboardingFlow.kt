@@ -2,6 +2,7 @@ package dev.stackward.onboarding
 
 import android.content.Context
 import android.util.Log
+import dev.stackward.check.CheckScriptRunner
 import dev.stackward.connection.HostKeyPinStore
 import dev.stackward.connection.SshConnectionConfig
 import dev.stackward.connection.SshConnectionManager
@@ -23,6 +24,7 @@ class OnboardingFlow(
     private val ssh: SshConnectionManager,
     private val pinStore: HostKeyPinStore,
     private val profileRepository: ServerProfileRepository,
+    private val checkScriptRunner: CheckScriptRunner,
 ) {
 
     companion object {
@@ -166,11 +168,15 @@ class OnboardingFlow(
             jumpHostKeyFingerprint = jumpFingerprint,
             provisionedAt = System.currentTimeMillis(),
         )
+        // PRD D2: the app installs check.sh itself, so the first "Check now" works with no admin script.
+        val checkInstallError = checkScriptRunner.install(profile)
         profileRepository.save(profile)
+        val checkInstallNote = checkInstallError?.let { "\n\n=== check.sh ===\n$it" }
+            ?: "\n\n=== check.sh ===\nInstalled to ~/.stackward/check.sh"
 
         return BootstrapResult(
             profile = profile,
-            bootstrapOutput = combinedOutput,
+            bootstrapOutput = combinedOutput + checkInstallNote,
             verificationOutput = verifyResult.stdout.trim(),
             publicKey = publicKey,
             script = keyInstallPreview(agentUsername, publicKey),
