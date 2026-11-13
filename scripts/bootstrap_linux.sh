@@ -180,8 +180,8 @@ cat > "${AGENT_HOME}/.stackward/check.sh" << 'CHECK_SCRIPT_EOF'
 # `coverage` object saying which data sources could actually be read.
 # Read-only: it never changes anything on the host and suggests nothing to run.
 #
-# Installed by: scripts/bootstrap_linux.sh (app onboarding invokes this)
-# Called by: Stackward Android app via SSH, on-demand or on schedule
+# Installed by: scripts/bootstrap_linux.sh today; the app's onboarding should install it (PRD D2).
+# Called by: Stackward Android app via SSH, on demand only (no scheduled runs).
 
 set -uo pipefail
 
@@ -193,12 +193,28 @@ set -uo pipefail
 : "${PROC_MEMINFO:=/proc/meminfo}"   # overridable for tests
 : "${SSHD_CONFIG:=/etc/ssh/sshd_config}"  # overridable for tests
 
+# Escapes a string for use inside a JSON string literal: backslash, quote, and
+# control characters (tab, CR) that would otherwise corrupt the document.
+json_escape() {
+    local v=$1
+    v=${v//\\/\\\\}
+    v=${v//\"/\\\"}
+    v=${v//$'\t'/\\t}
+    v=${v//$'\r'/\\r}
+    printf '%s' "$v"
+}
+
 # Core detection functions
 detect_disk_issues() {
-    df -h 2>/dev/null | grep -E '^/' | while IFS= read -r line; do
+    # -P: one line per filesystem, stable columns. Pseudo/read-only filesystems (snap
+    # squashfs loops are always 100% full) are excluded. Mount points may contain
+    # spaces, so the mount is everything after the 5th column.
+    df -P -x squashfs -x tmpfs -x devtmpfs -x overlay -x iso9660 2>/dev/null | grep -E '^/' | grep -v '^/dev/loop' | sort -u | while IFS= read -r line; do
         local usage_pct mount
         usage_pct=$(echo "$line" | awk '{print $5}' | sed 's/%//')
-        mount=$(echo "$line" | awk '{print $6}')
+        mount=$(echo "$line" | awk '{ $1=$2=$3=$4=$5=""; sub(/^ +/, ""); print }')
+        [[ $usage_pct =~ ^[0-9]+$ ]] || continue
+        mount=$(json_escape "$mount")
 
         if [[ $usage_pct -gt $DISK_CRITICAL_PCT ]]; then
             echo "  { \"type\": \"disk\", \"severity\": \"critical\", \"message\": \"$mount at ${usage_pct}% capacity\", \"advice\": \"Find large files with: du -xh / | sort -h | tail\" }"
@@ -230,6 +246,7 @@ detect_service_issues() {
             local unit
             unit=$(echo "$line" | awk '{print $1}')
             [[ $unit == *.* ]] || continue
+            unit=$(json_escape "$unit")
             echo "  { \"type\": \"service\", \"severity\": \"critical\", \"message\": \"Unit $unit failed\", \"advice\": \"Inspect with: systemctl status $unit; journalctl -u $unit -n 50\" }"
         done || true
     fi
@@ -266,7 +283,7 @@ detect_log_errors() {
     # Docker container errors
     if command -v docker &>/dev/null; then
         local failing_containers
-        failing_containers=$(docker ps --filter "status=exited" --format "{{.Names}}" 2>/dev/null || echo "")
+        failing_containers=$(docker ps --filter "status=exited" --format "{{.Names}} {{.Status}}" 2>/dev/null | grep -v "Exited (0)" || true)
         if [[ -n $failing_containers ]]; then
             local count
             count=$(echo "$failing_containers" | wc -l)
@@ -303,6 +320,7 @@ main() {
     local timestamp hostname
     timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     hostname=$(hostname -f 2>/dev/null || hostname)
+    hostname=$(json_escape "$hostname")
 
     {
         echo "{"
