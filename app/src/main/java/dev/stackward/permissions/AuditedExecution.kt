@@ -3,15 +3,10 @@ package dev.stackward.permissions
 /**
  * Runs [executor], records an [AuditEntry] for the outcome, and returns the result.
  *
- * This mirrors the audit-on-success-or-failure shape [PermissionExecutor]'s internal
- * `runRemote` already uses for model-proposed [ActionProposal]s — deliberately kept as a
- * separate, tier-gating-free helper rather than merged into `PermissionExecutor` itself.
- * Callers here (currently check.sh suggestion execution, see
+ * Callers (currently check.sh suggestion execution, see
  * `dev.stackward.ui.dashboard.HostDetailViewModel`) have already been classified by their
- * own allowlist (e.g. `CheckActionCatalog`) before reaching this point; routing them through
- * `PermissionExecutor.executeApproved` would additionally re-run `PermissionEngine.evaluate`,
- * which denies anything above [PermissionTier.ROUTINE] under the v1 Monitor-only capability
- * pack — that would silently break the risky/biometric-confirm path this helper exists for.
+ * own allowlist (`CheckActionCatalog`) before reaching this point. Deleted together with
+ * the catalog in PRD §11 R2.
  */
 suspend fun AuditLogRepository.recordAuditedExecution(
     tier: PermissionTier,

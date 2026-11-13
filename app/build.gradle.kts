@@ -226,9 +226,6 @@ dependencies {
 
     implementation("androidx.work:work-runtime-ktx:2.12.0")
 
-    // On-device LLM — Phase 2 (MediaPipe LLM Inference API)
-    implementation("com.google.mediapipe:tasks-genai:0.10.35")
-
     // SSH — Phase 1 (full BC replaces Android's stripped provider for X25519/Ed25519)
     implementation("com.hierynomus:sshj:0.41.2")
     implementation("org.bouncycastle:bcprov-jdk18on:1.86")

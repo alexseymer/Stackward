@@ -8,13 +8,11 @@ import dev.stackward.connection.ConnectionHealthRepository
 import dev.stackward.connection.HostKeyPinStore
 import dev.stackward.connection.SshConnectionManager
 import dev.stackward.crypto.AgentKeyManager
-import dev.stackward.crypto.ProxmoxTokenStore
 import dev.stackward.onboarding.ServerProfile
 import dev.stackward.onboarding.ServerProfileRepository
 import dev.stackward.permissions.AuditEntry
 import dev.stackward.permissions.AuditLogRepository
 import dev.stackward.permissions.PermissionTier
-import dev.stackward.permissions.Tier1RulesRepository
 
 data class PanicRevokeResult(
     val serverMessage: String,
@@ -32,9 +30,7 @@ class PanicRevokeService(
     private val profileRepository: ServerProfileRepository,
     private val pinStore: HostKeyPinStore,
     private val auditLog: AuditLogRepository,
-    private val tier1RulesRepository: Tier1RulesRepository,
     private val connectionHealth: ConnectionHealthRepository,
-    private val proxmoxTokenStore: ProxmoxTokenStore,
     private val checkResultStore: CheckResultStore,
     private val hostPollingRepository: HostPollingRepository,
 ) {
@@ -84,10 +80,8 @@ class PanicRevokeService(
         keyManager.deleteKeypair(AgentKeyManager.KEY_ALIAS_ALT)
         profileRepository.clearAll()
         pinStore.clearAll()
-        tier1RulesRepository.resetToDefaults()
         connectionHealth.clearAll()
         securitySettings.clear()
-        proxmoxTokenStore.deleteToken()
         auditLog.clear()
     }
 }

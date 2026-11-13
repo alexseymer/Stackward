@@ -20,7 +20,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,9 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import dev.stackward.permissions.CapabilityPack
 import dev.stackward.ui.security.BiometricGate
 import dev.stackward.util.findFragmentActivity
 import java.text.SimpleDateFormat
@@ -167,14 +164,6 @@ fun SettingsScreen(
 
             ConnectionCard(uiState = uiState)
 
-            CapabilityPackCard()
-
-            Tier1Card(
-                uiState = uiState,
-                onSync = viewModel::syncTier1Rules,
-                onMarkReviewed = viewModel::markTier1Reviewed,
-            )
-
             AuditCard(
                 entryCount = uiState.auditEntryCount,
                 onExport = {
@@ -195,29 +184,6 @@ fun SettingsScreen(
             uiState.error?.let { error ->
                 Text(error, color = MaterialTheme.colorScheme.error)
             }
-            uiState.tier1SyncResult?.let { result ->
-                Tier1SyncResultCard(result = result)
-            }
-        }
-    }
-}
-
-@Composable
-private fun CapabilityPackCard() {
-    val selected = CapabilityPack.MONITOR
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Monitor tier", style = MaterialTheme.typography.titleSmall)
-            Text(
-                selected.summary,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                "Risk-based action gating (safe/risky/scary) coming in Phase 3.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
@@ -249,71 +215,6 @@ private fun ConnectionCard(uiState: SettingsUiState) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-    }
-}
-
-@Composable
-private fun Tier1Card(
-    uiState: SettingsUiState,
-    onSync: () -> Unit,
-    onMarkReviewed: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = if (uiState.tier1ReviewDue) {
-            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
-        } else {
-            CardDefaults.cardColors()
-        },
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Tier 1 rules", style = MaterialTheme.typography.titleSmall)
-            if (uiState.tier1ReviewDue) {
-                Text(
-                    "Review due — sync sudoers.d from server or mark reviewed.",
-                    color = MaterialTheme.colorScheme.tertiary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            uiState.lastTier1ReviewLabel?.let {
-                Text("Last reviewed: $it", style = MaterialTheme.typography.labelSmall)
-            }
-            if (uiState.tier1Rules.isEmpty()) {
-                Text("No local Tier 1 rules.", style = MaterialTheme.typography.bodySmall)
-            } else {
-                uiState.tier1Rules.forEach { rule ->
-                    Text(rule, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onSync, modifier = Modifier.weight(1f)) {
-                    Text("Sync from server")
-                }
-                OutlinedButton(onClick = onMarkReviewed, modifier = Modifier.weight(1f)) {
-                    Text("Mark reviewed")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun Tier1SyncResultCard(result: dev.stackward.security.Tier1SyncResult) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Sync diff", style = MaterialTheme.typography.titleSmall)
-            if (result.onlyOnServer.isNotEmpty()) {
-                Text("Only on server:", style = MaterialTheme.typography.labelMedium)
-                result.onlyOnServer.forEach { Text(it, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall) }
-            }
-            if (result.onlyLocal.isNotEmpty()) {
-                Text("Only local:", style = MaterialTheme.typography.labelMedium)
-                result.onlyLocal.forEach { Text(it, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall) }
-            }
-            if (result.onlyOnServer.isEmpty() && result.onlyLocal.isEmpty()) {
-                Text("Local and server rules match.", style = MaterialTheme.typography.bodySmall)
-            }
         }
     }
 }

@@ -8,25 +8,12 @@ import dev.stackward.connection.ConnectionHealthRepository
 import dev.stackward.connection.HostKeyPinStore
 import dev.stackward.connection.SshConnectionManager
 import dev.stackward.crypto.AgentKeyManager
-import dev.stackward.crypto.ProxmoxTokenStore
-import dev.stackward.inference.DeviceCapabilityChecker
-import dev.stackward.inference.GemmaInferenceEngine
-import dev.stackward.inference.LogSummarizer
-import dev.stackward.inference.ModelImporter
-import dev.stackward.inference.ModelRepository
-import dev.stackward.logs.LogDigestStore
-import dev.stackward.logs.LogReader
 import dev.stackward.onboarding.OnboardingFlow
 import dev.stackward.onboarding.ServerProfileRepository
 import dev.stackward.permissions.AuditLogRepository
-import dev.stackward.permissions.PermissionEngine
-import dev.stackward.permissions.PermissionExecutor
-import dev.stackward.permissions.Tier1RulesRepository
-import dev.stackward.proxmox.ProxmoxApiClient
 import dev.stackward.security.KeyRotationService
 import dev.stackward.security.PanicRevokeService
 import dev.stackward.security.SecuritySettingsRepository
-import dev.stackward.security.Tier1RulesSyncer
 
 class AppContainer(context: Context) {
 
@@ -37,34 +24,11 @@ class AppContainer(context: Context) {
     val pinStore = HostKeyPinStore(appContext)
     val connectionHealth = ConnectionHealthRepository(appContext)
     val profileRepository = ServerProfileRepository(appContext)
-    val proxmoxTokenStore = ProxmoxTokenStore(appContext)
     val ssh = SshConnectionManager(keyManager, pinStore, securitySettings, connectionHealth)
-    val proxmoxApi = ProxmoxApiClient(ssh, proxmoxTokenStore)
-    val logReader = LogReader(ssh, proxmoxApi)
-    val logDigestStore = LogDigestStore(appContext)
     val checkScriptRunner = CheckScriptRunner(ssh)
     val checkResultStore = CheckResultStore(appContext)
     val hostPollingRepository = HostPollingRepository(appContext)
-    val modelRepository = ModelRepository(appContext)
-    val deviceCapabilityChecker = DeviceCapabilityChecker(appContext)
-    val gemmaEngine = GemmaInferenceEngine(appContext)
-    val modelImporter = ModelImporter(appContext, modelRepository)
-    val logSummarizer = LogSummarizer(gemmaEngine, modelRepository)
-    val tier1RulesRepository = Tier1RulesRepository(appContext)
     val auditLogRepository = AuditLogRepository(appContext)
-    val permissionEngine = PermissionEngine(tier1RulesRepository.loadRules())
-    val permissionExecutor = PermissionExecutor(
-        engine = permissionEngine,
-        auditLog = auditLogRepository,
-        securitySettings = securitySettings,
-        proxmoxApi = proxmoxApi,
-    )
-    val tier1RulesSyncer = Tier1RulesSyncer(
-        ssh = ssh,
-        tier1RulesRepository = tier1RulesRepository,
-        permissionEngine = permissionEngine,
-        securitySettings = securitySettings,
-    )
     val keyRotationService = KeyRotationService(
         keyManager = keyManager,
         securitySettings = securitySettings,
@@ -79,9 +43,7 @@ class AppContainer(context: Context) {
         profileRepository = profileRepository,
         pinStore = pinStore,
         auditLog = auditLogRepository,
-        tier1RulesRepository = tier1RulesRepository,
         connectionHealth = connectionHealth,
-        proxmoxTokenStore = proxmoxTokenStore,
         checkResultStore = checkResultStore,
         hostPollingRepository = hostPollingRepository,
     )

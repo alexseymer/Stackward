@@ -6,6 +6,26 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
+ * Category recorded with each audit entry. (Historical name from the removed
+ * permission engine; kept so existing stored entries still parse.)
+ */
+enum class PermissionTier {
+    ROUTINE,
+    ONE_TIMER,
+    BOUNDARY_CHANGE,
+}
+
+/** Record of an executed (or denied) action, or a security-relevant event. */
+data class AuditEntry(
+    val timestamp: Long,
+    val tier: PermissionTier,
+    val command: String,
+    val approved: Boolean,
+    val output: String?,
+    val reason: String?,
+)
+
+/**
  * Local audit trail for permission decisions and command execution.
  */
 class AuditLogRepository(context: Context) {

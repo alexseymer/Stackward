@@ -5,8 +5,6 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.stackward.StackwardApplication
-import dev.stackward.permissions.CapabilityPack
-import dev.stackward.security.Tier1SyncResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,15 +22,10 @@ data class SettingsUiState(
     val lastSuccessLabel: String? = null,
     val lastFailureLabel: String? = null,
     val lastError: String? = null,
-    val tier1Rules: List<String> = emptyList(),
-    val tier1ReviewDue: Boolean = false,
-    val lastTier1ReviewLabel: String? = null,
     val auditEntryCount: Int = 0,
     val isBusy: Boolean = false,
     val statusMessage: String? = null,
     val error: String? = null,
-    val tier1SyncResult: Tier1SyncResult? = null,
-    val capabilityPack: CapabilityPack = CapabilityPack.MONITOR,
     val showPanicConfirm: Boolean = false,
     val showRotateConfirm: Boolean = false,
     val pendingAuditExport: String? = null,
@@ -55,7 +48,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val dateFormat = DateFormat.getDateTimeInstance()
         val lastSuccess = profile?.let { container.connectionHealth.getLastSuccessAt(it.id) }
         val lastFailure = profile?.let { container.connectionHealth.getLastFailureAt(it.id) }
-        val lastReview = container.securitySettings.getLastTier1ReviewAt()
 
         _uiState.update {
             it.copy(
@@ -65,11 +57,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 lastSuccessLabel = lastSuccess?.let { ts -> dateFormat.format(Date(ts)) },
                 lastFailureLabel = lastFailure?.let { ts -> dateFormat.format(Date(ts)) },
                 lastError = profile?.let { p -> container.connectionHealth.getLastError(p.id) },
-                tier1Rules = container.tier1RulesRepository.loadRules(),
-                tier1ReviewDue = container.securitySettings.isTier1ReviewDue(),
-                lastTier1ReviewLabel = lastReview?.let { ts -> dateFormat.format(Date(ts)) },
                 auditEntryCount = container.auditLogRepository.loadAll().size,
-                capabilityPack = container.securitySettings.getCapabilityPack(),
                 error = null,
             )
         }
@@ -80,16 +68,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             container.profileRepository.loadAll().firstOrNull { it.id == id }
         } ?: container.profileRepository.loadAll().firstOrNull()
 
-    fun setCapabilityPack(pack: CapabilityPack) {
-        container.securitySettings.setCapabilityPack(pack)
-        refresh()
-        _uiState.update {
-            it.copy(statusMessage = "Capability pack set to ${pack.displayName}")
-        }
-    }
-
     fun clearStatus() {
-        _uiState.update { it.copy(statusMessage = null, error = null, tier1SyncResult = null) }
+        _uiState.update { it.copy(statusMessage = null, error = null) }
     }
 
     fun requestRotateKey() {
@@ -169,43 +149,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 onComplete()
             }
         }
-    }
-
-    fun syncTier1Rules() {
-        val profile = requireSelectedProfile()
-        if (profile == null) {
-            _uiState.update { it.copy(error = "No server selected") }
-            return
-        }
-
-        viewModelScope.launch {
-            _uiState.update { it.copy(isBusy = true, error = null) }
-            runCatching {
-                container.tier1RulesSyncer.syncFromServer(profile)
-            }.onSuccess { result ->
-                _uiState.update {
-                    it.copy(
-                        isBusy = false,
-                        tier1SyncResult = result,
-                        statusMessage = "Tier 1 rules synced from server",
-                    )
-                }
-                refresh()
-            }.onFailure { error ->
-                _uiState.update {
-                    it.copy(
-                        isBusy = false,
-                        error = error.message ?: "Failed to sync Tier 1 rules",
-                    )
-                }
-            }
-        }
-    }
-
-    fun markTier1Reviewed() {
-        container.tier1RulesSyncer.markReviewedWithoutSync()
-        refresh()
-        _uiState.update { it.copy(statusMessage = "Tier 1 review marked complete") }
     }
 
     fun exportAuditLog(uri: Uri) {
