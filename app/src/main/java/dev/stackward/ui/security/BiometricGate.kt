@@ -16,7 +16,7 @@ class BiometricGate(
 
     suspend fun authenticate(
         title: String = "Confirm action",
-        subtitle: String = "Biometric required for Tier 2 elevation",
+        subtitle: String = "Biometric confirmation required",
     ): Boolean {
         val authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG or
             BiometricManager.Authenticators.DEVICE_CREDENTIAL

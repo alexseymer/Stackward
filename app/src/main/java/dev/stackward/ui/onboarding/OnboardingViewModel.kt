@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.stackward.BuildConfig
+import dev.stackward.R
 import dev.stackward.StackwardApplication
 import dev.stackward.crypto.SessionSecretVault
 import dev.stackward.onboarding.BootstrapAuthMethod
@@ -106,6 +107,9 @@ data class OnboardingUiState(
 class OnboardingViewModel(application: Application) : AndroidViewModel(application) {
 
     private val container = (application as StackwardApplication).container
+
+    private fun str(@androidx.annotation.StringRes id: Int, vararg args: Any): String =
+        getApplication<Application>().getString(id, *args)
     private val keyManager = container.keyManager
     private val profileRepository = container.profileRepository
     private val onboardingFlow = container.onboardingFlow
@@ -294,9 +298,9 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                         usesHardwareKeystore = keyManager.usesHardwareKeystore(),
                         isGeneratingKey = false,
                         message = if (fillsPrivateKeyLogin) {
-                            "SSH key generated — private key login filled with agent key"
+                            str(R.string.msg_key_generated_filled)
                         } else {
-                            "SSH key generated successfully"
+                            str(R.string.msg_key_generated)
                         },
                     )
                 }
@@ -305,7 +309,7 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 _uiState.update {
                     it.copy(
                         isGeneratingKey = false,
-                        error = error.message ?: "Failed to generate SSH key",
+                        error = error.message ?: str(R.string.msg_key_generate_failed),
                     )
                 }
             }
@@ -371,9 +375,9 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                         setupPreview = preview,
                         step = ProvisionStep.CONFIRM,
                         message = if (probe.isElevated) {
-                            "Connected as ${state.agentUsername} — elevated privilege detected"
+                            str(R.string.msg_connected_elevated, state.agentUsername)
                         } else {
-                            "Connected as ${state.agentUsername} — confirm key install"
+                            str(R.string.msg_connected_confirm, state.agentUsername)
                         },
                     )
                 }
@@ -382,7 +386,7 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 _uiState.update {
                     it.copy(
                         isTestingConnection = false,
-                        error = error.message ?: "Connection failed",
+                        error = error.message ?: str(R.string.msg_connection_failed),
                     )
                 }
             }
@@ -456,7 +460,7 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                     it.copy(
                         isProvisioning = false,
                         step = ProvisionStep.INPUT,
-                        error = error.message ?: "Setup failed",
+                        error = error.message ?: str(R.string.msg_setup_failed),
                     )
                 }
             }
@@ -485,7 +489,7 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 provisionedProfile = result.profile,
                 bootstrapOutput = result.bootstrapOutput,
                 verificationOutput = result.verificationOutput,
-                message = "Key installed and verified as ${result.profile.username}@${result.profile.host}",
+                message = str(R.string.msg_key_installed, "${result.profile.username}@${result.profile.host}"),
                 error = null,
             )
         }

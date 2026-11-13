@@ -148,4 +148,25 @@
     <string name="onb_done_hostkey">Host-Key: %1$s</string>
     <string name="onb_done_jumpkey">Jump-Key: %1$s</string>
     <string name="action_back">Zurück</string>
+
+    <!-- ViewModel messages -->
+    <string name="msg_key_generated_filled">SSH-Schlüssel erzeugt – Private-Key-Anmeldung mit Agent-Schlüssel befüllt</string>
+    <string name="msg_key_generated">SSH-Schlüssel erfolgreich erzeugt</string>
+    <string name="msg_key_generate_failed">SSH-Schlüssel konnte nicht erzeugt werden</string>
+    <string name="msg_connected_elevated">Verbunden als %1$s – erhöhte Rechte erkannt</string>
+    <string name="msg_connected_confirm">Verbunden als %1$s – Schlüsselinstallation bestätigen</string>
+    <string name="msg_connection_failed">Verbindung fehlgeschlagen</string>
+    <string name="msg_setup_failed">Einrichtung fehlgeschlagen</string>
+    <string name="msg_key_installed">Schlüssel installiert und geprüft als %1$s</string>
+    <string name="msg_no_server">Kein Server ausgewählt</string>
+    <string name="msg_rotation_failed">Schlüsselerneuerung fehlgeschlagen</string>
+    <string name="msg_panic_failed">Notfall-Sperrung fehlgeschlagen; lokale Zugangsdaten gelöscht</string>
+    <string name="msg_export_done">Audit-Protokoll exportiert</string>
+    <string name="msg_export_failed">Export fehlgeschlagen</string>
+    <string name="msg_export_no_destination">Exportziel konnte nicht geöffnet werden</string>
+    <string name="msg_biometric_failed">Biometrische Authentifizierung fehlgeschlagen oder abgebrochen</string>
+    <string name="bio_rotate_title">SSH-Schlüssel erneuern</string>
+    <string name="bio_rotate_subtitle">Biometrische Bestätigung zum Erneuern der Zugangsdaten erforderlich</string>
+    <string name="bio_panic_title">Notfall-Sperrung</string>
+    <string name="bio_panic_subtitle">Entfernt den Serverzugang und löscht lokale Zugangsdaten</string>
 </resources>

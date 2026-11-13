@@ -153,4 +153,25 @@
     <string name="onb_done_hostkey">Host key: %1$s</string>
     <string name="onb_done_jumpkey">Jump key: %1$s</string>
     <string name="action_back">Back</string>
+
+    <!-- ViewModel messages -->
+    <string name="msg_key_generated_filled">SSH key generated — private key login filled with agent key</string>
+    <string name="msg_key_generated">SSH key generated successfully</string>
+    <string name="msg_key_generate_failed">Failed to generate SSH key</string>
+    <string name="msg_connected_elevated">Connected as %1$s — elevated privilege detected</string>
+    <string name="msg_connected_confirm">Connected as %1$s — confirm key install</string>
+    <string name="msg_connection_failed">Connection failed</string>
+    <string name="msg_setup_failed">Setup failed</string>
+    <string name="msg_key_installed">Key installed and verified as %1$s</string>
+    <string name="msg_no_server">No server selected</string>
+    <string name="msg_rotation_failed">Key rotation failed</string>
+    <string name="msg_panic_failed">Panic revoke failed; local credentials wiped</string>
+    <string name="msg_export_done">Audit log exported</string>
+    <string name="msg_export_failed">Export failed</string>
+    <string name="msg_export_no_destination">Could not open export destination</string>
+    <string name="msg_biometric_failed">Biometric authentication failed or cancelled</string>
+    <string name="bio_rotate_title">Rotate SSH key</string>
+    <string name="bio_rotate_subtitle">Biometric required to rotate credentials</string>
+    <string name="bio_panic_title">Emergency revoke</string>
+    <string name="bio_panic_subtitle">This removes server access and wipes local credentials</string>
 </resources>
