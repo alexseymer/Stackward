@@ -9,7 +9,13 @@ import java.util.Base64
  * installs it into the agent user's home. Installing touches only `~/.stackward/` —
  * no root, no sudo.
  */
-class CheckScriptBundle(context: Context) {
+/** What the runner needs from the bundled script (an interface so the runner is unit-testable). */
+interface CheckScriptSource {
+    val version: Int
+    fun installCommand(): String
+}
+
+class CheckScriptBundle(context: Context) : CheckScriptSource {
 
     private val appContext = context.applicationContext
 
@@ -17,9 +23,9 @@ class CheckScriptBundle(context: Context) {
         appContext.assets.open(ASSET_NAME).bufferedReader().use { it.readText() }
     }
 
-    val version: Int get() = versionOf(text)
+    override val version: Int get() = versionOf(text)
 
-    fun installCommand(): String = installCommand(text)
+    override fun installCommand(): String = installCommand(text)
 
     companion object {
         const val ASSET_NAME = "check.sh"

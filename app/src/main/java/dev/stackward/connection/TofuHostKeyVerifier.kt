@@ -1,6 +1,5 @@
 package dev.stackward.connection
 
-import android.util.Base64
 import net.schmizz.sshj.transport.verification.HostKeyVerifier
 import java.security.MessageDigest
 import java.security.PublicKey
@@ -9,7 +8,7 @@ import java.security.PublicKey
  * Trust-on-first-use host key verification with persistent pinning.
  */
 class TofuHostKeyVerifier(
-    private val pinStore: HostKeyPinStore,
+    private val pinStore: HostKeyPins,
     private val host: String,
     private val port: Int,
 ) : HostKeyVerifier {
@@ -41,7 +40,7 @@ class TofuHostKeyVerifier(
 object HostKeyFingerprint {
     fun sha256Base64(publicKey: PublicKey): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(publicKey.encoded)
-        return Base64.encodeToString(digest, Base64.NO_WRAP)
+        return java.util.Base64.getEncoder().encodeToString(digest)
     }
 
     fun openSshLabel(fingerprint: String): String = "SHA256:$fingerprint"

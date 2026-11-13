@@ -3,18 +3,24 @@ package dev.stackward.connection
 import android.content.Context
 import dev.stackward.crypto.SecurePrefs
 
+/** Read/write access to pinned host-key fingerprints (an interface so verification is unit-testable). */
+interface HostKeyPins {
+    fun getPin(host: String, port: Int): String?
+    fun savePin(host: String, port: Int, fingerprint: String)
+}
+
 /**
  * Stores TOFU-pinned SSH host key fingerprints per host:port.
  */
-class HostKeyPinStore(context: Context) {
+class HostKeyPinStore(context: Context) : HostKeyPins {
 
     private val prefs = SecurePrefs.create(context, PREFS_NAME)
 
-    fun getPin(host: String, port: Int): String? {
+    override fun getPin(host: String, port: Int): String? {
         return prefs.getString(pinKey(host, port), null)
     }
 
-    fun savePin(host: String, port: Int, fingerprint: String) {
+    override fun savePin(host: String, port: Int, fingerprint: String) {
         prefs.edit()
             .putString(pinKey(host, port), fingerprint)
             .apply()

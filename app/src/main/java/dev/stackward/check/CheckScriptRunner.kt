@@ -1,7 +1,11 @@
 package dev.stackward.check
 
-import dev.stackward.connection.SshConnectionManager
 import dev.stackward.onboarding.ServerProfile
+
+/** Runs one command on a host and returns its stdout (throws on failure). */
+fun interface RemoteCommandExecutor {
+    suspend fun execute(profile: ServerProfile, command: String): String
+}
 
 /** Outcome of one check.sh run against a host. */
 sealed class CheckRunResult {
@@ -15,8 +19,8 @@ sealed class CheckRunResult {
  * bundled in the app, the bundled copy is installed (home directory only) and the check re-run.
  */
 class CheckScriptRunner(
-    private val ssh: SshConnectionManager,
-    private val bundle: CheckScriptBundle,
+    private val executor: RemoteCommandExecutor,
+    private val bundle: CheckScriptSource,
 ) {
 
     suspend fun run(profile: ServerProfile): CheckRunResult {
@@ -37,7 +41,7 @@ class CheckScriptRunner(
 
     /** Installs the bundled script; returns null on success, else a human-readable reason. */
     suspend fun install(profile: ServerProfile): String? = try {
-        val output = ssh.execute(profile, bundle.installCommand())
+        val output = executor.execute(profile, bundle.installCommand())
         if (output.contains("STACKWARD_CHECK_INSTALLED=")) null
         else "check.sh install gave unexpected output: ${output.take(200)}"
     } catch (error: Exception) {
@@ -47,7 +51,7 @@ class CheckScriptRunner(
 
     private suspend fun runOnce(profile: ServerProfile): CheckRunResult {
         return try {
-            val output = ssh.execute(profile, COMMAND)
+            val output = executor.execute(profile, COMMAND)
             CheckRunResult.Success(CheckScriptParser.parse(output))
         } catch (error: CheckScriptParseException) {
             CheckRunResult.Failure(error.message ?: "check.sh returned malformed JSON")
