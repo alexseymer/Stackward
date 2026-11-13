@@ -1,5 +1,7 @@
 # Stackward — Build Phases
 
+> **Historical.** This file records how the project was built, including features that were later removed (risk-gated actions, Gemma summary, Proxmox, polling, notifications — PRD D1, D5–D8). For what the code does now see [ARCHITECTURE.md](ARCHITECTURE.md); for what "done" means see [ACCEPTANCE.md](ACCEPTANCE.md).
+
 Two build sequences: the **pre-pivot phases (0–5)** that built the
 credential/connection layer and the legacy log/Gemma subsystem, and the
 **Lookout phases (A–F)** built on top of them per `STRATEGY.md`'s
