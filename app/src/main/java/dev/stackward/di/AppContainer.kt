@@ -3,7 +3,6 @@ package dev.stackward.di
 import android.content.Context
 import dev.stackward.check.CheckResultStore
 import dev.stackward.check.CheckScriptRunner
-import dev.stackward.check.HostPollingRepository
 import dev.stackward.connection.ConnectionHealthRepository
 import dev.stackward.connection.HostKeyPinStore
 import dev.stackward.connection.SshConnectionManager
@@ -27,7 +26,6 @@ class AppContainer(context: Context) {
     val ssh = SshConnectionManager(keyManager, pinStore, securitySettings, connectionHealth)
     val checkScriptRunner = CheckScriptRunner(ssh)
     val checkResultStore = CheckResultStore(appContext)
-    val hostPollingRepository = HostPollingRepository(appContext)
     val auditLogRepository = AuditLogRepository(appContext)
     val keyRotationService = KeyRotationService(
         keyManager = keyManager,
@@ -45,7 +43,6 @@ class AppContainer(context: Context) {
         auditLog = auditLogRepository,
         connectionHealth = connectionHealth,
         checkResultStore = checkResultStore,
-        hostPollingRepository = hostPollingRepository,
     )
     val onboardingFlow = OnboardingFlow(
         context = appContext,

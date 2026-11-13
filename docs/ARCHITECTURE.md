@@ -131,19 +131,7 @@ deliberately separate — see `STRATEGY.md`/`PRD.md`.
   that check's age.
 - **Host detail** — issues, suggestions with an Apply button per the gate
   above, and an optional AI summary (see layer 6).
-- **Per-host polling** *(shipped, slated for removal — PRD D1 / G1)* —
-  manual, or `CheckWorker` (a WorkManager periodic job, one per host) every 4
-  hours. `HostPollingRepository` stores the per-host setting.
-- **Notifications** *(shipped, slated for removal — PRD D1 / G1)* —
-  `CheckNotifier` fires a critical-issue-only notification from
-  `CheckWorker`'s scheduled runs (not from a manual "check now"). Best-effort:
-  missing the `POST_NOTIFICATIONS` permission just means no alert shows.
-
-**Why these are going away:** a background run opens an SSH session with the
-user absent, which the product no longer allows (PRD invariant 2), and a
-Keystore key that demands biometric on every use can't sign unattended
-anyway. The legacy hourly `LogDigestWorker` has the same problem. Once removed,
-checks happen only from the dashboard/host detail after biometric confirmation.
+- **No background checks** — there is no scheduler, WorkManager job or notification. A background run would open an SSH session with the user absent, which the product does not allow (PRD invariant 2), and a Keystore key that demands biometric on every use cannot sign unattended anyway. Checks happen only from the dashboard/host detail after biometric confirmation. A one-time `LegacyBackgroundCleanup` cancels jobs enqueued by older builds.
 
 ### 6. Optional On-Device Summary
 
@@ -169,10 +157,7 @@ gated path (layer 3–4).
 - Proxmox API token, same biometric gate (legacy subsystem only).
 - No credentials persisted in plaintext outside Keystore.
 - **Panic revoke** clears both subsystems' local state: keys, profiles, pin
-  store, audit log, *and* every host's `CheckResultStore` entry plus its
-  scheduled `CheckWorker` job — a gap fixed after `/code-review` found the
-  wipe path predated check.sh and left scheduled polling running
-  indefinitely post-wipe. (When G1 removes polling, this cleanup shrinks with it.)
+  store, audit log, *and* every host's `CheckResultStore` entry.
 
 ## Bootstrap Flow
 
@@ -268,5 +253,4 @@ logs — feed the same summarization pipeline layer 6 reuses.
 8. Panic revoke clears state for *both* subsystems, including scheduled
    background jobs — nothing keeps running after an emergency wipe.
 9. **No unattended host access** (PRD invariant 2): every SSH session starts
-   from the user in the app, confirmed by biometric. *Not yet true in the
-   code* — auto-polling and the legacy hourly digest violate it (→ G1).
+   from the user in the app, confirmed by biometric. True in the code since G1 was closed: no scheduled job opens SSH.

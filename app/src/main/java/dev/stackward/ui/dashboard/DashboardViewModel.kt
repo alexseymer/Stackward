@@ -5,9 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.stackward.StackwardApplication
 import dev.stackward.check.CheckRunResult
-import dev.stackward.check.CheckWorker
 import dev.stackward.check.IssueSeverity
-import dev.stackward.check.PollingMode
 import dev.stackward.check.coverageGaps
 import dev.stackward.check.maxSeverity
 import dev.stackward.onboarding.ServerProfile
@@ -19,7 +17,6 @@ import kotlinx.coroutines.launch
 
 data class HostSummary(
     val profile: ServerProfile,
-    val pollingMode: PollingMode,
     val lastCheckedAt: Long?,
     val issueCount: Int,
     val maxSeverity: IssueSeverity?,
@@ -74,16 +71,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun setPollingMode(profileId: String, mode: PollingMode) {
-        container.hostPollingRepository.setMode(profileId, mode)
-        if (mode == PollingMode.AUTO_4H) {
-            CheckWorker.scheduleAuto4h(getApplication(), profileId)
-        } else {
-            CheckWorker.cancel(getApplication(), profileId)
-        }
-        updateHost(profileId) { it.copy(pollingMode = mode) }
-    }
-
     private fun updateHost(profileId: String, transform: (HostSummary) -> HostSummary) {
         _uiState.update { state ->
             state.copy(
@@ -98,7 +85,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val result = container.checkResultStore.load(profile.id)
         return HostSummary(
             profile = profile,
-            pollingMode = container.hostPollingRepository.getMode(profile.id),
             lastCheckedAt = container.checkResultStore.getLastCheckedAt(profile.id),
             issueCount = result?.issues?.size ?: 0,
             maxSeverity = result?.maxSeverity(),

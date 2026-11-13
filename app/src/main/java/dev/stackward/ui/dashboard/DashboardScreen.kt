@@ -1,12 +1,7 @@
 package dev.stackward.ui.dashboard
 
-import android.Manifest
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,7 +20,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,7 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import dev.stackward.check.IssueSeverity
-import dev.stackward.check.PollingMode
 import java.text.DateFormat
 import java.util.Date
 
@@ -68,13 +61,6 @@ fun DashboardScreen(
     onOpenSettings: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    // Critical-issue notifications from scheduled checks are best-effort: if this is
-    // denied, auto-polling still runs, it just won't alert in the background. See
-    // CheckNotifier.notifyIfCritical.
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) {}
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -106,12 +92,6 @@ fun DashboardScreen(
                         host = host,
                         onClick = { onOpenHost(host.profile.id) },
                         onCheckNow = { viewModel.checkNow(host.profile.id) },
-                        onPollingModeChange = { mode ->
-                            viewModel.setPollingMode(host.profile.id, mode)
-                            if (mode == PollingMode.AUTO_4H && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            }
-                        },
                     )
                 }
             }
@@ -124,7 +104,6 @@ private fun HostRow(
     host: HostSummary,
     onClick: () -> Unit,
     onCheckNow: () -> Unit,
-    onPollingModeChange: (PollingMode) -> Unit,
 ) {
     Card(
         modifier = Modifier
@@ -165,21 +144,6 @@ private fun HostRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(top = 4.dp, start = 24.dp),
-                )
-            }
-            Row(
-                modifier = Modifier.padding(top = 8.dp, start = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FilterChip(
-                    selected = host.pollingMode == PollingMode.MANUAL,
-                    onClick = { onPollingModeChange(PollingMode.MANUAL) },
-                    label = { Text("Manual") },
-                )
-                FilterChip(
-                    selected = host.pollingMode == PollingMode.AUTO_4H,
-                    onClick = { onPollingModeChange(PollingMode.AUTO_4H) },
-                    label = { Text("Auto 4h") },
                 )
             }
         }

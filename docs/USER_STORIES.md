@@ -82,7 +82,7 @@ or in my pocket.
 | AC | Status |
 |----|--------|
 | Each check/action session is preceded by a biometric confirmation | ❌ (the Keystore key requires one per use, but the signing path never drives the prompt — gap G2, **verify on a device**) |
-| No scheduled/background code opens SSH sessions | ❌ (`CheckWorker` and `LogDigestWorker` still do — gap G1) |
+| No scheduled/background code opens SSH sessions | ✅ (workers removed; old jobs cancelled once on upgrade) |
 | Devices that can't make a biometric-bound key are refused or clearly warned | ❌ (today: silent software-key fallback — open question Q2) |
 
 **PRD reference:** [§1 invariant 2](../PRD.md#1-summary), gaps G1/G2.
@@ -160,7 +160,7 @@ script is compromised or returns malicious suggestions."
 
 ---
 
-## Epic I — Polling & notifications *(shipped; to be removed — PRD D1, gap G1)*
+## Epic I — Polling & notifications *(removed — PRD D1, gap G1)*
 
 These stories describe behavior that exists in the code but that the revised
 product no longer allows: background checks open SSH sessions with the user
