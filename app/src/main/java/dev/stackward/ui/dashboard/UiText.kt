@@ -8,7 +8,7 @@ import dev.stackward.check.CoverageGap
 import dev.stackward.check.HostHealth
 import dev.stackward.check.HostHealthMapper
 
-/** Localized text for dashboard/host-detail state. Strings live in res/values*/strings.xml. */
+/** Localized text for dashboard/host-detail state. Strings live in the res values folders (strings.xml, en and de). */
 object UiText {
 
     fun age(context: Context, age: Age): String = when (age.unit) {
