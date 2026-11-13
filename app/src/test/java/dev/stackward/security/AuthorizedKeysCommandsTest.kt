@@ -14,8 +14,8 @@ import org.junit.Test
 class AuthorizedKeysCommandsTest {
 
     private lateinit var home: File
-    private val keyA = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA a@phone"
-    private val keyB = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB b@phone"
+    private val keyA = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA a@phone-one"
+    private val keyB = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB b@phone-two"
 
     @Before
     fun setUp() {
@@ -60,7 +60,7 @@ class AuthorizedKeysCommandsTest {
         sh(AuthorizedKeysCommands.pushKey(keyA))
         sh(AuthorizedKeysCommands.pushKey(keyB))
 
-        assertEquals("key revoked", sh(AuthorizedKeysCommands.revokeKey("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")))
+        assertEquals("key revoked", sh(AuthorizedKeysCommands.revokeKey("a@phone-one")))
 
         assertEquals(listOf(keyB), authorizedKeys())
     }
@@ -69,7 +69,7 @@ class AuthorizedKeysCommandsTest {
     fun revokeKey_canRemoveTheLastKeyAndToleratesMissingFile() {
         assertEquals("key revoked", sh(AuthorizedKeysCommands.revokeKey("whatever")))
         sh(AuthorizedKeysCommands.pushKey(keyA))
-        sh(AuthorizedKeysCommands.revokeKey("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"))
+        sh(AuthorizedKeysCommands.revokeKey("a@phone-one"))
         assertEquals(emptyList<String>(), authorizedKeys())
     }
 
