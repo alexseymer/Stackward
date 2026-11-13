@@ -203,7 +203,7 @@ Nothing in the app can change a host's state beyond its own footprint:
 5. **Through a jump host** — I onboard an internal host via a bastion; the
    bastion only relays and doesn't appear as a monitored host.
 6. **Lost phone** — From a trusted machine I can remove the device key from my
-   hosts (`stackward-revoke-key`); on the phone, panic revoke wipes everything
+   hosts (clear the agent's `authorized_keys`); on the phone, panic revoke wipes everything
    local.
 
 ## 7. Success Metrics
@@ -232,7 +232,7 @@ How each metric is measured, and the scenarios that must pass for v1, are in
 | Heuristic false positives or false "all clear" | Real-filesystem filtering, tests with fixtures, `coverage` reporting; false-positive rate tracked during dogfooding |
 | Setup password exposure | Used once, held only in memory, wiped after key install whether setup succeeds or fails |
 | Operator connects as root / passwordless sudo | Elevation detected at onboarding; explicit acknowledgment, recorded in the audit log |
-| Lost or stolen phone | Key needs biometric for every use and is invalidated by biometric re-enrollment; no unattended key use (invariant 2); panic revoke and server-side `stackward-revoke-key` |
+| Lost or stolen phone | Key needs biometric for every use and is invalidated by biometric re-enrollment; no unattended key use (invariant 2); panic revoke and clearing `authorized_keys` on the host |
 | Installed `check.sh` drifts from the app's version | App replaces it when its bundled version is newer; `scripts/verify_check_sh_sync.sh` guards copies in the repo |
 | Biometric fatigue when checking many hosts | Accepted for v1 (one confirmation per host per check); see open question Q1 |
 

@@ -40,11 +40,10 @@ class KeyRotationService(
         keyManager.generateKeypair(inactiveAlias, replaceExisting = false)
 
         val newPublicLine = keyManager.getPublicKeyOpenSSH(inactiveAlias)
-        val quotedNewKey = shellSingleQuote(newPublicLine)
 
         ssh.executeWithRetry(
             profile = profile,
-            command = "sudo /usr/local/sbin/stackward-push-key $quotedNewKey",
+            command = AuthorizedKeysCommands.pushKey(newPublicLine),
             keyAlias = activeAlias,
         )
 
@@ -64,10 +63,9 @@ class KeyRotationService(
             )
         }
 
-        val quotedMarker = shellSingleQuote(oldMarker)
         ssh.executeWithRetry(
             profile = profile,
-            command = "sudo /usr/local/sbin/stackward-revoke-key $quotedMarker",
+            command = AuthorizedKeysCommands.revokeKey(oldMarker),
             keyAlias = inactiveAlias,
         )
 
@@ -88,9 +86,5 @@ class KeyRotationService(
             newPublicKeyLine = newPublicLine,
             message = "Key rotated. Old key revoked on server.",
         )
-    }
-
-    private fun shellSingleQuote(value: String): String {
-        return "'" + value.replace("'", "'\"'\"'") + "'"
     }
 }
