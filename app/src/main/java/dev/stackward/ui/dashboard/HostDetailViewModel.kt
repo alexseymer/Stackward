@@ -36,9 +36,17 @@ class HostDetailViewModel(application: Application) : AndroidViewModel(applicati
                 profile = profile,
                 result = profile?.let { p -> container.checkResultStore.load(p.id) },
                 lastCheckedAt = profile?.let { p -> container.checkResultStore.getLastCheckedAt(p.id) },
-                error = null,
+                error = profile?.let(::unresolvedFailure),
             )
         }
+    }
+
+    /** The last failure message, unless a later successful check superseded it. */
+    private fun unresolvedFailure(profile: ServerProfile): String? {
+        val store = container.checkResultStore
+        val failedAt = store.getLastFailureAt(profile.id) ?: return null
+        val checkedAt = store.getLastCheckedAt(profile.id)
+        return if (checkedAt == null || failedAt >= checkedAt) store.getLastFailureMessage(profile.id) else null
     }
 
     fun checkNow() {
@@ -57,6 +65,7 @@ class HostDetailViewModel(application: Application) : AndroidViewModel(applicati
                     }
                 }
                 is CheckRunResult.Failure -> {
+                    container.checkResultStore.saveFailure(profile.id, outcome.message)
                     _uiState.update { it.copy(isChecking = false, error = outcome.message) }
                 }
             }

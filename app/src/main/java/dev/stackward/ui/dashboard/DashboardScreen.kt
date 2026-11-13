@@ -34,9 +34,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import dev.stackward.check.HostHealth
+import dev.stackward.check.HostHealthMapper
 import dev.stackward.check.IssueSeverity
-import java.text.DateFormat
-import java.util.Date
 
 private val StatusGreen = Color(0xFF2E7D32)
 private val StatusAmber = Color(0xFFF9A825)
@@ -44,12 +44,17 @@ private val StatusOrange = Color(0xFFEF6C00)
 private val StatusRed = Color(0xFFC62828)
 private val StatusGray = Color(0xFF9E9E9E)
 
-private fun statusColor(severity: IssueSeverity?): Color = when (severity) {
-    null -> StatusGray
-    IssueSeverity.LOW -> StatusGreen
-    IssueSeverity.MEDIUM -> StatusAmber
-    IssueSeverity.HIGH -> StatusOrange
-    IssueSeverity.CRITICAL -> StatusRed
+private fun statusColor(host: HostSummary): Color = when (host.health) {
+    HostHealth.NEVER_CHECKED -> StatusGray
+    HostHealth.UNREACHABLE -> StatusRed
+    HostHealth.STALE -> StatusAmber
+    HostHealth.CLEAN -> StatusGreen
+    HostHealth.ISSUES -> when (host.maxSeverity) {
+        IssueSeverity.CRITICAL -> StatusRed
+        IssueSeverity.HIGH -> StatusOrange
+        IssueSeverity.MEDIUM -> StatusAmber
+        else -> StatusGreen
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,6 +71,13 @@ fun DashboardScreen(
             TopAppBar(
                 title = { Text("Stackward") },
                 actions = {
+                    if (uiState.isCheckingAll) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    } else if (uiState.hosts.isNotEmpty()) {
+                        IconButton(onClick = viewModel::checkAll) {
+                            Icon(Icons.Filled.Refresh, contentDescription = "Check all hosts")
+                        }
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = "Settings")
                     }
@@ -87,6 +99,16 @@ fun DashboardScreen(
             }
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
+                uiState.batchMessage?.let { message ->
+                    item {
+                        Text(
+                            message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
+                }
                 items(uiState.hosts, key = { it.profile.id }) { host ->
                     HostRow(
                         host = host,
@@ -117,7 +139,7 @@ private fun HostRow(
                 Box(
                     modifier = Modifier
                         .size(12.dp)
-                        .background(color = statusColor(host.maxSeverity), shape = CircleShape),
+                        .background(color = statusColor(host), shape = CircleShape),
                 )
                 Text(
                     text = host.profile.host,
@@ -151,14 +173,19 @@ private fun HostRow(
 }
 
 private fun statusLabel(host: HostSummary): String {
-    val lastChecked = host.lastCheckedAt?.let {
-        DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it))
-    } ?: "never checked"
+    val now = System.currentTimeMillis()
+    val age = host.lastCheckedAt?.let { HostHealthMapper.ageLabel(it, now) }
     val blind = if (host.blindSpots > 0) " · ${host.blindSpots} blind spot(s)" else ""
-    return if (host.maxSeverity == null && host.issueCount == 0) {
-        if (host.blindSpots > 0) "No issues found$blind — last checked $lastChecked"
-        else "No issues — last checked $lastChecked"
-    } else {
-        "${host.issueCount} issue(s)$blind — last checked $lastChecked"
+    return when (host.health) {
+        HostHealth.NEVER_CHECKED -> "Never checked"
+        HostHealth.UNREACHABLE -> {
+            val failedAgo = host.lastFailureAt?.let { HostHealthMapper.ageLabel(it, now) } ?: "just now"
+            val last = age?.let { " — last good check $it" } ?: ""
+            "Unreachable ($failedAgo)$last"
+        }
+        HostHealth.STALE -> "Stale — checked $age${if (host.issueCount > 0) " · ${host.issueCount} issue(s)" else ""}$blind"
+        HostHealth.CLEAN ->
+            if (host.blindSpots > 0) "No issues found$blind — checked $age" else "No issues — checked $age"
+        HostHealth.ISSUES -> "${host.issueCount} issue(s)$blind — checked $age"
     }
 }
