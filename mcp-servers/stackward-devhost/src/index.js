@@ -47,7 +47,9 @@ const DIAGNOSTICS = {
   docker_exited: "docker ps --filter status=exited --format '{{.Names}}' 2>/dev/null || true",
 };
 
-// Mirrors the JSON shape scripts/check.sh must produce — see PRD.md §5.0.
+// Mirrors the JSON shape scripts/check.sh must produce — see PRD.md §5.1.
+// Unknown fields (e.g. a legacy suggestions[] array) are ignored, like the app does.
+const Coverage = z.enum(["ok", "denied", "absent"]);
 const CheckResultSchema = z.object({
   timestamp: z.string(),
   hostname: z.string(),
@@ -56,16 +58,10 @@ const CheckResultSchema = z.object({
       type: z.string().min(1),
       severity: z.string().min(1),
       message: z.string().min(1),
+      advice: z.string().optional(),
     }),
   ),
-  suggestions: z.array(
-    z.object({
-      id: z.string().min(1),
-      risk: z.enum(["safe", "risky", "scary"]),
-      action: z.string().min(1),
-      reason: z.string().default(""),
-    }),
-  ),
+  coverage: z.object({ journal: Coverage, docker: Coverage, systemd: Coverage }),
 });
 
 function validateCheckJson(raw) {
@@ -91,7 +87,7 @@ function checkResultFields(validation, { ok = validation.valid, ...extra } = {})
     ok,
     validationError: validation.error,
     issueCount: validation.parsed?.issues?.length ?? 0,
-    suggestionCount: validation.parsed?.suggestions?.length ?? 0,
+    coverage: validation.parsed?.coverage ?? null,
     parsed: validation.parsed,
     ...extra,
   };
@@ -110,7 +106,7 @@ server.registerTool(
     title: "Run check.sh locally",
     description:
       "Executes scripts/check.sh on this machine (no SSH, no remote host) and validates the JSON " +
-      "it prints against the PRD schema (timestamp, hostname, issues[], suggestions[]). Use this for " +
+      "it prints against the PRD schema (timestamp, hostname, issues[] with optional advice, coverage{journal,docker,systemd}). Use this for " +
       "the fast local dev loop while iterating on check.sh logic.",
     inputSchema: {},
   },

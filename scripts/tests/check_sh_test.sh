@@ -58,7 +58,7 @@ EOF
     printf 'UNIT LOAD ACTIVE SUB DESCRIPTION\n\n0 loaded units listed.\n' >"${CASE_DIR}/systemctl.out"
     printf 'State Recv-Q Send-Q Local Address:Port\nLISTEN 0 128 0.0.0.0:22\nLISTEN 0 128 0.0.0.0:80\n' >"${CASE_DIR}/ss.out"
     : >"${CASE_DIR}/journalctl.out"
-    rm -f "${CASE_DIR}/docker.out"
+    : >"${CASE_DIR}/docker.out"
     export CASE_DIR
 }
 
@@ -96,12 +96,12 @@ PY
     fi
 }
 
-SCHEMA='isinstance(d.get("timestamp"), str) and isinstance(d.get("hostname"), str) and isinstance(d["issues"], list) and isinstance(d["suggestions"], list) and all({"type","severity","message"} <= set(i) for i in d["issues"]) and all({"id","risk","action"} <= set(s) for s in d["suggestions"])'
+SCHEMA='isinstance(d.get("timestamp"), str) and isinstance(d.get("hostname"), str) and isinstance(d["issues"], list) and "suggestions" not in d and all({"type","severity","message","advice"} <= set(i) for i in d["issues"]) and set(d["coverage"]) == {"journal","docker","systemd"} and all(v in ("ok","denied","absent") for v in d["coverage"].values())'
 
 new_case healthy; run_check
 assert_py "healthy: valid schema" "${SCHEMA}"
 assert_py "healthy: no issues" 'd["issues"] == []'
-assert_py "healthy: only the two safe suggestions" 'sorted(s["action"] for s in d["suggestions"]) == ["list_failed_services", "tail_journal"]'
+assert_py "healthy: everything readable" 'd["coverage"] == {"journal": "ok", "docker": "ok", "systemd": "ok"}'
 
 new_case full_disk
 cat >"${CASE_DIR}/df.out" <<'EOF'
@@ -112,7 +112,7 @@ EOF
 run_check
 assert_py "disk 96%: one critical disk issue" '[(i["type"], i["severity"]) for i in d["issues"]] == [("disk", "critical")]'
 assert_py "disk 96%: names the mount" '"/ at 96%" in d["issues"][0]["message"]'
-assert_py "disk 96%: offers cleanup_old_logs" '"cleanup_old_logs" in [s["action"] for s in d["suggestions"]]'
+assert_py "disk 96%: advice is text only" '"advice" in d["issues"][0] and "sudo" not in d["issues"][0]["advice"]'
 
 new_case high_disk
 cat >"${CASE_DIR}/df.out" <<'EOF'
@@ -139,7 +139,6 @@ new_case ssh_password
 echo 'PasswordAuthentication yes' >"${CASE_DIR}/sshd_config"
 run_check
 assert_py "password auth: critical security issue" '[(i["type"], i["severity"]) for i in d["issues"]] == [("security", "critical")]'
-assert_py "password auth: suggestion present" '"disable_ssh_password_auth" in [s["action"] for s in d["suggestions"]]'
 
 new_case ssh_password_commented
 echo '#PasswordAuthentication yes' >"${CASE_DIR}/sshd_config"
@@ -164,8 +163,29 @@ assert_py "2 exited containers: one medium docker issue" '[(i["type"], i["severi
 new_case no_optional_tools
 rm -f "${BIN}/ss" "${BIN}/journalctl"
 run_check
-assert_py "no ss/journalctl/docker: still valid JSON, no issues" "${SCHEMA} and d[\"issues\"] == []"
+assert_py "no ss/journalctl: still valid JSON, no issues" "${SCHEMA} and d[\"issues\"] == []"
+assert_py "journalctl missing: coverage says absent, not ok" 'd["coverage"]["journal"] == "absent"'
 make_stub ss; make_stub journalctl
+
+new_case journal_denied
+printf 'No journal files were opened due to insufficient permissions.\n' >"${CASE_DIR}/journalctl.out"
+run_check
+assert_py "journal unreadable: coverage says denied (never a silent all-clear)" 'd["coverage"]["journal"] == "denied" and d["issues"] == []'
+
+new_case docker_denied
+rm -f "${CASE_DIR}/docker.out"
+run_check
+assert_py "docker present but unreadable: coverage says denied" 'd["coverage"]["docker"] == "denied"'
+
+new_case systemd_denied
+rm -f "${CASE_DIR}/systemctl.out"
+run_check
+assert_py "systemctl fails: coverage says denied" 'd["coverage"]["systemd"] == "denied"'
+
+new_case advice_is_text
+printf 'UNIT LOAD ACTIVE SUB DESCRIPTION\nx.service loaded failed failed X\n' >"${CASE_DIR}/systemctl.out"
+run_check
+assert_py "advice for a failed unit names the unit" '"x.service" in d["issues"][0]["advice"]'
 
 # --- Known bugs, pinned until fixed (see the check.sh cleanup issue) ---
 new_case loop_mount
@@ -184,14 +204,6 @@ Filesystem      Size  Used Avail Use% Mounted on
 EOF
 run_check
 assert_py "quote/backslash in a mount name still yields valid JSON" "${SCHEMA}" "#89"
-
-new_case cleanup_threshold
-cat >"${CASE_DIR}/df.out" <<'EOF'
-Filesystem      Size  Used Avail Use% Mounted on
-/dev/sda1       100G   82G   18G  82% /
-EOF
-run_check
-assert_py "82% disk: no cleanup suggestion below the 85% warning threshold" '"cleanup_old_logs" not in [s["action"] for s in d["suggestions"]]' "#89"
 
 echo
 echo "check.sh tests: ${pass} passed, ${fail} failed, ${xfail} known-bug (XFAIL), ${xpass} unexpectedly fixed (XPASS)"

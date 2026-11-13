@@ -25,7 +25,7 @@ object CheckScriptParser {
                 timestamp = json.getString("timestamp"),
                 hostname = json.getString("hostname"),
                 issues = json.getJSONArray("issues").toIssues(),
-                suggestions = json.getJSONArray("suggestions").toSuggestions(),
+                coverage = json.optJSONObject("coverage")?.toCoverage() ?: CheckCoverage(),
             )
         } catch (error: JSONException) {
             throw CheckScriptParseException("check.sh JSON missing expected field: ${error.message}")
@@ -45,24 +45,18 @@ object CheckScriptParser {
                             put("type", issue.type)
                             put("severity", issue.severity)
                             put("message", issue.message)
+                            issue.advice?.let { put("advice", it) }
                         },
                     )
                 }
             },
         )
         put(
-            "suggestions",
-            JSONArray().apply {
-                result.suggestions.forEach { suggestion ->
-                    put(
-                        JSONObject().apply {
-                            put("id", suggestion.id)
-                            put("risk", suggestion.risk)
-                            put("action", suggestion.action)
-                            put("reason", suggestion.reason)
-                        },
-                    )
-                }
+            "coverage",
+            JSONObject().apply {
+                put("journal", result.coverage.journal)
+                put("docker", result.coverage.docker)
+                put("systemd", result.coverage.systemd)
             },
         )
     }.toString()
@@ -75,22 +69,15 @@ object CheckScriptParser {
                     type = obj.getString("type"),
                     severity = obj.getString("severity"),
                     message = obj.getString("message"),
+                    advice = obj.optString("advice").takeIf { it.isNotBlank() },
                 ),
             )
         }
     }
 
-    private fun JSONArray.toSuggestions(): List<CheckSuggestion> = buildList {
-        for (index in 0 until length()) {
-            val obj = getJSONObject(index)
-            add(
-                CheckSuggestion(
-                    id = obj.getString("id"),
-                    risk = obj.getString("risk"),
-                    action = obj.getString("action"),
-                    reason = obj.optString("reason"),
-                ),
-            )
-        }
-    }
+    private fun JSONObject.toCoverage() = CheckCoverage(
+        journal = optString("journal", CheckCoverage.UNKNOWN),
+        docker = optString("docker", CheckCoverage.UNKNOWN),
+        systemd = optString("systemd", CheckCoverage.UNKNOWN),
+    )
 }

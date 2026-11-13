@@ -190,9 +190,11 @@ private fun statusLabel(host: HostSummary): String {
     val lastChecked = host.lastCheckedAt?.let {
         DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it))
     } ?: "never checked"
+    val blind = if (host.blindSpots > 0) " · ${host.blindSpots} blind spot(s)" else ""
     return if (host.maxSeverity == null && host.issueCount == 0) {
-        "No issues — last checked $lastChecked"
+        if (host.blindSpots > 0) "No issues found$blind — last checked $lastChecked"
+        else "No issues — last checked $lastChecked"
     } else {
-        "${host.issueCount} issue(s) — last checked $lastChecked"
+        "${host.issueCount} issue(s)$blind — last checked $lastChecked"
     }
 }

@@ -1,8 +1,8 @@
 # Stackward — Agent Guide
 
 Stackward is a **single-module Android app** (`:app`, Kotlin + Jetpack Compose,
-applicationId `dev.stackward`). It is an on-device LLM agent for monitoring/managing
-self-hosted infra (Linux/Proxmox/Docker) over SSH + the Proxmox REST API. There is
+applicationId `dev.stackward`). It is a read-only health check for the user's own Linux
+hosts, run from the phone over SSH. There is
 no backend, database, docker-compose, or web/dev server — the "product" is the client
 APK plus the user's own external infrastructure. See `README.md`, `PRD.md`, and
 `docs/`.
@@ -22,44 +22,27 @@ anymore.
 2. **`PRD.md`** — the spec. **Scope narrowed 2026-11-12 (D5–D8): v1 is a read-only
    health check for Linux hosts**; actions, the model, Proxmox and the older log
    features are being removed (§11 R1/R2). Don't add code in those areas. The
-   `CheckActionCatalog` text in item 5 below describes today's code, which R2 deletes. Its §11 lists where the
+   Its §11 lists where the
    spec is deliberately **ahead of the code** (since 2026-10-23: no background
    SSH, `check.sh` installed by onboarding, biometric-bound key use). Treat
    those rows as open work. Don't "fix" the PRD back to match the code there.
 3. **`docs/PHASES.md`, `docs/ARCHITECTURE.md`, `docs/USER_STORIES.md`,
-   the README "Status" table** — now describe the **current** architecture
-   (check.sh + dashboard + risk-gated actions) as primary, with the
-   pre-pivot Tier 1/2/3 + CapabilityPack system kept as a clearly-marked
-   "legacy" subsystem — it's still real, functional code
-   (`PermissionEngine`, `AgentKeyManager`, host-key TOFU pinning, the Logs
-   screen's Gemma summarization), reused by the new direction at the
-   connection/credential layer and for the optional AI summary, just no
-   longer the primary flow. Trust these docs' current-state claims; if a
-   change here makes them wrong, update them in the same commit rather
-   than letting them drift again.
+   the README "Status" table** — still describe the pre-narrowing scope
+   (actions, Gemma, Proxmox) in places; PRD §11 R5 tracks bringing them in
+   line. Where they disagree with the PRD, the PRD wins. Update them in the
+   same commit when a change makes a claim wrong.
 4. **`scripts/check.sh`** — detects disk/memory/service/security/log
-   issues on a host and returns JSON (`issues[]`, `suggestions[]` with
-   `risk ∈ safe|risky|scary`). Today it reaches hosts only via the admin-run
+   issues on a host and returns JSON (`issues[]`, each with a text-only
+   `advice`, plus `coverage` saying which sources were readable). Today it reaches hosts only via the admin-run
    `scripts/bootstrap_linux.sh`, which embeds it verbatim (PRD D2 says the app
    should install it during onboarding — gap G3, not built yet) — run
    `scripts/verify_check_sh_sync.sh` after touching either file; it caught
    real drift once already. Also run `scripts/tests/check_sh_test.sh` (stubbed
-   fixtures; known bugs are pinned as XFAIL) and
-   `scripts/verify_catalog_helper_parity.sh` (CI runs both).
-5. **`dev.stackward.check.CheckActionCatalog`** — the actual security
-   boundary for check.sh suggestions: phone-side, fixed, never trusts a
-   suggestion's self-reported risk. A RISKY action's command must be
-   reachable by the `stackward-agent` SSH user — currently via the
-   `stackward-check-action` sudoers helper (`scripts/bootstrap_linux.sh`),
-   which independently re-validates the action id. Adding a new RISKY
-   catalog entry means adding a matching case there too, or it will
-   silently fail against a real host (this exact bug shipped once and was
-   caught by `/code-review`, not by unit tests).
-
-`CapabilityPack.kt` should currently only expose `MONITOR` — that's the
-*legacy* subsystem's scope, unrelated to check.sh's own risk gate. If you
-see `MAINTAIN`/`PROVISION` reappear without a deliberate decision to widen
-scope, that's a regression.
+   fixtures; known bugs are pinned as XFAIL). CI runs both.
+5. **The app is read-only (PRD D5).** It runs `check.sh` and its own
+   onboarding/key steps on a host, nothing else. `advice` is text for a human;
+   no code path may execute it, and no `sudo` helper exists for running
+   commands. Don't reintroduce an action catalog, Apply UI or sudoers helper.
 
 ## MCP servers
 
@@ -108,21 +91,19 @@ next.
 - Unit tests (core logic): `./gradlew :app:testDebugUnitTest`
 - Android lint: `./gradlew :app:lintDebug` (report: `app/build/reports/lint-results-debug.html`)
 - Debug APK: `./gradlew :app:assembleDebug` (output: `app/build/outputs/apk/debug/app-debug.apk`, ~180 MB)
-- Shell scripts are linted separately with `shellcheck -x scripts/*.sh app/src/main/assets/scripts/*.sh`.
+- Shell scripts are linted separately with `shellcheck -x scripts/*.sh`.
 
 ### Gotchas / non-obvious notes
 - **No GUI/emulator testing here.** The VM has no `/dev/kvm`, so a hardware-accelerated
   Android emulator won't run and software emulation is not practical. Verify changes
   headlessly with the unit suite (`:app:testDebugUnitTest`) + `:app:assembleDebug`.
-  The app's core safety logic (`permissions.PermissionEngine` tier classification,
-  `inference.ActionProposalParser`, `proxmox.ProxmoxCommands`) is plain JVM code fully
+  The pure-logic parts (`check.CheckScriptParser`, models) are plain JVM code
   covered by unit tests, so that is the primary end-to-end check.
 - **First build is slow** (~1.5 min each): it downloads the Gradle distribution and all
   Maven deps, and AGP downloads `build-tools;36.0.0`. Subsequent builds reuse the daemon/cache.
-- Genuinely exercising the app end-to-end (SSH into a host, on-device Gemma inference)
-  additionally requires a physical Android device, an SSH-reachable Linux host
-  provisioned via `scripts/bootstrap_linux.sh`, and a multi-GB Gemma `.task`/`.litertlm`
-  model file (see `docs/MODEL_SETUP.md`). None of that is available in this VM.
+- Genuinely exercising the app end-to-end (SSH into a host, biometric key use)
+  additionally requires a physical Android device and an SSH-reachable Linux host
+  provisioned via `scripts/bootstrap_linux.sh`. None of that is available in this VM.
 - Git workflow: never push to `main`; use a `cursor/…` branch + draft PR and request
   review from `alexseymer` (see `.cursor/rules/git-workflow.mdc`).
 

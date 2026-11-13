@@ -41,7 +41,7 @@ details or keys.
 
 | Tool | Needs a host? | What it does |
 |------|----------------|--------------|
-| `run_check_script_locally` | No | Runs `scripts/check.sh` on the machine running the MCP server and validates the JSON against the PRD schema (`timestamp`, `hostname`, `issues[]`, `suggestions[]`, `suggestions[].risk ∈ {safe,risky,scary}`). Fastest loop for check.sh development. |
+| `run_check_script_locally` | No | Runs `scripts/check.sh` on the machine running the MCP server and validates the JSON against the PRD schema (`timestamp`, `hostname`, `issues[]` with optional `advice`, `coverage` with `journal`/`docker`/`systemd` ∈ `{ok,denied,absent}`). Fastest loop for check.sh development. |
 | `list_dev_hosts` | No | Lists configured host aliases (never keys/passphrases). |
 | `check_host` | Yes | SSHes to a configured host, runs `~/.stackward/check.sh` (must already be installed there), validates the response. |
 | `run_diagnostic` | Yes | Runs one hardcoded read-only diagnostic (`disk`, `memory`, `failed_services`, `ssh_password_auth`, `listening_ports`, `journal_errors`, `docker_exited`) — the same commands check.sh uses — for debugging a single detector in isolation. |
@@ -75,6 +75,5 @@ required.
 
 ## Keeping this in sync with check.sh
 
-If you add a new detector to `scripts/check.sh` (new `issue.type` or a new
-suggestion), mirror the equivalent read-only command into the `DIAGNOSTICS`
+If you add a new detector to `scripts/check.sh` (new `issue.type`), mirror the equivalent read-only command into the `DIAGNOSTICS`
 map in `src/index.js` so `run_diagnostic` stays useful for debugging it.
