@@ -26,14 +26,30 @@ object HostHealthMapper {
         else -> HostHealth.CLEAN
     }
 
-    /** "just now", "5 minutes ago", "3 hours ago", "3 days ago". */
-    fun ageLabel(timestamp: Long, now: Long): String {
+    /** Coarse age for display; the UI turns it into a localized, pluralized string. */
+    fun age(timestamp: Long, now: Long): Age {
         val minutes = ((now - timestamp).coerceAtLeast(0)) / 60_000
         return when {
-            minutes < 1 -> "just now"
-            minutes < 60 -> "$minutes minute${if (minutes == 1L) "" else "s"} ago"
-            minutes < 60 * 24 -> "${minutes / 60} hour${if (minutes / 60 == 1L) "" else "s"} ago"
-            else -> "${minutes / (60 * 24)} day${if (minutes / (60 * 24) == 1L) "" else "s"} ago"
+            minutes < 1 -> Age(AgeUnit.NOW, 0)
+            minutes < 60 -> Age(AgeUnit.MINUTES, minutes.toInt())
+            minutes < 60 * 24 -> Age(AgeUnit.HOURS, (minutes / 60).toInt())
+            else -> Age(AgeUnit.DAYS, (minutes / (60 * 24)).toInt())
+        }
+    }
+
+    /** English label, kept for tests and logs: "just now", "5 minutes ago", "3 days ago". */
+    fun ageLabel(timestamp: Long, now: Long): String {
+        val age = age(timestamp, now)
+        fun plural(unit: String) = "${age.value} $unit${if (age.value == 1) "" else "s"} ago"
+        return when (age.unit) {
+            AgeUnit.NOW -> "just now"
+            AgeUnit.MINUTES -> plural("minute")
+            AgeUnit.HOURS -> plural("hour")
+            AgeUnit.DAYS -> plural("day")
         }
     }
 }
+
+enum class AgeUnit { NOW, MINUTES, HOURS, DAYS }
+
+data class Age(val unit: AgeUnit, val value: Int)

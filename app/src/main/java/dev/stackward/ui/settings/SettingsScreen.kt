@@ -35,7 +35,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.stackward.R
 import dev.stackward.ui.security.BiometricGate
 import dev.stackward.util.findFragmentActivity
 import java.text.SimpleDateFormat
@@ -75,12 +77,9 @@ fun SettingsScreen(
     if (uiState.showRotateConfirm) {
         AlertDialog(
             onDismissRequest = viewModel::dismissRotateConfirm,
-            title = { Text("Rotate SSH key?") },
+            title = { Text(stringResource(R.string.settings_rotate_title)) },
             text = {
-                Text(
-                    "Generates a new device key, pushes it to the server, verifies access, " +
-                        "then revokes the old key. Requires biometric approval.",
-                )
+                Text(stringResource(R.string.settings_rotate_body))
             },
             confirmButton = {
                 Button(
@@ -90,12 +89,12 @@ fun SettingsScreen(
                     },
                     enabled = !uiState.isBusy,
                 ) {
-                    Text("Rotate")
+                    Text(stringResource(R.string.settings_rotate_confirm))
                 }
             },
             dismissButton = {
                 TextButton(onClick = viewModel::dismissRotateConfirm) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
         )
@@ -104,12 +103,9 @@ fun SettingsScreen(
     if (uiState.showPanicConfirm) {
         AlertDialog(
             onDismissRequest = viewModel::dismissPanicConfirm,
-            title = { Text("Emergency revoke?") },
+            title = { Text(stringResource(R.string.settings_panic_title)) },
             text = {
-                Text(
-                    "Removes all stackward-agent keys on the server and wipes local credentials. " +
-                        "You will need to re-bootstrap. Export audit log first if needed.",
-                )
+                Text(stringResource(R.string.settings_panic_body))
             },
             confirmButton = {
                 Button(
@@ -122,12 +118,12 @@ fun SettingsScreen(
                     },
                     enabled = !uiState.isBusy,
                 ) {
-                    Text("Revoke everything")
+                    Text(stringResource(R.string.settings_panic_confirm))
                 }
             },
             dismissButton = {
                 TextButton(onClick = viewModel::dismissPanicConfirm) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
         )
@@ -136,10 +132,10 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Security & settings") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
             )
@@ -192,26 +188,26 @@ fun SettingsScreen(
 private fun ConnectionCard(uiState: SettingsUiState) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Connection health", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.settings_connection_title), style = MaterialTheme.typography.titleSmall)
             if (uiState.profileHost == null) {
-                Text("No server provisioned.")
+                Text(stringResource(R.string.settings_no_server))
                 return@Column
             }
             Text("${uiState.profileHost}:${uiState.profilePort}")
             uiState.jumpHost?.let { jump ->
-                Text("Jump host: $jump", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.settings_jump_host, jump), style = MaterialTheme.typography.bodySmall)
             }
             uiState.lastSuccessLabel?.let {
-                Text("Last success: $it", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.settings_last_success, it), style = MaterialTheme.typography.bodySmall)
             }
             uiState.lastFailureLabel?.let {
-                Text("Last failure: $it", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.settings_last_failure, it), style = MaterialTheme.typography.bodySmall)
             }
             uiState.lastError?.let {
-                Text("Last error: $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.settings_last_error, it), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
             }
             Text(
-                "SSH commands retry with exponential backoff on transient failures.",
+                stringResource(R.string.settings_retry_note),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -226,10 +222,10 @@ private fun AuditCard(
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Audit log", style = MaterialTheme.typography.titleSmall)
-            Text("$entryCount entries stored locally (encrypted).")
+            Text(stringResource(R.string.settings_audit_title), style = MaterialTheme.typography.titleSmall)
+            Text(LocalContext.current.resources.getQuantityString(R.plurals.settings_audit_entries, entryCount, entryCount))
             Button(onClick = onExport, modifier = Modifier.fillMaxWidth()) {
-                Text("Export JSON")
+                Text(stringResource(R.string.settings_audit_export))
             }
         }
     }
@@ -246,12 +242,12 @@ private fun SecurityActionsCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Credential actions", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.settings_credentials_title), style = MaterialTheme.typography.titleSmall)
             OutlinedButton(onClick = onRotate, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
-                Text("Rotate SSH key")
+                Text(stringResource(R.string.settings_rotate_button))
             }
             Button(onClick = onPanic, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
-                Text("Emergency revoke")
+                Text(stringResource(R.string.settings_panic_button))
             }
         }
     }

@@ -35,8 +35,11 @@ data class HostSummary(
 data class DashboardUiState(
     val hosts: List<HostSummary> = emptyList(),
     val isCheckingAll: Boolean = false,
-    val batchMessage: String? = null,
+    val batchResult: BatchResult? = null,
 )
+
+/** Outcome of the last "Check all hosts". */
+data class BatchResult(val total: Int, val failed: Int)
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -67,17 +70,13 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     fun checkAll() {
         if (_uiState.value.isCheckingAll) return
         viewModelScope.launch {
-            _uiState.update { it.copy(isCheckingAll = true, batchMessage = null) }
+            _uiState.update { it.copy(isCheckingAll = true, batchResult = null) }
             val ids = _uiState.value.hosts.map { it.profile.id }
             val failed = ids.filterNot { runCheck(it) }
             _uiState.update {
                 it.copy(
                     isCheckingAll = false,
-                    batchMessage = if (failed.isEmpty()) {
-                        "Checked ${ids.size} host(s): all reachable"
-                    } else {
-                        "Checked ${ids.size} host(s): ${failed.size} failed"
-                    },
+                    batchResult = BatchResult(total = ids.size, failed = failed.size),
                 )
             }
         }

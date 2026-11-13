@@ -33,9 +33,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import dev.stackward.R
 import dev.stackward.check.HostHealth
-import dev.stackward.check.HostHealthMapper
 import dev.stackward.check.IssueSeverity
 
 private val StatusGreen = Color(0xFF2E7D32)
@@ -69,24 +73,24 @@ fun DashboardScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Stackward") },
+                title = { Text(stringResource(R.string.app_name)) },
                 actions = {
                     if (uiState.isCheckingAll) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
                     } else if (uiState.hosts.isNotEmpty()) {
                         IconButton(onClick = viewModel::checkAll) {
-                            Icon(Icons.Filled.Refresh, contentDescription = "Check all hosts")
+                            Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.cd_check_all))
                         }
                     }
                     IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.cd_settings))
                     }
                 },
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onAddHost) {
-                Icon(Icons.Filled.Add, contentDescription = "Add host")
+                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.cd_add_host))
             }
         },
     ) { padding ->
@@ -95,14 +99,14 @@ fun DashboardScreen(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("No hosts yet — tap + to connect one.")
+                Text(stringResource(R.string.dashboard_empty))
             }
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
-                uiState.batchMessage?.let { message ->
+                uiState.batchResult?.let { batch ->
                     item {
                         Text(
-                            message,
+                            UiText.batchMessage(LocalContext.current, batch.total, batch.failed),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -136,10 +140,12 @@ private fun HostRow(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                val healthName = UiText.healthName(LocalContext.current, host.health)
                 Box(
                     modifier = Modifier
                         .size(12.dp)
-                        .background(color = statusColor(host), shape = CircleShape),
+                        .background(color = statusColor(host), shape = CircleShape)
+                        .semantics { contentDescription = healthName },
                 )
                 Text(
                     text = host.profile.host,
@@ -150,12 +156,12 @@ private fun HostRow(
                     CircularProgressIndicator(modifier = Modifier.size(20.dp))
                 } else {
                     IconButton(onClick = onCheckNow) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Check now")
+                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.cd_check_now))
                     }
                 }
             }
             Text(
-                text = statusLabel(host),
+                text = UiText.statusLabel(LocalContext.current, host),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, start = 24.dp),
@@ -169,23 +175,5 @@ private fun HostRow(
                 )
             }
         }
-    }
-}
-
-private fun statusLabel(host: HostSummary): String {
-    val now = System.currentTimeMillis()
-    val age = host.lastCheckedAt?.let { HostHealthMapper.ageLabel(it, now) }
-    val blind = if (host.blindSpots > 0) " · ${host.blindSpots} blind spot(s)" else ""
-    return when (host.health) {
-        HostHealth.NEVER_CHECKED -> "Never checked"
-        HostHealth.UNREACHABLE -> {
-            val failedAgo = host.lastFailureAt?.let { HostHealthMapper.ageLabel(it, now) } ?: "just now"
-            val last = age?.let { " — last good check $it" } ?: ""
-            "Unreachable ($failedAgo)$last"
-        }
-        HostHealth.STALE -> "Stale — checked $age${if (host.issueCount > 0) " · ${host.issueCount} issue(s)" else ""}$blind"
-        HostHealth.CLEAN ->
-            if (host.blindSpots > 0) "No issues found$blind — checked $age" else "No issues — checked $age"
-        HostHealth.ISSUES -> "${host.issueCount} issue(s)$blind — checked $age"
     }
 }

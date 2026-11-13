@@ -25,9 +25,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.stackward.R
 import dev.stackward.check.CheckIssue
-import dev.stackward.check.coverageGaps
+import dev.stackward.check.coverageGapList
 import java.text.DateFormat
 import java.util.Date
 
@@ -42,10 +45,10 @@ fun HostDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(uiState.profile?.host ?: "Host") },
+                title = { Text(uiState.profile?.host ?: stringResource(R.string.host_default_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
                 actions = {
@@ -53,7 +56,7 @@ fun HostDetailScreen(
                         CircularProgressIndicator(modifier = Modifier.padding(end = 16.dp))
                     } else {
                         IconButton(onClick = viewModel::checkNow) {
-                            Icon(Icons.Filled.Refresh, contentDescription = "Check now")
+                            Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.cd_check_now))
                         }
                     }
                 },
@@ -69,52 +72,52 @@ fun HostDetailScreen(
         ) {
             uiState.lastCheckedAt?.let {
                 Text(
-                    "Last checked: ${DateFormat.getDateTimeInstance().format(Date(it))}",
+                    stringResource(R.string.detail_last_checked, DateFormat.getDateTimeInstance().format(Date(it))),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             uiState.error?.let { error ->
                 Text(
-                    "Check failed: $error",
+                    stringResource(R.string.detail_check_failed, error),
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(top = 8.dp),
                 )
                 OutlinedButton(onClick = viewModel::checkNow, enabled = !uiState.isChecking) {
-                    Text("Retry")
+                    Text(stringResource(R.string.action_retry))
                 }
             }
 
             val result = uiState.result
             if (result == null) {
                 Text(
-                    "No check results yet — tap refresh.",
+                    stringResource(R.string.detail_no_results),
                     modifier = Modifier.padding(top = 16.dp),
                 )
             } else {
                 Text(
-                    "Issues (${result.issues.size})",
+                    stringResource(R.string.detail_issues_title, result.issues.size),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
                 )
                 if (result.issues.isEmpty()) {
-                    Text(if (result.coverageGaps().isEmpty()) "None — host looks clean." else "None found in what could be read.")
+                    Text(stringResource(if (result.coverageGapList().isEmpty()) R.string.detail_none_clean else R.string.detail_none_partial))
                 } else {
                     result.issues.forEach { issue -> IssueRow(issue) }
                 }
 
-                val gaps = result.coverageGaps()
+                val gaps = result.coverageGapList()
                 if (gaps.isNotEmpty()) {
                     Text(
-                        "Blind spots",
+                        stringResource(R.string.detail_blind_spots),
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
                     )
                     gaps.forEach { gap ->
-                        Text("• $gap", color = MaterialTheme.colorScheme.tertiary)
+                        Text("• " + UiText.gap(LocalContext.current, gap), color = MaterialTheme.colorScheme.tertiary)
                     }
                     Text(
-                        "These parts of the host were not checked, so \"no issues\" does not cover them.",
+                        stringResource(R.string.detail_blind_spots_explainer),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp),

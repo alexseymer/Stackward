@@ -1,4 +1,97 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Stackward</string>
+
+    <!-- Shared -->
+    <string name="cd_back">Back</string>
+    <string name="cd_settings">Settings</string>
+    <string name="cd_add_host">Add host</string>
+    <string name="cd_check_now">Check now</string>
+    <string name="cd_check_all">Check all hosts</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_retry">Retry</string>
+
+    <!-- Ages -->
+    <string name="age_just_now">just now</string>
+    <plurals name="age_minutes">
+        <item quantity="one">%d minute ago</item>
+        <item quantity="other">%d minutes ago</item>
+    </plurals>
+    <plurals name="age_hours">
+        <item quantity="one">%d hour ago</item>
+        <item quantity="other">%d hours ago</item>
+    </plurals>
+    <plurals name="age_days">
+        <item quantity="one">%d day ago</item>
+        <item quantity="other">%d days ago</item>
+    </plurals>
+
+    <!-- Dashboard -->
+    <string name="dashboard_empty">No hosts yet — tap + to connect one.</string>
+    <string name="health_never_checked">Never checked</string>
+    <string name="health_unreachable">Unreachable</string>
+    <string name="health_stale">Stale result</string>
+    <string name="health_clean">No issues</string>
+    <string name="health_issues">Issues found</string>
+    <string name="status_never_checked">Never checked</string>
+    <string name="status_unreachable">Unreachable (%1$s)</string>
+    <string name="status_last_good">" — last good check %1$s"</string>
+    <string name="status_stale">Stale — checked %1$s</string>
+    <string name="status_clean">No issues — checked %1$s</string>
+    <string name="status_clean_blind">No issues found%1$s — checked %2$s</string>
+    <string name="status_issues">%1$s%2$s — checked %3$s</string>
+    <plurals name="issue_count">
+        <item quantity="one">%d issue</item>
+        <item quantity="other">%d issues</item>
+    </plurals>
+    <plurals name="blind_spot_count">
+        <item quantity="one">%d blind spot</item>
+        <item quantity="other">%d blind spots</item>
+    </plurals>
+    <plurals name="batch_all_ok">
+        <item quantity="one">Checked %d host: reachable</item>
+        <item quantity="other">Checked %d hosts: all reachable</item>
+    </plurals>
+    <plurals name="batch_some_failed">
+        <item quantity="one">Checked %1$d host: %2$d failed</item>
+        <item quantity="other">Checked %1$d hosts: %2$d failed</item>
+    </plurals>
+
+    <!-- Host detail -->
+    <string name="host_default_title">Host</string>
+    <string name="detail_last_checked">Last checked: %1$s</string>
+    <string name="detail_check_failed">Check failed: %1$s</string>
+    <string name="detail_no_results">No check results yet — tap refresh.</string>
+    <string name="detail_issues_title">Issues (%1$d)</string>
+    <string name="detail_none_clean">None — host looks clean.</string>
+    <string name="detail_none_partial">None found in what could be read.</string>
+    <string name="detail_blind_spots">Blind spots</string>
+    <string name="detail_blind_spots_explainer">These parts of the host were not checked, so \"no issues\" does not cover them.</string>
+    <string name="gap_denied">%1$s not readable</string>
+    <string name="gap_unknown">%1$s coverage unknown (old check.sh)</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Security &amp; settings</string>
+    <string name="settings_connection_title">Connection health</string>
+    <string name="settings_no_server">No server provisioned.</string>
+    <string name="settings_jump_host">Jump host: %1$s</string>
+    <string name="settings_last_success">Last success: %1$s</string>
+    <string name="settings_last_failure">Last failure: %1$s</string>
+    <string name="settings_last_error">Last error: %1$s</string>
+    <string name="settings_retry_note">SSH commands retry with exponential backoff on transient failures.</string>
+    <string name="settings_audit_title">Audit log</string>
+    <plurals name="settings_audit_entries">
+        <item quantity="one">%d entry stored locally (encrypted).</item>
+        <item quantity="other">%d entries stored locally (encrypted).</item>
+    </plurals>
+    <string name="settings_audit_export">Export JSON</string>
+    <string name="settings_credentials_title">Credential actions</string>
+    <string name="settings_rotate_button">Rotate SSH key</string>
+    <string name="settings_panic_button">Emergency revoke</string>
+    <string name="settings_rotate_title">Rotate SSH key?</string>
+    <string name="settings_rotate_body">Generates a new device key, pushes it to the server, verifies access, then revokes the old key. Requires biometric approval.</string>
+    <string name="settings_rotate_confirm">Rotate</string>
+    <string name="settings_panic_title">Emergency revoke?</string>
+    <string name="settings_panic_body">Removes all stackward-agent keys on the server and wipes local credentials. You will need to set the host up again. Export the audit log first if needed.</string>
+    <string name="settings_panic_confirm">Revoke everything</string>
 </resources>
