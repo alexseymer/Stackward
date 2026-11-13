@@ -33,10 +33,12 @@ anymore.
    same commit when a change makes a claim wrong.
 4. **`scripts/check.sh`** — detects disk/memory/service/security/log
    issues on a host and returns JSON (`issues[]`, each with a text-only
-   `advice`, plus `coverage` saying which sources were readable). Today it reaches hosts only via the admin-run
-   `scripts/bootstrap_linux.sh`, which embeds it verbatim (PRD D2 says the app
-   should install it during onboarding — gap G3, not built yet) — run
-   `scripts/verify_check_sh_sync.sh` after touching either file; it caught
+   `advice`, plus `coverage` saying which sources were readable). The app installs it during onboarding and refreshes it when the host's
+   `version` is older than the bundled copy (PRD D2); the admin-run
+   `scripts/bootstrap_linux.sh` embeds it too. Three copies must stay identical
+   (`scripts/check.sh`, the bootstrap embed, `app/src/main/assets/check.sh`) and
+   bump the `# stackward-check-version:` header on every change — run
+   `scripts/verify_check_sh_sync.sh` after touching any of them; it caught
    real drift once already. Also run `scripts/tests/check_sh_test.sh` (stubbed
    fixtures; known bugs are pinned as XFAIL). CI runs both.
 5. **The app is read-only (PRD D5).** It runs `check.sh` and its own

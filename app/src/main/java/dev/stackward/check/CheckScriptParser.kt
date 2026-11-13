@@ -26,6 +26,7 @@ object CheckScriptParser {
                 hostname = json.getString("hostname"),
                 issues = json.getJSONArray("issues").toIssues(),
                 coverage = json.optJSONObject("coverage")?.toCoverage() ?: CheckCoverage(),
+                scriptVersion = json.optInt("version", 0),
             )
         } catch (error: JSONException) {
             throw CheckScriptParseException("check.sh JSON missing expected field: ${error.message}")
@@ -36,6 +37,7 @@ object CheckScriptParser {
     fun toJsonString(result: CheckResult): String = JSONObject().apply {
         put("timestamp", result.timestamp)
         put("hostname", result.hostname)
+        put("version", result.scriptVersion)
         put(
             "issues",
             JSONArray().apply {

@@ -35,4 +35,12 @@ if ! diff -u <(printf '%s\n' "${extracted}") "${CHECK_SH}" > /tmp/check_sh_sync.
     exit 1
 fi
 
-echo "OK: check.sh and its embedded copy in bootstrap_linux.sh match."
+APP_ASSET="${SCRIPT_DIR}/../app/src/main/assets/check.sh"
+if ! diff -u "${APP_ASSET}" "${CHECK_SH}" > /tmp/check_sh_asset.diff; then
+    echo "ERROR: scripts/check.sh and the app asset app/src/main/assets/check.sh have drifted:" >&2
+    cat /tmp/check_sh_asset.diff >&2
+    echo "Fix: cp scripts/check.sh app/src/main/assets/check.sh" >&2
+    exit 1
+fi
+
+echo "OK: check.sh, its embedded copy in bootstrap_linux.sh, and the app asset match."

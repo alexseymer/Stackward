@@ -96,7 +96,7 @@ PY
     fi
 }
 
-SCHEMA='isinstance(d.get("timestamp"), str) and isinstance(d.get("hostname"), str) and isinstance(d["issues"], list) and "suggestions" not in d and all({"type","severity","message","advice"} <= set(i) for i in d["issues"]) and set(d["coverage"]) == {"journal","docker","systemd"} and all(v in ("ok","denied","absent") for v in d["coverage"].values())'
+SCHEMA='isinstance(d.get("version"), int) and d["version"] > 0 and isinstance(d.get("timestamp"), str) and isinstance(d.get("hostname"), str) and isinstance(d["issues"], list) and "suggestions" not in d and all({"type","severity","message","advice"} <= set(i) for i in d["issues"]) and set(d["coverage"]) == {"journal","docker","systemd"} and all(v in ("ok","denied","absent") for v in d["coverage"].values())'
 
 new_case healthy; run_check
 assert_py "healthy: valid schema" "${SCHEMA}"

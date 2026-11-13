@@ -111,7 +111,7 @@ for the thesis and [PRD.md](PRD.md) for the full spec.
 | Area | Scope | State |
 |------|-------|-------|
 | Check script | `~/.stackward/check.sh`: disk/memory/failed-service/SSH-config/listening-port/journal-error/Docker-exited detection, JSON output | ✅ Implemented |
-| Bootstrap | `scripts/bootstrap_linux.sh` (admin-run) installs `check.sh` + a dedicated sudoers helper for the one RISKY suggestion that needs root. **Per PRD D2, in-app onboarding should install `check.sh` itself — today it only installs the SSH key** | ⚠️ Admin script ✅, in-app install ❌ ([G3](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12)) |
+| Bootstrap | In-app onboarding installs the bundled `~/.stackward/check.sh` (home dir only, no root) and refreshes it when its `version` is older; `scripts/bootstrap_linux.sh` (admin-run) can also install it plus journal/Docker read access | ✅ Implemented (device verification pending) |
 | Dashboard | Multi-host list (`dev.stackward.ui.dashboard`), per-host detail, last-checked age, on-demand "Check now" | ✅ Implemented |
 | Risk-gated actions | `CheckActionCatalog`/`CheckSuggestionGate`: phone decides risk, never trusts the host's self-reported label; safe auto-runs, risky needs biometric, scary/unknown are manual-only | ✅ Implemented |
 | Gemma summary | Host detail screen reuses the existing `LogSummarizer` pipeline; degrades the same way the Logs screen does (no model / inference failure / success) | ✅ Implemented |
