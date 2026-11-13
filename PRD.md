@@ -225,6 +225,8 @@ How each metric is measured, and the scenarios that must pass for v1, are in
 
 ## 8. Risks & Mitigations
 
+The full threat model (assets, trust boundaries, per-threat mitigation and proof) is in [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md); the table below is the summary.
+
 | Risk | Mitigation |
 |---|---|
 | Compromised or buggy `check.sh` hides a problem or shows misleading text | It cannot make the phone run anything (§5.2); `coverage` shows what wasn't read; the script is installed and refreshed by the app, and its integrity is the operator's host-security responsibility |
