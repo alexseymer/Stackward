@@ -1,6 +1,7 @@
 package dev.stackward.check
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -11,33 +12,39 @@ class CheckScriptParserTest {
           "timestamp": "2026-09-25T20:22:02Z",
           "hostname": "vm",
           "issues": [
-            { "type": "disk", "severity": "high", "message": "/opt at 91%" }
+            { "type": "disk", "severity": "high", "message": "/opt at 91%", "advice": "Find large files with: du -xh / | sort -h | tail" }
           ],
-          "suggestions": [
-            { "id": "review-logs", "risk": "safe", "action": "tail_journal", "reason": "Inspect recent journal errors" }
-          ]
+          "coverage": { "journal": "denied", "docker": "absent", "systemd": "ok" }
         }
     """.trimIndent()
 
     @Test
-    fun parse_readsIssuesAndSuggestions() {
+    fun parse_readsIssuesAdviceAndCoverage() {
         val result = CheckScriptParser.parse(validJson)
 
         assertEquals("vm", result.hostname)
         assertEquals(1, result.issues.size)
-        assertEquals("disk", result.issues[0].type)
         assertEquals("high", result.issues[0].severity)
-        assertEquals(1, result.suggestions.size)
-        assertEquals("tail_journal", result.suggestions[0].action)
+        assertEquals("Find large files with: du -xh / | sort -h | tail", result.issues[0].advice)
+        assertEquals(CheckCoverage("denied", "absent", "ok"), result.coverage)
     }
 
     @Test
-    fun parse_handlesEmptyArrays() {
-        val json = """{"timestamp":"t","hostname":"h","issues":[],"suggestions":[]}"""
+    fun parse_missingAdviceAndCoverageAreTolerated() {
+        val json = """{"timestamp":"t","hostname":"h","issues":[{"type":"x","severity":"low","message":"m"}]}"""
+        val result = CheckScriptParser.parse(json)
+
+        assertNull(result.issues[0].advice)
+        assertEquals(CheckCoverage(), result.coverage)
+    }
+
+    @Test
+    fun parse_ignoresLegacySuggestions() {
+        val json = """{"timestamp":"t","hostname":"h","issues":[],"suggestions":[{"id":"a","risk":"safe","action":"rm -rf /"}]}"""
         val result = CheckScriptParser.parse(json)
 
         assertEquals(0, result.issues.size)
-        assertEquals(0, result.suggestions.size)
+        assertEquals(CheckResult("t", "h", emptyList(), CheckCoverage()), result)
     }
 
     @Test
@@ -52,7 +59,7 @@ class CheckScriptParserTest {
 
     @Test
     fun parse_rejectsMissingRequiredField() {
-        val json = """{"timestamp":"t","issues":[],"suggestions":[]}""" // hostname missing
+        val json = """{"timestamp":"t","issues":[]}""" // hostname missing
         assertThrows(CheckScriptParseException::class.java) { CheckScriptParser.parse(json) }
     }
 

@@ -8,6 +8,7 @@ import dev.stackward.check.CheckRunResult
 import dev.stackward.check.CheckWorker
 import dev.stackward.check.IssueSeverity
 import dev.stackward.check.PollingMode
+import dev.stackward.check.coverageGaps
 import dev.stackward.check.maxSeverity
 import dev.stackward.onboarding.ServerProfile
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +23,7 @@ data class HostSummary(
     val lastCheckedAt: Long?,
     val issueCount: Int,
     val maxSeverity: IssueSeverity?,
+    val blindSpots: Int = 0,
     val isChecking: Boolean = false,
     val error: String? = null,
 )
@@ -61,6 +63,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                             lastCheckedAt = container.checkResultStore.getLastCheckedAt(profileId),
                             issueCount = outcome.result.issues.size,
                             maxSeverity = outcome.result.maxSeverity(),
+                            blindSpots = outcome.result.coverageGaps().size,
                         )
                     }
                 }
@@ -99,6 +102,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             lastCheckedAt = container.checkResultStore.getLastCheckedAt(profile.id),
             issueCount = result?.issues?.size ?: 0,
             maxSeverity = result?.maxSeverity(),
+            blindSpots = result?.coverageGaps()?.size ?: 0,
         )
     }
 }
