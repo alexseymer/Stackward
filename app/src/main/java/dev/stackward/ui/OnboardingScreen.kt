@@ -52,12 +52,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.stackward.BuildConfig
+import dev.stackward.R
 import dev.stackward.connection.HostKeyFingerprint
 import dev.stackward.onboarding.BootstrapAuthMethod
 import dev.stackward.onboarding.OnboardingFlow
@@ -105,6 +107,8 @@ fun OnboardingScreen(
         }
     }
 
+    val commandCopiedMessage = stringResource(R.string.onb_command_copied)
+
     LaunchedEffect(uiState.message) {
         uiState.message?.let { message ->
             snackbarHostState.showSnackbar(message)
@@ -115,11 +119,11 @@ fun OnboardingScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Stackward Setup") },
+                title = { Text(stringResource(R.string.onb_title)) },
                 navigationIcon = {
                     if (onCancel != null) {
                         IconButton(onClick = onCancel) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                         }
                     }
                 },
@@ -176,7 +180,7 @@ fun OnboardingScreen(
                     onCopyCommand = {
                         clipboardManager.setText(AnnotatedString(OnboardingFlow.PREP_ADDUSER_COMMAND))
                         scope.launch {
-                            snackbarHostState.showSnackbar("Command copied")
+                            snackbarHostState.showSnackbar(commandCopiedMessage)
                         }
                     },
                 )
@@ -206,17 +210,15 @@ private fun PrepInfoContent(
         tint = MaterialTheme.colorScheme.primary,
     )
     Text(
-        text = "Choose the SSH identity",
+        text = stringResource(R.string.onb_prep_title),
         style = MaterialTheme.typography.titleMedium,
     )
     Text(
-        text = "Recommended default: a dedicated low-privilege user that can only work " +
-            "inside its own home directory. You choose how powerful the remote identity is — " +
-            "elevated accounts are allowed after an explicit risk acknowledgment.",
+        text = stringResource(R.string.onb_prep_body),
         style = MaterialTheme.typography.bodyMedium,
     )
     Text(
-        text = "On a Debian-based host, an administrator can create the recommended user with:",
+        text = stringResource(R.string.onb_prep_create),
         style = MaterialTheme.typography.bodyMedium,
     )
 
@@ -237,25 +239,23 @@ private fun PrepInfoContent(
             }
             TextButton(onClick = onCopyCommand) {
                 Icon(Icons.Default.ContentCopy, contentDescription = null)
-                Text("Copy command", modifier = Modifier.padding(start = 8.dp))
+                Text(stringResource(R.string.onb_copy_command), modifier = Modifier.padding(start = 8.dp))
             }
         }
     }
 
     Text(
-        text = "After the user exists, this app will use the account password once — " +
-            "like ssh-copy-id — to install this phone’s SSH public key into " +
-            "~/.ssh/authorized_keys. The password is then wiped and never stored.",
+        text = stringResource(R.string.onb_prep_after),
         style = MaterialTheme.typography.bodyMedium,
     )
     Text(
-        text = "Build ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+        text = stringResource(R.string.onb_build, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 
     Button(onClick = onContinue, modifier = Modifier.fillMaxWidth()) {
-        Text("Continue to connection details")
+        Text(stringResource(R.string.onb_continue))
     }
 }
 
@@ -273,16 +273,17 @@ private fun InputContent(
     onPrivateKeyPemChange: (String) -> Unit,
     onPrivateKeyPassphraseChange: (String) -> Unit,
 ) {
+    val keyCopiedMessage = stringResource(R.string.onb_key_copied)
+    val agentKeyLabel = stringResource(R.string.onb_agent_key_label)
     Text(
-        text = "Connect as the SSH user you chose. The one-time password is Keystore-encrypted " +
-            "in memory only, used to install your public key, then wiped forever.",
+        text = stringResource(R.string.onb_input_intro),
         style = MaterialTheme.typography.bodyMedium,
     )
 
     OutlinedTextField(
         value = uiState.host,
         onValueChange = viewModel::onHostChange,
-        label = { Text("Host / IP") },
+        label = { Text(stringResource(R.string.onb_host)) },
         placeholder = { Text("192.168.1.10") },
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
@@ -291,7 +292,7 @@ private fun InputContent(
     OutlinedTextField(
         value = uiState.port,
         onValueChange = viewModel::onPortChange,
-        label = { Text("SSH Port") },
+        label = { Text(stringResource(R.string.onb_port)) },
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
     )
@@ -299,16 +300,16 @@ private fun InputContent(
     OutlinedTextField(
         value = uiState.agentUsername,
         onValueChange = viewModel::onAgentUsernameChange,
-        label = { Text("Agent SSH user") },
+        label = { Text(stringResource(R.string.onb_user)) },
         placeholder = { Text(ServerProfile.DEFAULT_AGENT_USERNAME) },
         supportingText = {
-            Text("Must already exist. Default: stackward-agent. Elevated accounts need acknowledgment.")
+            Text(stringResource(R.string.onb_user_hint))
         },
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
     )
 
-    Text("One-time login method", style = MaterialTheme.typography.titleSmall)
+    Text(stringResource(R.string.onb_login_method), style = MaterialTheme.typography.titleSmall)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -316,12 +317,12 @@ private fun InputContent(
         FilterChip(
             selected = uiState.authMethod == BootstrapAuthMethod.PASSWORD,
             onClick = { viewModel.onAuthMethodChange(BootstrapAuthMethod.PASSWORD) },
-            label = { Text("Password (ssh-copy-id)") },
+            label = { Text(stringResource(R.string.onb_login_password)) },
         )
         FilterChip(
             selected = uiState.authMethod == BootstrapAuthMethod.PRIVATE_KEY,
             onClick = { viewModel.onAuthMethodChange(BootstrapAuthMethod.PRIVATE_KEY) },
-            label = { Text("Key already installed") },
+            label = { Text(stringResource(R.string.onb_login_key)) },
         )
     }
 
@@ -330,8 +331,8 @@ private fun InputContent(
             OutlinedTextField(
                 value = sshPasswordDraft,
                 onValueChange = onSshPasswordChange,
-                label = { Text("One-time SSH password") },
-                placeholder = { Text("Used once to install the key — never stored") },
+                label = { Text(stringResource(R.string.onb_password)) },
+                placeholder = { Text(stringResource(R.string.onb_password_hint)) },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -346,23 +347,23 @@ private fun InputContent(
                     uiState.publicKeyOpenSsh != null
             OutlinedTextField(
                 value = if (agentKeyFillsField) {
-                    AGENT_KEY_PRIVATE_FIELD_LABEL
+                    agentKeyLabel
                 } else {
                     privateKeyPemDraft
                 },
                 onValueChange = { value ->
-                    if (value == AGENT_KEY_PRIVATE_FIELD_LABEL) return@OutlinedTextField
+                    if (value == agentKeyLabel) return@OutlinedTextField
                     preferPemPaste = true
                     onPrivateKeyPemChange(value)
                 },
-                label = { Text("Private key (PEM / OpenSSH)") },
+                label = { Text(stringResource(R.string.onb_pem)) },
                 placeholder = { Text("-----BEGIN OPENSSH PRIVATE KEY-----") },
                 supportingText = {
                     Text(
                         if (agentKeyFillsField) {
-                            "Filled from Generate agent SSH key. Use this only if the public key is already on the server."
+                            stringResource(R.string.onb_pem_filled)
                         } else {
-                            "Paste a bootstrap private key, or generate the agent key to fill this."
+                            stringResource(R.string.onb_pem_empty)
                         },
                     )
                 },
@@ -376,13 +377,13 @@ private fun InputContent(
                     onClick = { preferPemPaste = true },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Paste a different private key")
+                    Text(stringResource(R.string.onb_pem_other))
                 }
             } else {
                 OutlinedTextField(
                     value = privateKeyPassphraseDraft,
                     onValueChange = onPrivateKeyPassphraseChange,
-                    label = { Text("Key passphrase (optional)") },
+                    label = { Text(stringResource(R.string.onb_passphrase)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -395,7 +396,7 @@ private fun InputContent(
     OutlinedTextField(
         value = uiState.knockSequence,
         onValueChange = viewModel::onKnockSequenceChange,
-        label = { Text("Port knock sequence (optional)") },
+        label = { Text(stringResource(R.string.onb_knock)) },
         placeholder = { Text("7000,8000,9000") },
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
@@ -407,9 +408,9 @@ private fun InputContent(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-            Text("Use jump host", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.onb_jump_use), style = MaterialTheme.typography.bodyLarge)
             Text(
-                text = "Same restricted user on bastion and target; key is installed on both",
+                text = stringResource(R.string.onb_jump_hint),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -424,7 +425,7 @@ private fun InputContent(
         OutlinedTextField(
             value = uiState.jumpHost,
             onValueChange = viewModel::onJumpHostChange,
-            label = { Text("Jump host / bastion") },
+            label = { Text(stringResource(R.string.onb_jump_host)) },
             placeholder = { Text("bastion.example.com") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
@@ -432,7 +433,7 @@ private fun InputContent(
         OutlinedTextField(
             value = uiState.jumpHostPort,
             onValueChange = viewModel::onJumpHostPortChange,
-            label = { Text("Jump SSH port") },
+            label = { Text(stringResource(R.string.onb_jump_port)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -445,7 +446,7 @@ private fun InputContent(
     ) {
         Icon(Icons.Default.Key, contentDescription = null)
         Text(
-            text = if (uiState.isGeneratingKey) "Generating…" else "Generate agent SSH key",
+            text = if (uiState.isGeneratingKey) stringResource(R.string.onb_generating) else stringResource(R.string.onb_generate),
             modifier = Modifier.padding(start = 8.dp),
         )
     }
@@ -456,13 +457,13 @@ private fun InputContent(
             usesHardwareKeystore = uiState.usesHardwareKeystore,
             onCopy = {
                 clipboardManager.setText(AnnotatedString(publicKey))
-                scope.launch { snackbarHostState.showSnackbar("Public key copied") }
+                scope.launch { snackbarHostState.showSnackbar(keyCopiedMessage) }
             },
         )
     }
 
     OutlinedButton(onClick = viewModel::backToPrep, modifier = Modifier.fillMaxWidth()) {
-        Text("Back to prep")
+        Text(stringResource(R.string.onb_back_prep))
     }
 
     Button(
@@ -477,10 +478,10 @@ private fun InputContent(
                     .padding(end = 8.dp),
                 strokeWidth = 2.dp,
             )
-            Text("Testing connection…")
+            Text(stringResource(R.string.onb_testing))
         } else {
             Icon(Icons.Default.Lock, contentDescription = null)
-            Text("Connect & review key install", modifier = Modifier.padding(start = 8.dp))
+            Text(stringResource(R.string.onb_connect_review), modifier = Modifier.padding(start = 8.dp))
         }
     }
 
@@ -502,13 +503,11 @@ private fun ConfirmContent(
     onElevatedPrivilegeAcknowledgedChange: (Boolean) -> Unit,
 ) {
     Text(
-        text = "Confirm key install",
+        text = stringResource(R.string.onb_confirm_title),
         style = MaterialTheme.typography.titleMedium,
     )
     Text(
-        text = "Stackward will append this device’s public key to " +
-            "${uiState.agentUsername}’s ~/.ssh/authorized_keys. " +
-            "Optional host bootstrap scripts are separate admin tools and are not run by the app.",
+        text = stringResource(R.string.onb_confirm_body, uiState.agentUsername),
         style = MaterialTheme.typography.bodyMedium,
     )
 
@@ -540,14 +539,12 @@ private fun ConfirmContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    text = "Elevated privilege detected",
+                    text = stringResource(R.string.onb_elevated_title),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
                 Text(
-                    text = "This account is root and/or has passwordless sudo. " +
-                        "That is your choice, but a compromised phone could do far more damage. " +
-                        "The recommended default remains a restricted agent user.",
+                    text = stringResource(R.string.onb_elevated_body),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
@@ -557,7 +554,7 @@ private fun ConfirmContent(
                         onCheckedChange = onElevatedPrivilegeAcknowledgedChange,
                     )
                     Text(
-                        text = "I understand and want to use this elevated identity",
+                        text = stringResource(R.string.onb_elevated_ack),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )
@@ -581,13 +578,13 @@ private fun ConfirmContent(
     }
 
     Text(
-        text = "After a successful install, the one-time password is wiped from memory and is never written to disk.",
+        text = stringResource(R.string.onb_confirm_wipe),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 
     OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-        Text("Back")
+        Text(stringResource(R.string.action_back))
     }
 
     Button(
@@ -595,7 +592,7 @@ private fun ConfirmContent(
         enabled = uiState.canStartSetup && !uiState.isProvisioning,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text("Install SSH key & verify")
+        Text(stringResource(R.string.onb_install))
     }
 }
 
@@ -603,9 +600,9 @@ private fun ConfirmContent(
 private fun ProvisioningContent() {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        Text("Installing authorized_keys in the agent home directory and verifying key login…")
+        Text(stringResource(R.string.onb_installing))
         Text(
-            text = "With a jump host, the bastion key is installed first, then the target.",
+            text = stringResource(R.string.onb_installing_jump),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -628,21 +625,20 @@ private fun SuccessContent(
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Default.CheckCircle, contentDescription = null)
-            Text("Agent key installed", style = MaterialTheme.typography.titleMedium)
-            Text("Host: ${profile.host}:${profile.port}")
+            Text(stringResource(R.string.onb_done_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.onb_done_host, "${profile.host}:${profile.port}"))
             profile.jumpHost?.let { jump ->
-                Text("Jump host: $jump:${profile.jumpHostPort}")
+                Text(stringResource(R.string.onb_done_jump, "$jump:${profile.jumpHostPort}"))
             }
-            Text("Host type: ${profile.hostType.name.lowercase()}")
-            Text("Agent user: ${profile.username}")
+            Text(stringResource(R.string.onb_done_user, profile.username))
             Text(
-                text = "Host key: ${HostKeyFingerprint.openSshLabel(profile.hostKeyFingerprint)}",
+                text = stringResource(R.string.onb_done_hostkey, HostKeyFingerprint.openSshLabel(profile.hostKeyFingerprint)),
                 fontFamily = FontFamily.Monospace,
                 style = MaterialTheme.typography.bodySmall,
             )
             profile.jumpHostKeyFingerprint?.let { jumpFp ->
                 Text(
-                    text = "Jump key: ${HostKeyFingerprint.openSshLabel(jumpFp)}",
+                    text = stringResource(R.string.onb_done_jumpkey, HostKeyFingerprint.openSshLabel(jumpFp)),
                     fontFamily = FontFamily.Monospace,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -657,7 +653,7 @@ private fun SuccessContent(
                 onClick = onViewLogs,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Done")
+                Text(stringResource(R.string.action_done))
             }
         }
     }
@@ -674,7 +670,7 @@ private fun PublicKeyCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Agent SSH public key", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.onb_pubkey_title), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             SelectionContainer {
                 Text(
@@ -686,9 +682,9 @@ private fun PublicKeyCard(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = if (usesHardwareKeystore) {
-                    "Stored in Android Keystore (biometric-gated)"
+                    stringResource(R.string.onb_key_keystore)
                 } else {
-                    "Stored encrypted (software Ed25519 fallback)"
+                    stringResource(R.string.onb_key_software)
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -696,13 +692,11 @@ private fun PublicKeyCard(
             Spacer(modifier = Modifier.height(12.dp))
             Button(onClick = onCopy, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.ContentCopy, contentDescription = null)
-                Text("Copy public key", modifier = Modifier.padding(start = 8.dp))
+                Text(stringResource(R.string.onb_copy_pubkey), modifier = Modifier.padding(start = 8.dp))
             }
         }
     }
 }
-
-private const val AGENT_KEY_PRIVATE_FIELD_LABEL = "On-device agent SSH key"
 
 private fun devPrefillOrEmpty(value: String): String =
     if (BuildConfig.DEBUG && BuildConfig.DEV_PREFILL) value else ""
