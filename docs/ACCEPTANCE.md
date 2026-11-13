@@ -1,5 +1,11 @@
 # Stackward — Acceptance Criteria
 
+> **Scope narrowed 2026-11-12 ([PRD](../PRD.md) D5–D8):** v1 is a read-only health check
+> for Linux hosts. Scenarios for actions, the on-device model, Proxmox and the older
+> log features were removed; the read-only guarantee (INV-3) replaced the action
+> scenarios. Statuses marked *Built* describe the code **today**, which still contains
+> the features being removed (PRD §11, R1/R2).
+
 This is the definition of "done" for v1. A scenario passes only when it has been
 **run on a real phone against a real host** and the result is recorded. Code that
 exists is not accepted code.
@@ -31,10 +37,9 @@ security), `AI` (optional model), `Q` (quality). Open issues reference them.
 |---|---|
 | **Primary phone** | Android 13+ with a strong biometric (fingerprint or face) enrolled, so the biometric-bound Keystore key is used. Record the model and Android version. |
 | **Second phone** | Android 9–12 **or** a phone with no enrolled biometric, to exercise the fallback ([#95](https://github.com/alexseymer/Stackward/issues/95)). |
-| **Low-end phone** | A lower-mid-range device for the quality scenarios ([#99](https://github.com/alexseymer/Stackward/issues/99)). The minimum supported hardware is whatever passes Q-1 and Q-2 here. |
+| **Low-end phone** | Optional: a lower-mid-range device to check that CHK-3 (latency) still holds. The README states the minimum tested Android version. |
 | **Host A** | A fresh Debian/Ubuntu VM with only OpenSSH, systemd and a new `stackward-agent` user. **No** admin script run. |
 | **Host B** | Host A plus `scripts/bootstrap_linux.sh` run as root (journal access, Docker ACL, `stackward-check-action`). |
-| **Host C** | Optional: a Proxmox node (only if [#91](https://github.com/alexseymer/Stackward/issues/91) puts Proxmox in scope). |
 | **Bastion** | A second SSH host that can reach Host A, for the jump-host scenario. |
 | **Observer** | Anything that can see the phone's traffic and the hosts' `auth.log` (a router or laptop hotspot with `tcpdump`, plus shell access to the hosts). |
 | **Build** | A signed dogfood APK from a GitHub Release, installed with `adb install -r`. Record the version. |
@@ -47,11 +52,9 @@ promises the app makes; most of them are currently untested.
 | ID | Scenario | Pass criteria | Built | Verified |
 |---|---|---|---|---|
 | **INV-1** | **Nothing leaves the device.** *Given* the phone is behind the observer, *when* I onboard, run checks, run a safe and a risky action, read a summary, and rotate the key, *then* … | The only destinations contacted are the test hosts/bastion (and DNS for their names). No analytics, no cloud endpoints. Model download is the only exception and is tested separately in INV-1b. | ⚠️ (model download, [#92](https://github.com/alexseymer/Stackward/issues/92)) | ⬜ |
-| **INV-1b** | **Model download is the only other traffic.** *When* I download a catalog model, *then* … | Only the model host is contacted; no host data is sent; a corrupted file is rejected and deleted. | ❌ (no checksum, [#92](https://github.com/alexseymer/Stackward/issues/92)) | ⬜ |
 | **INV-2** | **No SSH without me present.** *Given* auto-polling was enabled in an older build and I upgrade, *when* the app is closed and the phone locked for 24 h, *then* … | Zero `stackward-agent` logins in the hosts' `auth.log` for the whole period; `adb shell dumpsys jobscheduler` lists no Stackward jobs; no notification posted. | ❌ ([#86](https://github.com/alexseymer/Stackward/issues/86)) | ⬜ |
 | **INV-2b** | **Every session follows a biometric prompt.** *When* I tap "Check now", run an action, or run "Check all", *then* … | A biometric prompt appears before each SSH connection; cancelling it opens no connection (no `auth.log` entry); logcat shows the prompt before the connect. | ❌ ([#85](https://github.com/alexseymer/Stackward/issues/85)) | ⬜ |
-| **INV-3** | **The phone decides risk, not the host.** *Given* Host A's `check.sh` is edited to label a scary action `"safe"`, add an unknown action id, and add `cleanup_old_logs; id`, *when* I tap Apply on each, *then* … | Scary and unknown ids show manual steps and open **no** SSH exec channel; the injected id is treated as unknown. Verify on the host that no extra command ran. | ✅ (unit-tested; guard in CI) | ⬜ |
-| **INV-4** | **The model is optional.** *Given* no model is imported, *when* I run the full flow (onboard, check, actions), *then* … | Everything works. The summary section says why it is unavailable. No crash, no network request for a model. | ✅ | ⬜ |
+| **INV-3** | **Read-only.** *Given* a host with auditd (or `strace -f` on `sshd` children) recording commands and file changes, *when* I onboard, run several checks, rotate the key and use panic revoke, *then* … | The only commands executed are `bash ~/.stackward/check.sh`, the onboarding/login-probe steps, and the key install/rotation/revoke steps. No file changes beyond `~/.stackward/check.sh` and `authorized_keys`. A `check.sh` edited to print a command as `advice`, or to claim anything else, causes nothing to run on the host. | ❌ (an Apply path and a root helper still exist; PRD R2) | ⬜ |
 
 ## 4. Core flow
 
@@ -79,13 +82,7 @@ promises the app makes; most of them are currently untested.
 
 ### Actions
 
-| ID | Scenario | Pass criteria | Built | Verified |
-|---|---|---|---|---|
-| **ACT-1** | **Safe action.** *When* I tap Apply on "Review logs", *then* … | It runs without a dialog, shows output, and writes an audit entry. | ✅ | ⬜ |
-| **ACT-2** | **Risky action.** *When* I tap Apply on "Clean up old logs" on Host B, *then* … | The literal command is shown; biometric is required; the journal is actually vacuumed on the host; success and output are in the audit log. Declining runs nothing. | ✅ (device ⬜) | ⬜ |
-| **ACT-3** | **Risky action without the helper.** *Given* Host A (no `stackward-check-action`), *then* … | The app reports a clear failure and the hint to run the admin script. It does not claim success. | ⚠️ | ⬜ |
-| **ACT-4** | **Helper rejects what it doesn't know.** *When* I run `sudo stackward-check-action reboot_host` on Host B as the agent user, *then* … | It exits non-zero with "unknown or non-privileged action id" and changes nothing. | ✅ | ⬜ |
-| **ACT-5** | **Scary action.** *When* I tap Apply on "Disable SSH password auth", *then* … | Manual console steps are shown; nothing is sent to the host; password auth is still enabled afterwards. | ✅ | ⬜ |
+Removed from v1 (PRD D5). The app runs no actions; see INV-3 for the read-only guarantee.
 
 ## 5. Failure handling
 
@@ -108,23 +105,16 @@ thing that is wrong.
 | **SEC-1** | **Panic revoke.** *When* I trigger it on the phone, *then* … | Server-side key removed where reachable; all local keys, profiles, pins, results and audit entries gone; the app returns to onboarding. | ✅ | ⬜ |
 | **SEC-2** | **Lost phone.** *When* I run `stackward-panic-revoke` on a host as an admin, *then* … | The phone can no longer log in to that host (verify from the phone). | ✅ | ⬜ |
 | **SEC-3** | **Key rotation.** *When* I rotate the key, *then* … | The new key works, the old one is rejected by the host. | ✅ | ⬜ |
-| **SEC-4** | **Hostile server text.** *Given* a host whose logs and unit names contain prompt-injection text, *when* I summarize, *then* … | No proposal or action is created from that text. The summary does not follow the injected instruction. ([#97](https://github.com/alexseymer/Stackward/issues/97)) | ⚠️ | ⬜ |
 | **SEC-5** | **Audit log.** *When* I run actions, then export the log, *then* … | Every action (success and failure) and every acknowledgment appears with time, command and outcome. | ✅ | ⬜ |
 
 ## 7. Optional on-device summary
 
-| ID | Scenario | Pass criteria | Built | Verified |
-|---|---|---|---|---|
-| **AI-1** | **Summary works.** *Given* a model is imported and Host A has two real issues, *when* I summarize, *then* … | The summary names both issues and invents no host or service. | ✅ | ⬜ |
-| **AI-2** | **Degrades cleanly.** *Given* inference fails (kill the app mid-run, or too little RAM), *then* … | The error is shown; the structured list is untouched. | ✅ | ⬜ |
-| **AI-3** | **Stale summary.** *When* I re-check after summarizing, *then* … | The old summary is cleared. | ✅ | ⬜ |
+Removed from v1 (PRD D7).
 
 ## 8. Quality
 
 | ID | Scenario | Pass criteria | Built | Verified |
 |---|---|---|---|---|
-| **Q-1** | **Summary latency.** | Under 30 s on the primary phone; the low-end phone's figure is recorded and the minimum device is stated in the README. ([#99](https://github.com/alexseymer/Stackward/issues/99)) | ❌ | ⬜ |
-| **Q-2** | **Memory and battery.** | No out-of-memory on the low-end phone with a model loaded; battery cost of a check and of a summary measured and recorded. ([#99](https://github.com/alexseymer/Stackward/issues/99)) | ❌ | ⬜ |
 | **Q-3** | **False positives.** | Over **2 weeks** on real hosts, log every flagged issue as real or false. At most **20 false per 100 flagged**, with at least 30 flagged issues in the sample. | ❌ (no log yet) | ⬜ |
 | **Q-4** | **Localization and accessibility.** | German and English complete; the onboarding → dashboard → risky-action path is usable with TalkBack and at 200% font size. ([#100](https://github.com/alexseymer/Stackward/issues/100)) | ❌ | ⬜ |
 | **Q-5** | **Install.** | A fresh phone installs the release APK with `adb install -r` and upgrades the previous release in place without losing data. | ⚠️ | ⬜ |
@@ -146,10 +136,9 @@ v1 is acceptable when **all** of these are Verified ✅ on the current release b
 - Every `INV-*` scenario.
 - `ONB-1`, `ONB-2`, `ONB-6`.
 - `CHK-1`, `CHK-2`, `CHK-3`, `CHK-5`.
-- `ACT-2`, `ACT-4`, `ACT-5`.
 - `FAIL-1`, `FAIL-2`, `FAIL-5`, `FAIL-6`.
 - `SEC-1`, `SEC-2`.
-- `Q-1`, `Q-3`, `Q-5`.
+- `Q-3`, `Q-5`.
 
 Everything else is desirable for v1 but may be waived explicitly, with the waiver and
 its reason written in the sign-off log.
@@ -164,10 +153,6 @@ its reason written in the sign-off log.
 | [#88](https://github.com/alexseymer/Stackward/issues/88) Blind spots reported as all clear | CHK-5 |
 | [#89](https://github.com/alexseymer/Stackward/issues/89) `check.sh` correctness | CHK-1, CHK-6 |
 | [#90](https://github.com/alexseymer/Stackward/issues/90) Unreachable and stale hosts | FAIL-1, FAIL-2, CHK-4 |
-| [#91](https://github.com/alexseymer/Stackward/issues/91) Proxmox scope | Host C scenarios, if in scope |
-| [#92](https://github.com/alexseymer/Stackward/issues/92) Model download | INV-1, INV-1b |
-| [#93](https://github.com/alexseymer/Stackward/issues/93) Test gaps | supports INV-3, ACT-2, SEC-1 |
+| [#93](https://github.com/alexseymer/Stackward/issues/93) Test gaps | supports INV-3, SEC-1 |
 | [#95](https://github.com/alexseymer/Stackward/issues/95) No biometric-bound key | FAIL-5, FAIL-6 |
-| [#97](https://github.com/alexseymer/Stackward/issues/97) Prompt injection | SEC-4 |
-| [#99](https://github.com/alexseymer/Stackward/issues/99) Model evaluation | Q-1, Q-2 |
 | [#100](https://github.com/alexseymer/Stackward/issues/100) Localization and accessibility | Q-4 |

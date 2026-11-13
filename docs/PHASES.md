@@ -7,7 +7,7 @@ Implementation Order. Both are done; current focus is dogfooding, not new
 phases — see [Current focus](#current-focus) below.
 
 > **2026-10-23:** the PRD was revised and is now ahead of the code in places
-> ([PRD §11](../PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-10-23)).
+> ([PRD §11](../PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12)).
 > Phases C (polling) and F (notifications) below record what shipped, but both
 > are **slated for removal** (decision D1: no background SSH), and Phase B's
 > `check.sh` delivery is changing (D2). The task tables keep their original
@@ -226,7 +226,7 @@ features to work.
 
 With every planned phase implemented, work shifts from building to
 dogfooding — plus closing the gaps the 2026-10-23 PRD revision opened
-([PRD §11](../PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-10-23)):
+([PRD §11](../PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12)):
 
 - **G2 first, on a real phone.** Does SSH key signing work at all with the
   per-use biometric Keystore key on Android 13+? Everything else assumes it

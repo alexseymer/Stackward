@@ -4,7 +4,7 @@
 
 > **Spec vs. code.** [PRD.md](../PRD.md) was revised on 2026-10-23 and is
 > deliberately ahead of the code in a few places (see its
-> [§11](../PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-10-23)). This
+> [§11](../PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12)). This
 > document describes what the code does **today** and marks those places
 > with *(→ G#)*.
 

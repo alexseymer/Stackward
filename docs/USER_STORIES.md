@@ -9,7 +9,7 @@ the v1 release gate — is [ACCEPTANCE.md](ACCEPTANCE.md).** The ✅ marks below
 **Status key:** ✅ implemented · ⚠️ partial / scaffold · ❌ not yet · 🔮 v1.1 stretch
 
 > **2026-10-23:** [PRD](../PRD.md) was revised (decisions D1–D4) and is ahead
-> of the code in places — see [PRD §11](../PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-10-23).
+> of the code in places — see [PRD §11](../PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12).
 > Status marks here describe what the **code does today**; stories whose
 > feature the PRD now removes are labelled *to be removed*, and new stories
 > for the not-yet-built parts (G3, G4) are marked ❌.
@@ -360,7 +360,7 @@ shipped a dogfood round before the pivot.
 in-app toggle, additional RISKY actions in the check.sh catalog (restart a
 service, reboot, package updates — each needs a matching
 `stackward-check-action` case and a design for validating any parameter; see
-[PRD §5.2](../PRD.md#52-risk-based-action-gating)).
+[PRD §5.2](../PRD.md#52-read-only-guarantee)).
 
 ---
 

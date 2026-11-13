@@ -3,6 +3,13 @@
 **Date:** 2026-09-24 (revised 2026-10-23 to match PRD decisions D1–D4)  
 **Status:** Chosen north star (replaces mixed identity from earlier phases)
 
+> **Narrowed 2026-11-12 ([PRD](PRD.md) D5–D8):** v1 is a **read-only health check for
+> Linux hosts**: no actions on hosts, no on-device model, no Proxmox API or older log
+> features. The sections below describe the earlier, wider Lookout scope (risk-gated
+> actions, optional Gemma summary, Proxmox); where they conflict with the PRD, the
+> PRD wins. The Implementation Order records what was built, much of which is now
+> slated for removal (PRD §11).
+
 ## The Thesis
 
 Stackward is a **read-only triage instrument** for a single operator managing their own infrastructure from a phone **without opening a laptop or exposing logs to a third-party SaaS.**

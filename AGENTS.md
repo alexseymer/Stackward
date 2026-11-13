@@ -19,7 +19,10 @@ anymore.
 1. **`STRATEGY.md`** — the chosen north star ("Lookout": read-only triage
    via `~/.stackward/check.sh`, risk-based safe/risky/scary gating, model
    optional) and the Implementation Order status.
-2. **`PRD.md`** — full spec matching that strategy. Its §11 lists where the
+2. **`PRD.md`** — the spec. **Scope narrowed 2026-11-12 (D5–D8): v1 is a read-only
+   health check for Linux hosts**; actions, the model, Proxmox and the older log
+   features are being removed (§11 R1/R2). Don't add code in those areas. The
+   `CheckActionCatalog` text in item 5 below describes today's code, which R2 deletes. Its §11 lists where the
    spec is deliberately **ahead of the code** (since 2026-10-23: no background
    SSH, `check.sh` installed by onboarding, biometric-bound key use). Treat
    those rows as open work. Don't "fix" the PRD back to match the code there.

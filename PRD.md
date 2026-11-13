@@ -1,15 +1,17 @@
-# PRD: Stackward — Personal Infrastructure Triage & Gated Improvements
+# PRD: Stackward — A Read-Only Health Check for Your Own Linux Hosts
 
-**Revised 2026-10-23** — checked claim-by-claim against the shipped code and
-updated with product decisions D1–D4 (§10). Where this spec now asks for
-something the code doesn't do yet, §11 lists the gap. Treat §11 as the
+**Revised 2026-11-12 — scope narrowed (decisions D5–D8, §10).** v1 is a read-only
+health check. It no longer runs actions on hosts, no longer includes an on-device
+model, no longer ships the older log/Proxmox features, and covers Linux hosts only.
+Earlier revisions (2026-10-23, decisions D1–D4) are kept in §10. Where this spec
+asks for something the code doesn't do yet, §11 lists the gap; treat §11 as the
 authoritative "spec is ahead of code" list.
 
 ## 1. Summary
 
-An Android app for solo infrastructure operators to triage and improve their
-own systems — Linux hosts, Proxmox, Docker — from a phone without a laptop or
-SaaS exposure.
+**One sentence:** Stackward tells a solo operator, from their phone and within
+10 seconds of a fingerprint, whether any of their Linux hosts has a problem right
+now — and changes nothing on those hosts.
 
 **The job:** "Is something wrong right now? Should I open the laptop?"
 
@@ -18,25 +20,25 @@ SaaS exposure.
    and the check script `~/.stackward/check.sh`, then forgets the setup secret.
 2. When the user opens a host and confirms with biometric, the phone runs
    `check.sh` over SSH.
-3. The script returns **structured issues and suggestions** as JSON (disk
-   full, failed service, risky SSH config, …).
-4. The phone — not the host — decides each suggestion's risk: safe runs
-   immediately, risky needs biometric confirmation, scary is never run and
-   shows manual steps instead.
-5. Optional: an on-device Gemma model summarizes the results in plain language.
+3. The script returns **structured issues** as JSON (disk full, failed service,
+   risky SSH config, …), each optionally with a line of manual advice.
+4. The phone shows the issues, worst first. Advice is text the operator can read
+   and copy; the app never runs it.
 
 **Product invariants** (always true):
 
-1. **Nothing leaves the device** except over SSH/API to the user's own
-   infrastructure. No cloud, no SaaS, no telemetry.
+1. **Nothing leaves the device** except over SSH to the user's own
+   infrastructure. No cloud, no SaaS, no telemetry, no model downloads.
 2. **No background access.** Every SSH session to a host happens while the
    user is in the app and has confirmed with biometric. Nothing connects to a
-   host on a schedule or while the phone is locked (decision D1).
-3. **The phone decides risk.** A suggestion's self-reported risk is
-   display-only; only commands in the phone's fixed catalog ever run, and
-   unknown actions never run.
-4. **The model is optional.** Without Gemma the app is a complete structured
-   anomaly checker.
+   host on a schedule or while the phone is locked (D1).
+3. **Read-only.** The app changes nothing on a monitored host except its own
+   footprint: its public key in `authorized_keys` and `~/.stackward/check.sh`.
+   It runs no remediation, restarts nothing, and never executes text that came
+   from the host (D5).
+4. **No elevated privileges.** The agent user needs no `sudo`. Everything the
+   check reads is readable by an ordinary account (plus, optionally, membership of
+   the `systemd-journal` group and a read ACL on Docker logs).
 
 ## 2. Goals
 
@@ -44,42 +46,39 @@ SaaS exposure.
   installs its public key and `check.sh`, verifies key login, and wipes the
   setup secret — never stored.
 - **On-demand checks:** run `check.sh` on a host when the user asks; show
-  structured issues and suggestions in under 10 seconds.
-- **Gate improvements by risk** using the phone's own action catalog (§5.2).
-- **Summarize with Gemma (optional):** user-imported Gemma 2B/4B runs
-  on-device; without it the structured list stands alone.
+  structured issues in under 10 seconds.
+- **Trustworthy results:** never show "all clear" for something the check could
+  not read; an unreachable or stale host is shown as such, not as healthy.
 - **Reach LAN-only hosts:** jump host (bastion as relay, not as a monitored
   server) and optional port knocking.
-- **Keep it private:** see invariant 1. Single operator per installation.
+- **Recover from loss:** panic revoke on the phone, and a documented admin
+  procedure on the host.
 
 ## 3. Non-Goals (v1)
 
-- **No background monitoring or push alerts.** Checks run only while the user
-  is in the app (invariant 2). This drops scheduled polling and critical-issue
-  notifications. Revisit only with a credential that is safe to use unattended
-  (see D1 for the option that was considered).
-- **No autonomous actions.** Nothing runs without a user tap, and risky
-  actions need biometric.
-- **No team/multi-operator mode,** no shared credentials, no accounts.
-- **No cloud or SaaS fallback,** including for inference.
-- **No broad privilege by default.** The recommended identity is a dedicated
-  low-privilege `stackward-agent` user. Connecting as root or a sudo-capable
-  user is allowed, but onboarding detects it, warns, and requires explicit
-  acknowledgment (recorded in the audit log).
-- **No broad actuation.** Creating VMs, editing sudoers, changing Proxmox
-  permissions, changing SSH configuration and similar boundary changes are out
-  of scope; the app shows what to do and the operator does it at the console.
-- **No Play Store in v1.** Distribution is a signed dogfood APK from GitHub
-  Releases, installed with `adb install -r`.
+- **No actions on hosts.** No restart, cleanup, update or reboot, and no "apply"
+  button. Advice is text only (D5).
+- **No on-device AI model.** No summaries, no model download or import (D7).
+- **No log analysis on the phone.** `check.sh` runs on the host; the phone shows
+  what it reports.
+- **No Proxmox- or Docker-specific monitoring.** Proxmox and Docker hosts are
+  checked as plain Linux hosts (D8). Proxmox API access and VM/LXC views are out.
+- **No background monitoring or push alerts** (D1).
+- **No team/multi-operator mode,** no accounts, no cloud or server fallback.
+- **No iOS.** Android only. No Play Store in v1; distribution is a signed dogfood
+  APK from GitHub Releases, installed with `adb install -r`.
+- **No broad privilege.** Connecting as root or a sudo-capable user is allowed,
+  but onboarding detects it, warns, and requires explicit acknowledgment
+  (recorded in the audit log).
 
 ## 4. Users
 
-**Primary:** a solo homelab operator — one person, their own Linux / Proxmox /
-Docker hosts (typically a handful to a few dozen) — who wants a fast "is
-anything wrong?" answer from a phone without exposing logs to a third party.
+**Primary:** a solo homelab operator — one person, their own Linux hosts
+(typically a handful to a few dozen) — who wants a fast "is anything wrong?"
+answer from a phone without exposing logs to a third party.
 
-**Secondary:** none in v1. No small-business or team story. The project is a
-personal MIT-licensed tool, not ready for outside contribution.
+**Secondary:** none. No small-business or team story. A personal MIT-licensed
+tool, not ready for outside contribution.
 
 ## 5. Core Concepts
 
@@ -89,81 +88,66 @@ A dependency-free bash script on each monitored host. It runs unprivileged as
 the SSH user, reads system state, and prints one JSON document. It never
 changes anything.
 
-**Output contract** (parsed by `CheckScriptParser`):
+**Output contract** (parsed by `CheckScriptParser`; target shape, see §11 R2):
 
 ```json
 {
-  "timestamp": "2026-10-23T09:14:02Z",
-  "hostname": "pve-01",
+  "timestamp": "2026-11-12T09:14:02Z",
+  "hostname": "web-01",
+  "coverage": {"journal": "ok", "docker": "absent", "systemd": "ok"},
   "issues": [
-    {"type": "disk", "severity": "critical", "message": "/var at 96% capacity"},
-    {"type": "security", "severity": "critical", "message": "SSH password authentication enabled"}
-  ],
-  "suggestions": [
-    {"id": "cleanup-disk", "risk": "risky", "action": "cleanup_old_logs", "reason": "Remove old log files to free disk space"},
-    {"id": "disable-ssh-pwd", "risk": "scary", "action": "disable_ssh_password_auth", "reason": "Disable SSH password authentication"}
+    {"type": "disk", "severity": "critical", "message": "/var at 96% capacity",
+     "advice": "Free space under /var, e.g. journalctl --vacuum-time=7d"},
+    {"type": "security", "severity": "critical", "message": "SSH password authentication enabled",
+     "advice": "Set PasswordAuthentication no in sshd_config (at the console, not over this connection)"}
   ]
 }
 ```
 
-`severity` ∈ `critical | high | medium`. A suggestion's `risk` is the host's
-opinion and is display-only (§5.2); `action` is the only field the phone acts
-on. `reason` is optional.
+- `severity` ∈ `critical | high | medium`.
+- `advice` is optional text, shown to the operator and never executed.
+- `coverage` states what the script could and could not read (`ok`, `denied`,
+  `absent`), so "no issues" is never claimed for a check that didn't run.
+- Older copies that still send `suggestions[]` are parsed and the field ignored.
 
 **What it detects** (defaults; each threshold can be overridden through an
 environment variable of the same name):
 
 | Area | Check | Severity |
 |---|---|---|
-| Disk | any mounted filesystem > `DISK_WARNING_PCT` (85) | high |
-| Disk | any mounted filesystem > `DISK_CRITICAL_PCT` (95) | critical |
+| Disk | any real mounted filesystem > `DISK_WARNING_PCT` (85) | high |
+| Disk | any real mounted filesystem > `DISK_CRITICAL_PCT` (95) | critical |
 | Memory | used > `MEM_WARNING_PCT` (80) | high |
 | Services | each failed systemd unit | critical |
 | Security | `PasswordAuthentication yes` in `sshd_config` | critical |
 | Security | more than 20 listening TCP ports | medium |
 | Logs | more than 5 `err`-priority entries in the last `SYSTEMD_JOURNAL_LINES` (100) journal lines | medium |
-| Docker | any exited containers (if Docker is installed and readable) | medium |
 
-**Not covered yet:** Proxmox task logs, Docker container log contents, swap,
-firewall state, service restart counts. These are candidate checks, not v1
-requirements.
+"Real" excludes pseudo and read-only filesystems such as snap loop mounts.
+Docker (exited containers) is reported on a best-effort basis when readable; it is
+not a v1 requirement (D8). Candidate checks for later: swap, firewall state,
+service restart counts, pending security updates, time sync, certificate expiry,
+backup age.
 
-**Delivery:** the app installs `check.sh` during onboarding as the SSH user
-(no root needed) and replaces it when the app's bundled version is newer
-(decision D2). The optional admin script `scripts/bootstrap_linux.sh` is only
-needed for the privileged helper that risky actions use (§5.2) and for
-journal/Docker log read access.
+**Delivery:** the app installs `check.sh` during onboarding as the SSH user (no
+root needed) and replaces it when the app's bundled version is newer (D2). The
+optional admin script `scripts/bootstrap_linux.sh` only grants extra *read*
+access (journal group, Docker log ACL) and installs the credential-lifecycle
+helpers (§5.3).
 
-### 5.2 Risk-based action gating
+### 5.2 Read-only guarantee
 
-The authority is the phone-side catalog `dev.stackward.check.CheckActionCatalog`.
-It maps an action id to a fixed command and a risk level. The phone never
-builds a command from anything the host sends.
+Nothing in the app can change a host's state beyond its own footprint:
 
-| Risk | Meaning | Phone behavior |
-|---|---|---|
-| **Safe** | Read-only, no side effects | Runs immediately; audited |
-| **Risky** | Changes state or needs elevation; recoverable | Shows the literal command; runs only after biometric; audited |
-| **Scary** | Changes access or security boundaries, or could lock the operator out | Never run by the app; shows manual console steps |
-| **Unknown** | Action id not in the catalog | Never run; treated as scary |
-
-**v1 catalog (shipped):**
-
-| Action id | Risk | Command / behavior |
-|---|---|---|
-| `tail_journal` | Safe | `journalctl -n 100 --no-pager` |
-| `list_failed_services` | Safe | `systemctl list-units --state=failed --no-pager --plain` |
-| `cleanup_old_logs` | Risky | `sudo /usr/local/sbin/stackward-check-action cleanup_old_logs` (vacuums journal entries older than 7 days) |
-| `disable_ssh_password_auth` | Scary | Manual steps only, to be done at the console — never over the SSH connection being changed (decision D3) |
-
-**Candidate actions** (not in v1): restart a named service, reboot host,
-apply package updates. Rules for adding any action:
-- A **risky** action must run through the `stackward-check-action` sudoers
-  helper, which re-checks the action id against its own fixed list. Adding a
-  catalog entry without a matching helper case fails silently on a real host.
-- No action may take free-form arguments from the host. A parameterized
-  action (e.g. "restart *this* service") needs its own design for validating
-  the parameter on both the phone and the helper.
+- The only commands the phone sends are: `bash ~/.stackward/check.sh`; the
+  onboarding steps that install the public key and `check.sh`; the login probe;
+  and key rotation/revocation.
+- There is no catalog of runnable actions, no "apply" path, no model, and no
+  sudoers helper for remediation. Text from the host (messages, advice, unit
+  names) is data for display only and is never executed or interpreted.
+- A compromised or buggy `check.sh` can at worst show misleading text or hide a
+  problem. It cannot make the phone run anything, because the phone has no code
+  path that executes host-supplied content.
 
 ### 5.3 Identity, credentials, and setup
 
@@ -178,8 +162,8 @@ apply package updates. Rules for adding any action:
 4. The app installs its public key into `~/.ssh/authorized_keys`, installs
    `check.sh` (D2), verifies key-based login, and wipes the password or private
    key from memory. Nothing from step 2 is stored.
-5. Optional: run `scripts/bootstrap_linux.sh` as root to enable risky actions
-   and log read access.
+5. Optional: run `scripts/bootstrap_linux.sh` as root to grant journal/Docker log
+   read access and to install the revoke helpers.
 
 **Keys and biometric:**
 - The device SSH key lives in Android Keystore (hardware-backed where
@@ -188,11 +172,7 @@ apply package updates. Rules for adding any action:
   enforces invariant 2.
 - Biometric data never leaves the device; it only unlocks local key use.
 - Panic revoke removes the key from hosts it can still reach and wipes all
-  local credentials, pins, results, and schedules. Key rotation is supported.
-
-**Proxmox:** a Proxmox host can additionally provide an API token at
-onboarding (stored in Keystore) for the legacy Proxmox features (§5.5). It is
-not used by `check.sh`.
+  local credentials, pins and results. Key rotation is supported.
 
 ### 5.4 Connectivity
 
@@ -206,17 +186,6 @@ not used by `check.sh`.
 - **Retries:** failed connections retry with backoff while the check is in
   progress. There is no background retry or schedule.
 
-### 5.5 Legacy subsystem (still shipping)
-
-The pre-Lookout features remain in the app and follow the same invariants:
-the **Logs** screen (log digest, heuristic anomaly detection, Gemma
-summaries), the **Log Analyzer**, Proxmox API views, and the older
-`PermissionEngine` tier model for Gemma-proposed actions — restricted to the
-read-only `MONITOR` capability pack. The check-script dashboard is the primary
-flow; these are kept because they reuse the same connection, credential, and
-inference layers. The legacy hourly background log digest violates invariant 2
-and is removed (§11).
-
 ## 6. Key User Stories (v1 acceptance)
 
 1. **First connect** — I create `stackward-agent`, enter the host and the
@@ -224,23 +193,16 @@ and is removed (§11).
    wipes the password. If I use root or a sudo user, the app warns me and I
    must acknowledge.
 2. **Dashboard glance** — I open the app and see every host with its worst
-   severity from its *last* check and how long ago that was. Tap a host for
-   details.
+   severity from its *last* check and how long ago that was. Hosts that are
+   unreachable or stale are shown as such, never as healthy.
 3. **Quick check** — I tap "Check now", confirm with my fingerprint, and see
-   issues and suggestions in under 10 seconds: disk at 96%, a failed unit, SSH
-   password auth still on.
-4. **Plain-language summary (optional)** — With a Gemma model imported I get a
-   short summary; without one I still get the full structured list.
-5. **Safe action** — I tap "Review logs"; it runs immediately and shows the
-   last 100 journal lines.
-6. **Risky action** — I tap "Clean up old logs"; the app shows the exact
-   command, I confirm with biometric, it runs, and the result is in the audit
-   log.
-7. **Scary action** — The app flags SSH password auth but shows "Manual step
-   required" with console instructions, and never runs it.
-8. **Through a jump host** — I onboard an internal host via a bastion; the
+   issues in under 10 seconds: disk at 96%, a failed unit, SSH password auth
+   still on. If the check couldn't read something, it says so.
+4. **Advice** — Each issue may carry one line of advice that I can read and copy
+   to run myself at a terminal. The app never runs it.
+5. **Through a jump host** — I onboard an internal host via a bastion; the
    bastion only relays and doesn't appear as a monitored host.
-9. **Lost phone** — From a trusted machine I can remove the device key from my
+6. **Lost phone** — From a trusted machine I can remove the device key from my
    hosts (`stackward-revoke-key`); on the phone, panic revoke wipes everything
    local.
 
@@ -250,13 +212,13 @@ How each metric is measured, and the scenarios that must pass for v1, are in
 [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md).
 
 - **Install-to-first-check:** fresh host to first check results in under 5
-  minutes, with no model and no admin script required.
+  minutes, with no admin script required.
 - **Check latency:** under 10 seconds from biometric confirmation to results
   on a reachable host.
-- **Model optional:** the app is useful with no model; with Gemma, a summary
-  arrives within 30 seconds on a 2026 flagship.
-- **Privacy:** a network audit shows no traffic except SSH/API to the user's
-  own hosts.
+- **Privacy:** a network audit shows no traffic except SSH to the user's own
+  hosts.
+- **Read-only:** a host-side audit of a full session shows no command other than
+  the documented ones (§5.2) and no file changes beyond the app's footprint.
 - **False positives:** at most 20 per 100 flagged issues during dogfooding.
 - **Dogfood:** the author uses it weekly and reaches for it instead of a
   laptop for "what's wrong?"
@@ -265,24 +227,23 @@ How each metric is measured, and the scenarios that must pass for v1, are in
 
 | Risk | Mitigation |
 |---|---|
-| Compromised or buggy `check.sh` returns malicious suggestions | Host risk labels are ignored; only fixed catalog commands run; unknown actions never run; risky actions show the literal command and need biometric; all runs audited |
+| Compromised or buggy `check.sh` hides a problem or shows misleading text | It cannot make the phone run anything (§5.2); `coverage` shows what wasn't read; the script is installed and refreshed by the app, and its integrity is the operator's host-security responsibility |
 | Compromised jump host tries to MITM inner hosts | Per-hop host key pinning; key changes refused |
-| Heuristic false positives | Nothing runs without a tap; risky actions still need biometric |
+| Heuristic false positives or false "all clear" | Real-filesystem filtering, tests with fixtures, `coverage` reporting; false-positive rate tracked during dogfooding |
 | Setup password exposure | Used once, held only in memory, wiped after key install whether setup succeeds or fails |
 | Operator connects as root / passwordless sudo | Elevation detected at onboarding; explicit acknowledgment, recorded in the audit log |
 | Lost or stolen phone | Key needs biometric for every use and is invalidated by biometric re-enrollment; no unattended key use (invariant 2); panic revoke and server-side `stackward-revoke-key` |
 | Installed `check.sh` drifts from the app's version | App replaces it when its bundled version is newer; `scripts/verify_check_sh_sync.sh` guards copies in the repo |
 | Biometric fatigue when checking many hosts | Accepted for v1 (one confirmation per host per check); see open question Q1 |
-| No Gemma model | Structured results are complete on their own |
 
 ## 9. Status
 
-The Lookout direction (check script, multi-host dashboard, phone-side risk
-gating, optional Gemma summary) is implemented and on `main`. This revision
-changes three things the code doesn't do yet — no background checks (D1),
-`check.sh` installed by the app (D2), and biometric-bound key use — listed
-with the related cleanups in §11. The current focus is dogfooding on a
-physical device against real hosts.
+The check script, multi-host dashboard and key/host-pinning layer are
+implemented. The 2026-11-12 narrowing (D5–D8) means a large part of the shipped
+app — the older Logs/Analyzer screens, the on-device model, the Proxmox API code,
+the action catalog and its sudoers helper — is to be removed, plus background
+polling (D1). §11 lists that work. Nothing has been verified on a physical device
+yet; the first priority is to find out whether SSH signing works on one (G2).
 
 ## 10. Decisions
 
@@ -290,27 +251,29 @@ physical device against real hosts.
 |---|---|
 | Core agent | Shell script (`check.sh`), not a daemon; run by the phone on demand |
 | Recommended identity | `stackward-agent`: dedicated low-privilege Linux user, no sudo |
-| Risk authority | The phone's fixed catalog; host-reported risk is display-only |
-| Gemma | Optional and user-imported; never required |
-| Scary operations | Out of scope; manual console steps shown |
 | Jump host role | Relay only, not a monitored host |
-| v1 scope | Read-only checks plus a small catalog of gated improvements; no Maintain/Provision |
 | Distribution | Signed dogfood APK on GitHub Releases, installed with `adb install -r`; no Play Store |
 | **D1 (2026-10-23) Background checks** | **None.** Checks run only in-app after biometric. Considered and not chosen: a second, server-restricted key (`authorized_keys` `restrict,command="bash ~/.stackward/check.sh"`) usable unattended for polling and alerts — the path to revisit if background monitoring comes back. |
-| **D2 (2026-10-23) `check.sh` delivery** | The app installs and updates it during onboarding as the SSH user; the admin script is optional (risky-action helper, log access). |
-| **D3 (2026-10-23) SSH password auth** | Scary: manual steps only, never run by the app (lockout risk). |
-| **D4 (2026-10-23) Action set** | The spec lists the shipped catalog; other actions are candidates subject to the §5.2 rules. |
+| **D2 (2026-10-23) `check.sh` delivery** | The app installs and updates it during onboarding as the SSH user. |
+| **D5 (2026-11-12) v1 is read-only** | The app runs no actions on hosts. Suggestions become per-issue advice text, never executed. This supersedes D3 and D4, the phone-side action catalog and risk gate, and the earlier "gated improvements" scope. |
+| **D6 (2026-11-12) Remove the older subsystems** | The Logs screen, Log Analyzer, hourly log digest, Gemma-proposed shell commands (`PermissionEngine`, tiers, `CapabilityPack`), and the Proxmox API/token code are deleted from the app (kept in git history). |
+| **D7 (2026-11-12) No on-device model in v1** | No summaries, no model download or import. Can return after v1 as an optional layer, with its own prompt-injection, integrity and evaluation work. |
+| **D8 (2026-11-12) Linux hosts only** | Proxmox and Docker hosts are checked as plain Linux hosts. Proxmox- and Docker-specific checks are future work and need a privilege design first. |
+| Considered, not chosen (2026-11-12) | A tool-calling model with a server-side API, voice control and iOS (issue #103). Different architecture, with a server component to build and secure; revisit only after v1 proves the core job. |
 
-## 11. Spec ahead of code (open work as of 2026-10-23)
+## 11. Spec ahead of code (open work as of 2026-11-12)
 
 | # | Gap | Where |
 |---|---|---|
-| G1 | Remove background SSH: the per-host "Auto 4h" polling (`CheckWorker`, `PollingMode.AUTO_4H`), critical notifications (`CheckNotifier`, `POST_NOTIFICATIONS`), and the legacy hourly `LogDigestWorker` | `check/`, `logs/`, `ui/dashboard/`, manifest |
+| G1 | Remove background SSH: per-host "Auto 4h" polling (`CheckWorker`, `PollingMode`), critical notifications (`CheckNotifier`, `POST_NOTIFICATIONS`), and the hourly `LogDigestWorker` | `check/`, `logs/`, `ui/dashboard/`, manifest |
 | G2 | Bind each SSH signature to a biometric prompt. The Keystore key requires per-use authentication, but `BiometricGate` authenticates without a `CryptoObject`, so signing likely fails on Android 13+ devices with a strong biometric enrolled. **Verify on a device first.** | `crypto/AgentKeyManager`, `ui/security/BiometricGate`, `connection/` |
 | G3 | Onboarding installs `check.sh` (bundled as an app asset) and refreshes it when the bundled version is newer; extend `scripts/verify_check_sh_sync.sh` to cover the bundled copy | `onboarding/OnboardingFlow` |
-| G4 | Delete the stale bundled `assets/scripts/bootstrap_linux.sh` (144 lines, no `check.sh`, no risky-action helper) and the unused `BootstrapRunner` that loads it | `app/src/main/assets/scripts/`, `onboarding/` |
-| G5 | `check.sh`: its header wrongly says onboarding runs the bootstrap script; it labels `disable_ssh_password_auth` as `risky` (harmless, since the phone ignores it, but confusing) | `scripts/check.sh` + embedded copy |
-| G6 | Once G1 lands: update `docs/ARCHITECTURE.md`, `docs/PHASES.md`, `docs/USER_STORIES.md`, and the README, which still describe auto-polling and notifications as current | docs |
+| G4 | Delete the stale bundled `assets/scripts/bootstrap_linux.sh` and the unused `BootstrapRunner` | `app/src/main/assets/scripts/`, `onboarding/` |
+| R1 | **Remove the older subsystems (D6, D7, D8):** Logs and Analyzer screens, `logs/`, `inference/` (incl. the MediaPipe dependency and model download), `proxmox/`, `permissions/` tiering (`PermissionEngine`, `CapabilityPack`, `Tier1Rules`), related Settings and navigation | `ui/`, `logs/`, `inference/`, `proxmox/`, `permissions/`, `build.gradle.kts` |
+| R2 | **Make the app read-only (D5):** replace `suggestions[]`, `CheckActionCatalog`, `CheckSuggestionGate`, the Apply/confirm flow and audited execution with per-issue `advice`; add `coverage` to the `check.sh` output; drop the `stackward-check-action` and `stackward-onetimer` helpers and the catalog/helper parity guard | `check/`, `ui/dashboard/`, `scripts/` |
+| R3 | `check.sh` accuracy: exclude pseudo/loop filesystems, escape JSON, report `coverage`, fix mismatched thresholds and the stale header (the check.sh cleanup issue) | `scripts/check.sh` + embedded copy |
+| R4 | Dashboard honesty: unreachable and stale states, "check all" | `ui/dashboard/` |
+| R5 | Docs: after R1/R2, update `docs/ARCHITECTURE.md`, `docs/PHASES.md`, `docs/USER_STORIES.md`, `docs/ACCEPTANCE.md` and the README so they describe only what ships | docs |
 
 **Open questions**
 
