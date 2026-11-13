@@ -160,6 +160,25 @@ printf 'web\njob\n' >"${CASE_DIR}/docker.out"
 run_check
 assert_py "2 exited containers: one medium docker issue" '[(i["type"], i["severity"]) for i in d["issues"]] == [("docker", "medium")] and "2 container" in d["issues"][0]["message"]'
 
+new_case docker_clean_exit
+printf 'job Exited (0) 2 hours ago\n' >"${CASE_DIR}/docker.out"
+run_check
+assert_py "container that exited 0 is not an issue" 'd["issues"] == []'
+
+new_case docker_failed_exit
+printf 'web Exited (137) 2 hours ago\njob Exited (0) 2 hours ago\n' >"${CASE_DIR}/docker.out"
+run_check
+assert_py "only non-zero exits count" '[(i["type"], i["message"]) for i in d["issues"]] == [("docker", "1 container(s) exited")]'
+
+new_case spaced_mount
+cat >"${CASE_DIR}/df.out" <<'EOF'
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sdb1       100G   90G   10G  90% /mnt/my disk
+/dev/sdb1       100G   90G   10G  90% /mnt/my disk
+EOF
+run_check
+assert_py "mount with a space: one issue, full name, deduped" '[i["message"] for i in d["issues"]] == ["/mnt/my disk at 90%"]'
+
 new_case no_optional_tools
 rm -f "${BIN}/ss" "${BIN}/journalctl"
 run_check
@@ -187,7 +206,7 @@ printf 'UNIT LOAD ACTIVE SUB DESCRIPTION\nx.service loaded failed failed X\n' >"
 run_check
 assert_py "advice for a failed unit names the unit" '"x.service" in d["issues"][0]["advice"]'
 
-# --- Known bugs, pinned until fixed (see the check.sh cleanup issue) ---
+# --- Regression cases for fixed check.sh bugs (#89) ---
 new_case loop_mount
 cat >"${CASE_DIR}/df.out" <<'EOF'
 Filesystem      Size  Used Avail Use% Mounted on
@@ -195,7 +214,7 @@ Filesystem      Size  Used Avail Use% Mounted on
 /dev/loop0       64M   64M     0 100% /snap/core20/2318
 EOF
 run_check
-assert_py "snap loop mount at 100% must not raise a disk alert" 'd["issues"] == []' "#89"
+assert_py "snap loop mount at 100% must not raise a disk alert" 'd["issues"] == []'
 
 new_case hostile_mount_name
 cat >"${CASE_DIR}/df.out" <<'EOF'
@@ -203,7 +222,7 @@ Filesystem      Size  Used Avail Use% Mounted on
 /dev/sdb1       100G   99G    1G  99% /mnt/we"ird\path
 EOF
 run_check
-assert_py "quote/backslash in a mount name still yields valid JSON" "${SCHEMA}" "#89"
+assert_py "quote/backslash in a mount name still yields valid JSON" "${SCHEMA} and 'we\"ird' in d[\"issues\"][0][\"message\"]"
 
 echo
 echo "check.sh tests: ${pass} passed, ${fail} failed, ${xfail} known-bug (XFAIL), ${xpass} unexpectedly fixed (XPASS)"
