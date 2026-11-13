@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Stackward</string>
+
+    <string name="cd_back">Zurück</string>
+    <string name="cd_settings">Einstellungen</string>
+    <string name="cd_add_host">Host hinzufügen</string>
+    <string name="cd_check_now">Jetzt prüfen</string>
+    <string name="cd_check_all">Alle Hosts prüfen</string>
+    <string name="action_cancel">Abbrechen</string>
+    <string name="action_retry">Erneut versuchen</string>
+
+    <string name="age_just_now">gerade eben</string>
+    <plurals name="age_minutes">
+        <item quantity="one">vor %d Minute</item>
+        <item quantity="other">vor %d Minuten</item>
+    </plurals>
+    <plurals name="age_hours">
+        <item quantity="one">vor %d Stunde</item>
+        <item quantity="other">vor %d Stunden</item>
+    </plurals>
+    <plurals name="age_days">
+        <item quantity="one">vor %d Tag</item>
+        <item quantity="other">vor %d Tagen</item>
+    </plurals>
+
+    <string name="dashboard_empty">Noch keine Hosts – tippe auf +, um einen zu verbinden.</string>
+    <string name="health_never_checked">Noch nie geprüft</string>
+    <string name="health_unreachable">Nicht erreichbar</string>
+    <string name="health_stale">Veraltetes Ergebnis</string>
+    <string name="health_clean">Keine Probleme</string>
+    <string name="health_issues">Probleme gefunden</string>
+    <string name="status_never_checked">Noch nie geprüft</string>
+    <string name="status_unreachable">Nicht erreichbar (%1$s)</string>
+    <string name="status_last_good">" – letzte erfolgreiche Prüfung %1$s"</string>
+    <string name="status_stale">Veraltet – geprüft %1$s</string>
+    <string name="status_clean">Keine Probleme – geprüft %1$s</string>
+    <string name="status_clean_blind">Keine Probleme gefunden%1$s – geprüft %2$s</string>
+    <string name="status_issues">%1$s%2$s – geprüft %3$s</string>
+    <plurals name="issue_count">
+        <item quantity="one">%d Problem</item>
+        <item quantity="other">%d Probleme</item>
+    </plurals>
+    <plurals name="blind_spot_count">
+        <item quantity="one">%d blinder Fleck</item>
+        <item quantity="other">%d blinde Flecken</item>
+    </plurals>
+    <plurals name="batch_all_ok">
+        <item quantity="one">%d Host geprüft: erreichbar</item>
+        <item quantity="other">%d Hosts geprüft: alle erreichbar</item>
+    </plurals>
+    <plurals name="batch_some_failed">
+        <item quantity="one">%1$d Host geprüft: %2$d fehlgeschlagen</item>
+        <item quantity="other">%1$d Hosts geprüft: %2$d fehlgeschlagen</item>
+    </plurals>
+
+    <string name="host_default_title">Host</string>
+    <string name="detail_last_checked">Zuletzt geprüft: %1$s</string>
+    <string name="detail_check_failed">Prüfung fehlgeschlagen: %1$s</string>
+    <string name="detail_no_results">Noch keine Ergebnisse – tippe auf Aktualisieren.</string>
+    <string name="detail_issues_title">Probleme (%1$d)</string>
+    <string name="detail_none_clean">Keine – der Host sieht sauber aus.</string>
+    <string name="detail_none_partial">Keine in dem, was gelesen werden konnte.</string>
+    <string name="detail_blind_spots">Blinde Flecken</string>
+    <string name="detail_blind_spots_explainer">Diese Teile des Hosts wurden nicht geprüft, „keine Probleme“ gilt dafür also nicht.</string>
+    <string name="gap_denied">%1$s nicht lesbar</string>
+    <string name="gap_unknown">%1$s: Abdeckung unbekannt (altes check.sh)</string>
+
+    <string name="settings_title">Sicherheit &amp; Einstellungen</string>
+    <string name="settings_connection_title">Verbindungszustand</string>
+    <string name="settings_no_server">Kein Server eingerichtet.</string>
+    <string name="settings_jump_host">Jump-Host: %1$s</string>
+    <string name="settings_last_success">Letzter Erfolg: %1$s</string>
+    <string name="settings_last_failure">Letzter Fehlschlag: %1$s</string>
+    <string name="settings_last_error">Letzter Fehler: %1$s</string>
+    <string name="settings_retry_note">SSH-Befehle werden bei vorübergehenden Fehlern mit wachsendem Abstand wiederholt.</string>
+    <string name="settings_audit_title">Audit-Protokoll</string>
+    <plurals name="settings_audit_entries">
+        <item quantity="one">%d Eintrag lokal gespeichert (verschlüsselt).</item>
+        <item quantity="other">%d Einträge lokal gespeichert (verschlüsselt).</item>
+    </plurals>
+    <string name="settings_audit_export">JSON exportieren</string>
+    <string name="settings_credentials_title">Zugangsdaten-Aktionen</string>
+    <string name="settings_rotate_button">SSH-Schlüssel erneuern</string>
+    <string name="settings_panic_button">Notfall-Sperrung</string>
+    <string name="settings_rotate_title">SSH-Schlüssel erneuern?</string>
+    <string name="settings_rotate_body">Erzeugt einen neuen Geräteschlüssel, überträgt ihn zum Server, prüft den Zugang und entfernt dann den alten Schlüssel. Erfordert biometrische Bestätigung.</string>
+    <string name="settings_rotate_confirm">Erneuern</string>
+    <string name="settings_panic_title">Notfall-Sperrung?</string>
+    <string name="settings_panic_body">Entfernt alle stackward-agent-Schlüssel auf dem Server und löscht die lokalen Zugangsdaten. Du musst den Host danach neu einrichten. Exportiere vorher bei Bedarf das Audit-Protokoll.</string>
+    <string name="settings_panic_confirm">Alles sperren</string>
+</resources>
