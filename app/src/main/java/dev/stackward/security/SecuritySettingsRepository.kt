@@ -3,10 +3,9 @@ package dev.stackward.security
 import android.content.Context
 import dev.stackward.crypto.SecurePrefs
 import dev.stackward.crypto.AgentKeyManager
-import dev.stackward.permissions.CapabilityPack
 
 /**
- * Security-related preferences: active key alias, Tier 1 review timestamps.
+ * Security-related preferences: the active key alias.
  */
 class SecuritySettingsRepository(context: Context) {
 
@@ -30,30 +29,6 @@ class SecuritySettingsRepository(context: Context) {
         }
     }
 
-    fun getLastTier1ReviewAt(): Long? {
-        val value = prefs.getLong(KEY_LAST_TIER1_REVIEW, 0L)
-        return value.takeIf { it > 0L }
-    }
-
-    fun setLastTier1ReviewAt(timestamp: Long = System.currentTimeMillis()) {
-        prefs.edit().putLong(KEY_LAST_TIER1_REVIEW, timestamp).apply()
-    }
-
-    fun isTier1ReviewDue(): Boolean {
-        val last = getLastTier1ReviewAt() ?: return true
-        return System.currentTimeMillis() - last > TIER1_REVIEW_INTERVAL_MS
-    }
-
-    fun getCapabilityPack(): CapabilityPack {
-        return CapabilityPack.MONITOR
-    }
-
-    fun setCapabilityPack(pack: CapabilityPack) {
-        require(pack == CapabilityPack.MONITOR) {
-            "v1 supports Monitor tier only. Risk-based action gating coming in Phase 3."
-        }
-    }
-
     fun clear() {
         prefs.edit().clear().apply()
     }
@@ -61,8 +36,5 @@ class SecuritySettingsRepository(context: Context) {
     companion object {
         private const val PREFS_NAME = "stackward_security_settings"
         private const val KEY_ACTIVE_ALIAS = "active_key_alias"
-        private const val KEY_LAST_TIER1_REVIEW = "last_tier1_review_at"
-        private const val KEY_CAPABILITY_PACK = "capability_pack"
-        const val TIER1_REVIEW_INTERVAL_MS = 30L * 24 * 60 * 60 * 1000
     }
 }

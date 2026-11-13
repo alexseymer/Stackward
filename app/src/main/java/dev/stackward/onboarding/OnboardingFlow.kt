@@ -152,13 +152,6 @@ class OnboardingFlow(
                 append("\n\n=== Target key install ===\n")
             }
             append(installResult.stdout.trim())
-            if (resolvedHostType == HostType.PROXMOX) {
-                append(
-                    "\n\n=== Note ===\n" +
-                        "Proxmox detected. API tokens require an admin to run pveum out-of-band; " +
-                        "the app does not create tokens itself.",
-                )
-            }
         }
 
         val profile = ServerProfile(

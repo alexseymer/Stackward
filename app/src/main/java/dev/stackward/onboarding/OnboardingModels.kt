@@ -68,3 +68,12 @@ data class BootstrapLogin(
         }
     }
 }
+
+/** Outcome of a successful one-time setup. */
+data class BootstrapResult(
+    val profile: ServerProfile,
+    val bootstrapOutput: String,
+    val verificationOutput: String,
+    val publicKey: String,
+    val script: String,
+)

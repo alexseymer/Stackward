@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Article
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
@@ -66,7 +65,6 @@ fun DashboardScreen(
     viewModel: DashboardViewModel,
     onOpenHost: (String) -> Unit,
     onAddHost: () -> Unit,
-    onOpenLogs: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -82,9 +80,6 @@ fun DashboardScreen(
             TopAppBar(
                 title = { Text("Stackward") },
                 actions = {
-                    IconButton(onClick = onOpenLogs) {
-                        Icon(Icons.Filled.Article, contentDescription = "Raw logs & AI summary")
-                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = "Settings")
                     }

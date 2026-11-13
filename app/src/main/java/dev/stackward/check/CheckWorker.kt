@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Runs check.sh for a single host on a schedule. Scheduling is per-host (unlike
- * [dev.stackward.logs.LogDigestWorker]'s single global unique work name) because
+ * the removed LogDigestWorker's single global unique work name) because
  * polling cadence is a per-host setting — see [HostPollingRepository].
  */
 class CheckWorker(

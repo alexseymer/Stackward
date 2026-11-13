@@ -60,7 +60,6 @@ import androidx.compose.ui.unit.dp
 import dev.stackward.BuildConfig
 import dev.stackward.connection.HostKeyFingerprint
 import dev.stackward.onboarding.BootstrapAuthMethod
-import dev.stackward.onboarding.HostType
 import dev.stackward.onboarding.OnboardingFlow
 import dev.stackward.onboarding.ServerProfile
 import dev.stackward.ui.onboarding.OnboardingUiState
@@ -653,38 +652,12 @@ private fun SuccessContent(
                 Text(output, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
             }
 
-            if (profile.hostType == HostType.PROXMOX) {
-                when {
-                    uiState.proxmoxTokenPending -> {
-                        Text(
-                            text = "Proxmox API token ready — store it with biometrics to enable VM/LXC monitoring.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        Button(
-                            onClick = { viewModel.storeProxmoxTokenWithBiometric(biometricGate) },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text("Store Proxmox token")
-                        }
-                    }
-                    else -> {
-                        Text(
-                            text = "Proxmox API access requires an admin-created token out-of-band " +
-                                "(this app does not run pveum or elevate).",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-
             Spacer(modifier = Modifier.height(8.dp))
             Button(
                 onClick = onViewLogs,
-                enabled = !uiState.proxmoxTokenPending,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Done — view connections")
+                Text("Done")
             }
         }
     }
