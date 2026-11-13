@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.stackward.R
 import dev.stackward.StackwardApplication
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +35,9 @@ data class SettingsUiState(
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val container = (application as StackwardApplication).container
+
+    private fun str(@androidx.annotation.StringRes id: Int, vararg args: Any): String =
+        getApplication<Application>().getString(id, *args)
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -83,7 +87,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun rotateKey() {
         val profile = requireSelectedProfile()
         if (profile == null) {
-            _uiState.update { it.copy(error = "No server selected") }
+            _uiState.update { it.copy(error = str(R.string.msg_no_server)) }
             return
         }
 
@@ -103,7 +107,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update {
                     it.copy(
                         isBusy = false,
-                        error = error.message ?: "Key rotation failed",
+                        error = error.message ?: str(R.string.msg_rotation_failed),
                     )
                 }
             }
@@ -121,7 +125,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun panicRevoke(onComplete: () -> Unit) {
         val profile = requireSelectedProfile()
         if (profile == null) {
-            _uiState.update { it.copy(error = "No server selected") }
+            _uiState.update { it.copy(error = str(R.string.msg_no_server)) }
             return
         }
 
@@ -143,7 +147,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update {
                     it.copy(
                         isBusy = false,
-                        error = error.message ?: "Panic revoke failed; local credentials wiped",
+                        error = error.message ?: str(R.string.msg_panic_failed),
                     )
                 }
                 onComplete()
@@ -158,17 +162,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 withContext(Dispatchers.IO) {
                     getApplication<Application>().contentResolver.openOutputStream(uri)?.use { stream ->
                         stream.write(container.auditLogRepository.exportJson().toByteArray())
-                    } ?: error("Could not open export destination")
+                    } ?: error(str(R.string.msg_export_no_destination))
                 }
             }.onSuccess {
                 _uiState.update {
-                    it.copy(isBusy = false, statusMessage = "Audit log exported")
+                    it.copy(isBusy = false, statusMessage = str(R.string.msg_export_done))
                 }
             }.onFailure { error ->
                 _uiState.update {
                     it.copy(
                         isBusy = false,
-                        error = error.message ?: "Export failed",
+                        error = error.message ?: str(R.string.msg_export_failed),
                     )
                 }
             }
@@ -188,11 +192,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun launchRotateWithBiometric(biometricGate: dev.stackward.ui.security.BiometricGate) {
         viewModelScope.launch {
             val authed = biometricGate.authenticate(
-                title = "Rotate SSH key",
-                subtitle = "Biometric required to rotate credentials",
+                title = str(R.string.bio_rotate_title),
+                subtitle = str(R.string.bio_rotate_subtitle),
             )
             if (!authed) {
-                _uiState.update { it.copy(error = "Biometric authentication failed or cancelled") }
+                _uiState.update { it.copy(error = str(R.string.msg_biometric_failed)) }
                 return@launch
             }
             rotateKey()
@@ -206,11 +210,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     ) {
         viewModelScope.launch {
             val authed = biometricGate.authenticate(
-                title = "Emergency revoke",
-                subtitle = "This removes server access and wipes local credentials",
+                title = str(R.string.bio_panic_title),
+                subtitle = str(R.string.bio_panic_subtitle),
             )
             if (!authed) {
-                _uiState.update { it.copy(error = "Biometric authentication failed or cancelled") }
+                _uiState.update { it.copy(error = str(R.string.msg_biometric_failed)) }
                 return@launch
             }
             panicRevoke {

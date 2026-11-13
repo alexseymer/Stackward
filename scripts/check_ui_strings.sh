@@ -3,7 +3,8 @@
 #
 # The screens listed below read all user-visible text from res/values*/strings.xml (en + de).
 # Add a screen to GUARDED once it is converted. Data shown as-is (host names, severities, check.sh
-# text) is fine; literal words passed to Text(...) or contentDescription are not.
+# text) is fine; literal prose (a quoted string with a space) passed to Text(...), text = or
+# contentDescription is not.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -12,11 +13,12 @@ GUARDED=(
     app/src/main/java/dev/stackward/ui/dashboard/HostDetailScreen.kt
     app/src/main/java/dev/stackward/ui/dashboard/UiText.kt
     app/src/main/java/dev/stackward/ui/settings/SettingsScreen.kt
+    app/src/main/java/dev/stackward/ui/OnboardingScreen.kt
 )
 
 status=0
 for file in "${GUARDED[@]}"; do
-    if grep -nE '(Text\(|contentDescription = |title = \{ Text\()"[A-Za-z]' "${file}"; then
+    if grep -nE '(Text\(|text = |contentDescription = )"[A-Za-z][^"]* ' "${file}"; then
         echo "ERROR: hard-coded UI string in ${file} (use stringResource / strings.xml)" >&2
         status=1
     fi
