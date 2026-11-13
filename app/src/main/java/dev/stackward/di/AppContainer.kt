@@ -26,7 +26,7 @@ class AppContainer(context: Context) {
     val profileRepository = ServerProfileRepository(appContext)
     val ssh = SshConnectionManager(keyManager, pinStore, securitySettings, connectionHealth)
     val checkScriptBundle = CheckScriptBundle(appContext)
-    val checkScriptRunner = CheckScriptRunner(ssh, checkScriptBundle)
+    val checkScriptRunner = CheckScriptRunner({ profile, command -> ssh.execute(profile, command) }, checkScriptBundle)
     val checkResultStore = CheckResultStore(appContext)
     val auditLogRepository = AuditLogRepository(appContext)
     val keyRotationService = KeyRotationService(
