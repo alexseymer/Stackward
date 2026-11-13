@@ -12,8 +12,24 @@ class CheckResultStore(context: Context) {
         prefs.edit()
             .putString(resultKey(profileId), CheckScriptParser.toJsonString(result))
             .putLong(checkedAtKey(profileId), System.currentTimeMillis())
+            .remove(failureAtKey(profileId))
+            .remove(failureMessageKey(profileId))
             .apply()
     }
+
+    /** Records that the latest check could not complete; survives leaving and re-opening the app. */
+    fun saveFailure(profileId: String, message: String) {
+        prefs.edit()
+            .putLong(failureAtKey(profileId), System.currentTimeMillis())
+            .putString(failureMessageKey(profileId), message)
+            .apply()
+    }
+
+    fun getLastFailureAt(profileId: String): Long? =
+        prefs.getLong(failureAtKey(profileId), 0L).takeIf { it > 0L }
+
+    fun getLastFailureMessage(profileId: String): String? =
+        prefs.getString(failureMessageKey(profileId), null)
 
     fun load(profileId: String): CheckResult? {
         val raw = prefs.getString(resultKey(profileId), null) ?: return null
@@ -27,11 +43,15 @@ class CheckResultStore(context: Context) {
         prefs.edit()
             .remove(resultKey(profileId))
             .remove(checkedAtKey(profileId))
+            .remove(failureAtKey(profileId))
+            .remove(failureMessageKey(profileId))
             .apply()
     }
 
     private fun resultKey(profileId: String) = "result_$profileId"
     private fun checkedAtKey(profileId: String) = "checked_at_$profileId"
+    private fun failureAtKey(profileId: String) = "failure_at_$profileId"
+    private fun failureMessageKey(profileId: String) = "failure_msg_$profileId"
 
     companion object {
         private const val PREFS_NAME = "stackward_check_results"
