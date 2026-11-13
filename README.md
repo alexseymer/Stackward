@@ -76,11 +76,6 @@ lists where the spec is deliberately ahead of the code),
 - **Guided key install** — create `stackward-agent` on the host (`sudo adduser
   stackward-agent`), then enter IP + one-time password; the app installs its
   SSH key (ssh-copy-id style) and wipes the password.
-- **Per-host polling and notifications** *(shipped, being removed)* —
-  manual-only, or auto-check every 4 hours via WorkManager with
-  critical-issue-only notifications. The PRD (decision D1) now rules out
-  background checks, since they need SSH with nobody there to confirm; this
-  is tracked as [gap G1](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12).
 - **Risk-gated suggestions** — safe runs immediately and is logged; risky
   shows the literal command and requires a fresh biometric confirmation;
   scary/unrecognized actions are never executed, just shown as a manual
@@ -91,7 +86,7 @@ lists where the spec is deliberately ahead of the code),
 - **Jump-host support** — reach LAN-only infra via `ProxyJump`-style tunneling
   with per-hop host-key pinning (TOFU).
 - **Hardening** — audit-log export, key rotation, one-tap panic revoke
-  (clears per-host check.sh state and any scheduled polling too).
+  (clears per-host check.sh state too).
 
 <details>
 <summary>Also present: the pre-pivot log-reading/tiered-action system</summary>
@@ -118,10 +113,8 @@ for the thesis and [PRD.md](PRD.md) for the full spec.
 | Check script | `~/.stackward/check.sh`: disk/memory/failed-service/SSH-config/listening-port/journal-error/Docker-exited detection, JSON output | ✅ Implemented |
 | Bootstrap | `scripts/bootstrap_linux.sh` (admin-run) installs `check.sh` + a dedicated sudoers helper for the one RISKY suggestion that needs root. **Per PRD D2, in-app onboarding should install `check.sh` itself — today it only installs the SSH key** | ⚠️ Admin script ✅, in-app install ❌ ([G3](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12)) |
 | Dashboard | Multi-host list (`dev.stackward.ui.dashboard`), per-host detail, last-checked age, on-demand "Check now" | ✅ Implemented |
-| Polling | Per-host manual / auto-4h (`CheckWorker`) | ⚠️ Shipped, **to be removed** (PRD D1 / G1) |
 | Risk-gated actions | `CheckActionCatalog`/`CheckSuggestionGate`: phone decides risk, never trusts the host's self-reported label; safe auto-runs, risky needs biometric, scary/unknown are manual-only | ✅ Implemented |
 | Gemma summary | Host detail screen reuses the existing `LogSummarizer` pipeline; degrades the same way the Logs screen does (no model / inference failure / success) | ✅ Implemented |
-| Notifications | `CheckNotifier`: critical-issue-only, best-effort on the POST_NOTIFICATIONS permission | ⚠️ Shipped, **to be removed** (PRD D1 / G1) |
 | Biometric-bound SSH signing | Keystore key requires biometric per use; the signing path doesn't yet drive a per-use prompt | ❌ Needs on-device verification ([G2](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12)) |
 
 Verified: `:app:testDebugUnitTest`, `:app:assembleDebug`, `:app:lintDebug` all
@@ -179,7 +172,7 @@ Release builds never include these values.
 its output and decides risk itself — it never trusts what a suggestion
 claims about its own risk; nothing leaves the device except over your own SSH
 (no cloud, no telemetry); and no SSH session should start without you present
-(the shipped auto-polling still violates this — gap G1).
+(the app has no background checks or notifications).
 
 - **Safe:** read-only (tail logs, list failed units) — runs immediately, logged.
 - **Risky:** needs root the agent user doesn't have by default (e.g. vacuuming

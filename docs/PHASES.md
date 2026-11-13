@@ -9,7 +9,7 @@ phases — see [Current focus](#current-focus) below.
 > **2026-10-23:** the PRD was revised and is now ahead of the code in places
 > ([PRD §11](../PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12)).
 > Phases C (polling) and F (notifications) below record what shipped, but both
-> are **slated for removal** (decision D1: no background SSH), and Phase B's
+> were **removed** (decision D1: no background SSH), and Phase B's
 > `check.sh` delivery is changing (D2). The task tables keep their original
 > "Done" status because that's what was built.
 
@@ -31,10 +31,10 @@ infrastructure or a physical device.
 | 5 | Hardening | ✅ Done, extended for check.sh state (see F) |
 | A | Check script core (`scripts/check.sh`) | ✅ Done |
 | B | Bootstrap integration (`check.sh` + `stackward-check-action` helper) | ✅ Done |
-| C | Dashboard + per-host polling | ✅ Done — polling part to be removed (D1) |
+| C | Dashboard + per-host polling | ✅ Done — polling removed (D1) |
 | D | Risk-gated suggestion execution (safe/risky/scary) | ✅ Done |
 | E | Optional Gemma summary of check.sh results | ✅ Done |
-| F | Critical-issue notifications | ✅ Done — to be removed (D1) |
+| F | Critical-issue notifications | ✅ Done — removed (D1) |
 
 ---
 
@@ -94,7 +94,7 @@ experience.
 |------|--------|
 | Dashboard: all hosts, colored by worst issue severity | Done |
 | Host detail: issues + suggestions for one host | Done |
-| Per-host polling setting: manual or auto-check every 4h | Done (`HostPollingRepository`, `CheckWorker` — one WorkManager job per host). **To be removed — PRD D1** |
+| Per-host polling setting: manual or auto-check every 4h | Done (`HostPollingRepository`, `CheckWorker` — one WorkManager job per host). **Removed — PRD D1** |
 | "Add host" flow reuses existing onboarding wizard | Done |
 | Legacy Logs screen kept reachable, not removed | Done (toolbar icon) |
 
@@ -136,7 +136,7 @@ produces a plain-English summary.
 
 ### Phase F — Notifications
 
-> **To be removed (PRD D1 / G1).** Notifications only fire from scheduled
+> **Removed (PRD D1 / G1).** Notifications only fired from scheduled
 > background checks, and background checks need SSH with the user absent,
 > which the revised product rules out.
 

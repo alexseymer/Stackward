@@ -2,8 +2,6 @@ package dev.stackward.security
 
 import android.content.Context
 import dev.stackward.check.CheckResultStore
-import dev.stackward.check.CheckWorker
-import dev.stackward.check.HostPollingRepository
 import dev.stackward.connection.ConnectionHealthRepository
 import dev.stackward.connection.HostKeyPinStore
 import dev.stackward.connection.SshConnectionManager
@@ -32,7 +30,6 @@ class PanicRevokeService(
     private val auditLog: AuditLogRepository,
     private val connectionHealth: ConnectionHealthRepository,
     private val checkResultStore: CheckResultStore,
-    private val hostPollingRepository: HostPollingRepository,
 ) {
 
     suspend fun revoke(profile: ServerProfile): PanicRevokeResult {
@@ -67,13 +64,10 @@ class PanicRevokeService(
     }
 
     fun wipeLocalState() {
-        // Read profiles before clearAll() wipes them — per-host check.sh state and
-        // scheduled polling are keyed by profile id and have no other way to enumerate.
+        // Read profiles before clearAll() wipes them — per-host check.sh state is keyed by profile id and have no other way to enumerate.
         val profiles = profileRepository.loadAll()
         profiles.forEach { profile ->
-            CheckWorker.cancel(context, profile.id)
             checkResultStore.clear(profile.id)
-            hostPollingRepository.clear(profile.id)
         }
 
         keyManager.deleteKeypair(AgentKeyManager.KEY_ALIAS)
