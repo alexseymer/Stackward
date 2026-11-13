@@ -1,5 +1,7 @@
 # Stackward — User Stories & Acceptance Criteria
 
+> **Historical.** These stories predate the 2026-11-12 narrowing to a read-only health check. Epics about actions, the model, Proxmox, polling and notifications describe removed code. The v1 acceptance criteria live in [ACCEPTANCE.md](ACCEPTANCE.md); where this file disagrees with the PRD, the PRD wins.
+
 Per-story criteria. High-level outcomes live in
 [PRD.md §6](../PRD.md#6-key-user-stories-v1-acceptance). **The authoritative
 definition of "done" — scenarios, measurable pass criteria, the sign-off log and

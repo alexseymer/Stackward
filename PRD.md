@@ -263,19 +263,19 @@ yet; the first priority is to find out whether SSH signing works on one (G2).
 | **D8 (2026-11-12) Linux hosts only** | Proxmox and Docker hosts are checked as plain Linux hosts. Proxmox- and Docker-specific checks are future work and need a privilege design first. |
 | Considered, not chosen (2026-11-12) | A tool-calling model with a server-side API, voice control and iOS (issue #103). Different architecture, with a server component to build and secure; revisit only after v1 proves the core job. |
 
-## 11. Spec ahead of code (open work as of 2026-11-12)
+## 11. Spec ahead of code (status as of 2026-11-13)
 
 | # | Gap | Where |
 |---|---|---|
-| G1 | Remove background SSH: per-host "Auto 4h" polling (`CheckWorker`, `PollingMode`), critical notifications (`CheckNotifier`, `POST_NOTIFICATIONS`), and the hourly `LogDigestWorker` | `check/`, `logs/`, `ui/dashboard/`, manifest |
-| G2 | Bind each SSH signature to a biometric prompt. The Keystore key requires per-use authentication, but `BiometricGate` authenticates without a `CryptoObject`, so signing likely fails on Android 13+ devices with a strong biometric enrolled. **Verify on a device first.** | `crypto/AgentKeyManager`, `ui/security/BiometricGate`, `connection/` |
-| G3 | Onboarding installs `check.sh` (bundled as an app asset) and refreshes it when the bundled version is newer; extend `scripts/verify_check_sh_sync.sh` to cover the bundled copy | `onboarding/OnboardingFlow` |
-| G4 | Delete the stale bundled `assets/scripts/bootstrap_linux.sh` and the unused `BootstrapRunner` | `app/src/main/assets/scripts/`, `onboarding/` |
-| R1 | **Remove the older subsystems (D6, D7, D8):** Logs and Analyzer screens, `logs/`, `inference/` (incl. the MediaPipe dependency and model download), `proxmox/`, `permissions/` tiering (`PermissionEngine`, `CapabilityPack`, `Tier1Rules`), related Settings and navigation | `ui/`, `logs/`, `inference/`, `proxmox/`, `permissions/`, `build.gradle.kts` |
-| R2 | **Make the app read-only (D5):** replace `suggestions[]`, `CheckActionCatalog`, `CheckSuggestionGate`, the Apply/confirm flow and audited execution with per-issue `advice`; add `coverage` to the `check.sh` output; drop the `stackward-check-action` and `stackward-onetimer` helpers and the catalog/helper parity guard | `check/`, `ui/dashboard/`, `scripts/` |
-| R3 | `check.sh` accuracy: exclude pseudo/loop filesystems, escape JSON, report `coverage`, fix mismatched thresholds and the stale header (the check.sh cleanup issue) | `scripts/check.sh` + embedded copy |
-| R4 | Dashboard honesty: unreachable and stale states, "check all" | `ui/dashboard/` |
-| R5 | Docs: after R1/R2, update `docs/ARCHITECTURE.md`, `docs/PHASES.md`, `docs/USER_STORIES.md`, `docs/ACCEPTANCE.md` and the README so they describe only what ships | docs |
+| G1 ✅ | Remove background SSH: per-host "Auto 4h" polling (`CheckWorker`, `PollingMode`), critical notifications (`CheckNotifier`, `POST_NOTIFICATIONS`), and the hourly `LogDigestWorker` | `check/`, `logs/`, `ui/dashboard/`, manifest — **done** (#119) |
+| G2 ⚠️ | Bind each SSH signature to a biometric prompt. The Keystore key requires per-use authentication, but `BiometricGate` authenticates without a `CryptoObject`, so signing likely fails on Android 13+ devices with a strong biometric enrolled. **Verify on a device first.** | `crypto/AgentKeyManager`, `ui/security/BiometricGate`, `connection/` |
+| G3 ✅ | Onboarding installs `check.sh` (bundled as an app asset) and refreshes it when the bundled version is newer; extend `scripts/verify_check_sh_sync.sh` to cover the bundled copy | `onboarding/OnboardingFlow` — **done** (#122) |
+| G4 ✅ | Delete the stale bundled `assets/scripts/bootstrap_linux.sh` and the unused `BootstrapRunner` | `app/src/main/assets/scripts/`, `onboarding/` — **done** (#117) |
+| R1 ✅ | **Remove the older subsystems (D6, D7, D8):** Logs and Analyzer screens, `logs/`, `inference/` (incl. the MediaPipe dependency and model download), `proxmox/`, `permissions/` tiering (`PermissionEngine`, `CapabilityPack`, `Tier1Rules`), related Settings and navigation | `ui/`, `logs/`, `inference/`, `proxmox/`, `permissions/`, `build.gradle.kts` — **done** (#117) |
+| R2 ✅ | **Make the app read-only (D5):** replace `suggestions[]`, `CheckActionCatalog`, `CheckSuggestionGate`, the Apply/confirm flow and audited execution with per-issue `advice`; add `coverage` to the `check.sh` output; drop the `stackward-check-action` and `stackward-onetimer` helpers and the catalog/helper parity guard | `check/`, `ui/dashboard/`, `scripts/` — **done** (#118, #126) |
+| R3 ✅ | `check.sh` accuracy: exclude pseudo/loop filesystems, escape JSON, report `coverage`, fix mismatched thresholds and the stale header (the check.sh cleanup issue) | `scripts/check.sh` + embedded copy — **done** (#120) |
+| R4 ✅ | Dashboard honesty: unreachable and stale states, "check all" | `ui/dashboard/` — **done** (#121) |
+| R5 ✅ | Docs: after R1/R2, update `docs/ARCHITECTURE.md`, `docs/PHASES.md`, `docs/USER_STORIES.md`, `docs/ACCEPTANCE.md` and the README so they describe only what ships | docs — **done** (this docs pass) |
 
 **Open questions**
 

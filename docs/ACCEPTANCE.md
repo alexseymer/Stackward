@@ -3,8 +3,8 @@
 > **Scope narrowed 2026-11-12 ([PRD](../PRD.md) D5–D8):** v1 is a read-only health check
 > for Linux hosts. Scenarios for actions, the on-device model, Proxmox and the older
 > log features were removed; the read-only guarantee (INV-3) replaced the action
-> scenarios. Statuses marked *Built* describe the code **today**, which still contains
-> the features being removed (PRD §11, R1/R2).
+> scenarios. Statuses marked *Built* describe the code **today** (the removal work R1/R2
+> is done); *Verified* stays empty until someone runs the scenario on a device.
 
 This is the definition of "done" for v1. A scenario passes only when it has been
 **run on a real phone against a real host** and the result is recorded. Code that
@@ -29,7 +29,7 @@ code it covers (the sign-off log shows the build it was last verified on).
 
 Scenario IDs are stable: `INV` (product invariants), `ONB` (onboarding), `CHK`
 (running a check), `ACT` (actions), `FAIL` (failure handling), `SEC` (recovery and
-security), `AI` (optional model), `Q` (quality). Open issues reference them.
+security), `Q` (quality). Open issues reference them.
 
 ## 2. Test setup
 
@@ -39,7 +39,7 @@ security), `AI` (optional model), `Q` (quality). Open issues reference them.
 | **Second phone** | Android 9–12 **or** a phone with no enrolled biometric, to exercise the fallback ([#95](https://github.com/alexseymer/Stackward/issues/95)). |
 | **Low-end phone** | Optional: a lower-mid-range device to check that CHK-3 (latency) still holds. The README states the minimum tested Android version. |
 | **Host A** | A fresh Debian/Ubuntu VM with only OpenSSH, systemd and a new `stackward-agent` user. **No** admin script run. |
-| **Host B** | Host A plus `scripts/bootstrap_linux.sh` run as root (journal access, Docker ACL, `stackward-check-action`). |
+| **Host B** | Host A plus `scripts/bootstrap_linux.sh` run as root (journal access, Docker ACL; no sudo rules are installed). |
 | **Bastion** | A second SSH host that can reach Host A, for the jump-host scenario. |
 | **Observer** | Anything that can see the phone's traffic and the hosts' `auth.log` (a router or laptop hotspot with `tcpdump`, plus shell access to the hosts). |
 | **Build** | A signed dogfood APK from a GitHub Release, installed with `adb install -r`. Record the version. |
@@ -51,10 +51,10 @@ promises the app makes; most of them are currently untested.
 
 | ID | Scenario | Pass criteria | Built | Verified |
 |---|---|---|---|---|
-| **INV-1** | **Nothing leaves the device.** *Given* the phone is behind the observer, *when* I onboard, run checks, run a safe and a risky action, read a summary, and rotate the key, *then* … | The only destinations contacted are the test hosts/bastion (and DNS for their names). No analytics, no cloud endpoints. Model download is the only exception and is tested separately in INV-1b. | ⚠️ (model download, [#92](https://github.com/alexseymer/Stackward/issues/92)) | ⬜ |
-| **INV-2** | **No SSH without me present.** *Given* auto-polling was enabled in an older build and I upgrade, *when* the app is closed and the phone locked for 24 h, *then* … | Zero `stackward-agent` logins in the hosts' `auth.log` for the whole period; `adb shell dumpsys jobscheduler` lists no Stackward jobs; no notification posted. | ❌ ([#86](https://github.com/alexseymer/Stackward/issues/86)) | ⬜ |
+| **INV-1** | **Nothing leaves the device.** *Given* the phone is behind the observer, *when* I onboard, run checks, run check all, and rotate the key, *then* … | The only destinations contacted are the test hosts/bastion (and DNS for their names). No analytics, no cloud endpoints. Model download is the only exception and is tested separately in INV-1b. | ✅ (no model download, no network code besides SSH) | ⬜ |
+| **INV-2** | **No SSH without me present.** *Given* auto-polling was enabled in an older build and I upgrade, *when* the app is closed and the phone locked for 24 h, *then* … | Zero `stackward-agent` logins in the hosts' `auth.log` for the whole period; `adb shell dumpsys jobscheduler` lists no Stackward jobs; no notification posted. | ⚠️ (workers removed in #119 and old jobs cancelled once on upgrade; device ⬜) | ⬜ |
 | **INV-2b** | **Every session follows a biometric prompt.** *When* I tap "Check now", run an action, or run "Check all", *then* … | A biometric prompt appears before each SSH connection; cancelling it opens no connection (no `auth.log` entry); logcat shows the prompt before the connect. | ❌ ([#85](https://github.com/alexseymer/Stackward/issues/85)) | ⬜ |
-| **INV-3** | **Read-only.** *Given* a host with auditd (or `strace -f` on `sshd` children) recording commands and file changes, *when* I onboard, run several checks, rotate the key and use panic revoke, *then* … | The only commands executed are `bash ~/.stackward/check.sh`, the onboarding/login-probe steps, and the key install/rotation/revoke steps. No file changes beyond `~/.stackward/check.sh` and `authorized_keys`. A `check.sh` edited to print a command as `advice`, or to claim anything else, causes nothing to run on the host. | ❌ (an Apply path and a root helper still exist; PRD R2) | ⬜ |
+| **INV-3** | **Read-only.** *Given* a host with auditd (or `strace -f` on `sshd` children) recording commands and file changes, *when* I onboard, run several checks, rotate the key and use panic revoke, *then* … | The only commands executed are `bash ~/.stackward/check.sh`, the onboarding/login-probe steps, and the key install/rotation/revoke steps. No file changes beyond `~/.stackward/check.sh` and `authorized_keys`. A `check.sh` edited to print a command as `advice`, or to claim anything else, causes nothing to run on the host. | ✅ (no code path executes host text; no sudo helpers — #118, #126) | ⬜ |
 
 ## 4. Core flow
 
@@ -62,7 +62,7 @@ promises the app makes; most of them are currently untested.
 
 | ID | Scenario | Pass criteria | Built | Verified |
 |---|---|---|---|---|
-| **ONB-1** | **First check from the app alone.** *Given* Host A and a clean app, *when* I onboard with the one-time password and then tap "Check now", *then* … | Results appear with no admin script run. Wall-clock from "start setup" to first results is **under 5 minutes** (median of 3 runs on a fresh host). | ❌ ([#87](https://github.com/alexseymer/Stackward/issues/87)) | ⬜ |
+| **ONB-1** | **First check from the app alone.** *Given* Host A and a clean app, *when* I onboard with the one-time password and then tap "Check now", *then* … | Results appear with no admin script run. Wall-clock from "start setup" to first results is **under 5 minutes** (median of 3 runs on a fresh host). | ⚠️ (app installs check.sh, #122; not run on a real host) | ⬜ |
 | **ONB-2** | **The setup secret is not kept.** *When* setup succeeds and when it fails, *then* … | The password/private key is gone from app storage, logs and the process after setup (check with `adb shell run-as` and a logcat grep for the secret). | ✅ | ⬜ |
 | **ONB-3** | **Elevated account needs acknowledgment.** *Given* I connect as root or a passwordless-sudo user, *then* … | The app warns, will not continue until acknowledged, and records the acknowledgment in the audit log. | ✅ | ⬜ |
 | **ONB-4** | **Jump host.** *When* I onboard Host A through the bastion, *then* … | It works; the bastion is not listed as a monitored host; each hop's host key is pinned separately. | ✅ | ⬜ |
@@ -73,12 +73,12 @@ promises the app makes; most of them are currently untested.
 
 | ID | Scenario | Pass criteria | Built | Verified |
 |---|---|---|---|---|
-| **CHK-1** | **Healthy host.** *When* I check a healthy Host B, *then* … | Result shows no issues; row is green with "last checked" time. No false critical (in particular no "Unit 0 failed"). | ⚠️ (regression test in CI; device ⬜) | ⬜ |
+| **CHK-1** | **Healthy host.** *When* I check a healthy Host B, *then* … | Result shows no issues; row is green with "last checked" time. No false critical (in particular no "Unit 0 failed"). | ⚠️ (fixture tests in CI; device ⬜) | ⬜ |
 | **CHK-2** | **Real problems are found.** *Given* I fill a filesystem past 95%, stop a service into failed state, and enable SSH password auth, *then* … | One critical disk issue, one critical service issue naming the unit, one critical security issue, all within one check. Each clears after the problem is fixed and I re-check. | ✅ | ⬜ |
 | **CHK-3** | **Latency.** *When* I tap "Check now" on a LAN host, *then* … | Results in **under 10 seconds** from the end of the biometric prompt to results shown, at the 90th percentile of 10 runs. Repeat via the bastion and report separately. | ⚠️ | ⬜ |
-| **CHK-4** | **Many hosts.** *Given* 5 hosts, *when* I check all, *then* … | Every host reports its own outcome; one slow or dead host does not block the others. | ❌ ([#90](https://github.com/alexseymer/Stackward/issues/90)) | ⬜ |
-| **CHK-5** | **No false green from blind spots.** *Given* Host A (agent user not in `systemd-journal`, Docker not readable), *when* I check, *then* … | The result and the dashboard say what could not be read. It is not shown as plain "No issues". | ❌ ([#88](https://github.com/alexseymer/Stackward/issues/88)) | ⬜ |
-| **CHK-6** | **No false alarms from normal Linux quirks.** *Given* a host with snap loop mounts and a mount point containing a quote, *then* … | No disk alert for the loop mounts; valid JSON; cleanup is not suggested below the warning threshold. | ❌ ([#89](https://github.com/alexseymer/Stackward/issues/89)) | ⬜ |
+| **CHK-4** | **Many hosts.** *Given* 5 hosts, *when* I check all, *then* … | Every host reports its own outcome; one slow or dead host does not block the others. | ✅ (Check all, sequential — #121) | ⬜ |
+| **CHK-5** | **No false green from blind spots.** *Given* Host A (agent user not in `systemd-journal`, Docker not readable), *when* I check, *then* … | The result and the dashboard say what could not be read. It is not shown as plain "No issues". | ✅ (`coverage` — #118; device ⬜) | ⬜ |
+| **CHK-6** | **No false alarms from normal Linux quirks.** *Given* a host with snap loop mounts and a mount point containing a quote, *then* … | No disk alert for the loop mounts; valid JSON; a quoted mount name yields valid JSON. | ✅ (fixtures — #120) | ⬜ |
 
 ### Actions
 
@@ -91,10 +91,10 @@ thing that is wrong.
 
 | ID | Scenario | Pass criteria | Built | Verified |
 |---|---|---|---|---|
-| **FAIL-1** | **Host unreachable.** *Given* Host B is powered off, *when* I check, *then* … | A distinct "unreachable" state (not green, not "never checked"), with the reason. It is still shown after leaving and reopening the app. | ❌ ([#90](https://github.com/alexseymer/Stackward/issues/90)) | ⬜ |
-| **FAIL-2** | **Stale result.** *Given* a host last checked more than 24 h ago, *then* … | The row visibly says the result is stale, with its age. | ❌ ([#90](https://github.com/alexseymer/Stackward/issues/90)) | ⬜ |
+| **FAIL-1** | **Host unreachable.** *Given* Host B is powered off, *when* I check, *then* … | A distinct "unreachable" state (not green, not "never checked"), with the reason. It is still shown after leaving and reopening the app. | ✅ (persisted failures — #121) | ⬜ |
+| **FAIL-2** | **Stale result.** *Given* a host last checked more than 24 h ago, *then* … | The row visibly says the result is stale, with its age. | ✅ (24 h staleness — #121) | ⬜ |
 | **FAIL-3** | **Key rejected.** *Given* the host removed the app's key, *when* I check, *then* … | A clear "authentication failed" state with the next step. No retry storm. | ⚠️ | ⬜ |
-| **FAIL-4** | **`check.sh` missing or broken.** *Given* the script is deleted, or prints invalid JSON, *then* … | A specific message ("not installed", "invalid output") and the remedy. No crash. | ⚠️ | ⬜ |
+| **FAIL-4** | **`check.sh` missing or broken.** *Given* the script is deleted, or prints invalid JSON, *then* … | A specific message ("not installed", "invalid output") and the remedy. No crash. | ✅ (missing script triggers install; invalid output reported — #122) | ⬜ |
 | **FAIL-5** | **Biometric cancelled or unavailable.** *When* I cancel the prompt, or the biometric is removed from the phone, *then* … | Nothing runs; the message explains what happened; the app stays usable. | ❌ ([#85](https://github.com/alexseymer/Stackward/issues/85), [#95](https://github.com/alexseymer/Stackward/issues/95)) | ⬜ |
 | **FAIL-6** | **Phone without a biometric-bound key.** *Given* the second phone, *when* I onboard, *then* … | Behaves per the decision recorded for [#95](https://github.com/alexseymer/Stackward/issues/95): refused, or warned and still gated. Never a silent weaker mode. | ❌ ([#95](https://github.com/alexseymer/Stackward/issues/95)) | ⬜ |
 
@@ -103,9 +103,9 @@ thing that is wrong.
 | ID | Scenario | Pass criteria | Built | Verified |
 |---|---|---|---|---|
 | **SEC-1** | **Panic revoke.** *When* I trigger it on the phone, *then* … | Server-side key removed where reachable; all local keys, profiles, pins, results and audit entries gone; the app returns to onboarding. | ✅ | ⬜ |
-| **SEC-2** | **Lost phone.** *When* I run `stackward-panic-revoke` on a host as an admin, *then* … | The phone can no longer log in to that host (verify from the phone). | ✅ | ⬜ |
+| **SEC-2** | **Lost phone.** *When* an admin clears `~stackward-agent/.ssh/authorized_keys` on a host (see `docs/INSTALL.md`), *then* … | The phone can no longer log in to that host (verify from the phone). | ✅ | ⬜ |
 | **SEC-3** | **Key rotation.** *When* I rotate the key, *then* … | The new key works, the old one is rejected by the host. | ✅ | ⬜ |
-| **SEC-5** | **Audit log.** *When* I run actions, then export the log, *then* … | Every action (success and failure) and every acknowledgment appears with time, command and outcome. | ✅ | ⬜ |
+| **SEC-5** | **Audit log.** *When* I rotate the key, then export the log, *then* … | Every key rotation, panic revoke and elevation acknowledgment appears with time, command and outcome. | ✅ | ⬜ |
 
 ## 7. Optional on-device summary
 
@@ -116,7 +116,7 @@ Removed from v1 (PRD D7).
 | ID | Scenario | Pass criteria | Built | Verified |
 |---|---|---|---|---|
 | **Q-3** | **False positives.** | Over **2 weeks** on real hosts, log every flagged issue as real or false. At most **20 false per 100 flagged**, with at least 30 flagged issues in the sample. | ❌ (no log yet) | ⬜ |
-| **Q-4** | **Localization and accessibility.** | German and English complete; the onboarding → dashboard → risky-action path is usable with TalkBack and at 200% font size. ([#100](https://github.com/alexseymer/Stackward/issues/100)) | ❌ | ⬜ |
+| **Q-4** | **Localization and accessibility.** | German and English complete; the onboarding → dashboard → host-detail path is usable with TalkBack and at 200% font size. ([#100](https://github.com/alexseymer/Stackward/issues/100)) | ⚠️ (de/en for all screens; TalkBack and font scale untested — #100) | ⬜ |
 | **Q-5** | **Install.** | A fresh phone installs the release APK with `adb install -r` and upgrades the previous release in place without losing data. | ⚠️ | ⬜ |
 | **Q-6** | **Dogfood.** | The author uses the app weekly for 4 weeks on their own hosts and records whether it replaced opening a laptop. | ❌ | ⬜ |
 
