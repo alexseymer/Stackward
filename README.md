@@ -9,7 +9,6 @@
 [![API](https://img.shields.io/badge/API-28%2B-brightgreen.svg)](#build-locally)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-[![On-device LLM](https://img.shields.io/badge/LLM-Gemma%20on--device-4285F4?logo=google&logoColor=white)](docs/MODEL_SETUP.md)
 [![Release](https://img.shields.io/badge/release-0.5.12--dogfood-orange.svg)](https://github.com/alexseymer/Stackward/releases/latest)
 [![Status: dogfood](https://img.shields.io/badge/status-dogfood-yellow.svg)](#status)
 
@@ -19,29 +18,24 @@
 > tests and has passed AI-assisted code reviews, but it has not yet been
 > exercised on a real phone against real infrastructure, and parts of it
 > (notably SSH key handling and the biometric flow) may not work as intended.
-> The app handles SSH credentials and can run commands on your servers, so
+> The app handles SSH credentials and opens shells on your servers, so
 > review the code yourself and use it at your own risk — try it on a test host
 > first, never on production. See [Status](#status) and the
 > [tracking issue](https://github.com/alexseymer/Stackward/issues/96) for the
 > known gaps.
 
-> **Scope (decided 2026-11-12):** v1 is a read-only health check for your own Linux
-> hosts — a fingerprint, then "is anything wrong?" in under 10 seconds, with no actions,
-> no on-device model and no Proxmox-specific features. The app as built still contains
-> those features; removing them is tracked in the
-> [tracking issue](https://github.com/alexseymer/Stackward/issues/96) and
-> [PRD §11](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12). Sections below
-> that describe actions, the model or Proxmox describe the code today, not v1.
+Stackward is an Android app that tells a solo operator, from their phone and within
+10 seconds of a fingerprint, whether any of their Linux hosts has a problem right now —
+and **changes nothing on those hosts**. It connects over SSH with a key that never leaves
+the phone, runs a small read-only script (`~/.stackward/check.sh`) that the app installs
+into the agent user's home, and shows what it found: failed services, full disks, memory
+pressure, journal and Docker trouble, risky SSH settings — plus an explicit list of what
+it could *not* read, so a blind check never looks like an all-clear. No credentials, logs
+or check results leave the device except over your own SSH connection; there is no cloud,
+no telemetry, no on-device model, no background activity and no remediation.
 
-An Android "lookout" for self-hosted infrastructure — plain Linux hosts,
-Proxmox, and Docker. The phone queries a lightweight script
-(`~/.stackward/check.sh`) installed on each host over SSH, gets back
-structured anomalies, and gates any suggested fix by risk: safe runs
-immediately, risky needs a fresh biometric confirmation, scary is never
-automated at all. An optional on-device Gemma model can summarize what it
-found in plain English. No credentials, logs, or biometric data ever leave
-the device except over your own SSH connection to your own infrastructure —
-never a cloud API.
+Scope was narrowed on 2026-11-12 ([PRD](PRD.md) decisions D5–D8): earlier builds had risk-gated
+actions, an on-device Gemma summary, Proxmox support and raw log screens. They are removed.
 
 See [STRATEGY.md](STRATEGY.md) for the thesis, [PRD.md](PRD.md) for the full
 product spec (its [§11](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12)
@@ -54,83 +48,55 @@ lists where the spec is deliberately ahead of the code),
 
 ## Why Stackward
 
-- **Local-first, private.** check.sh runs on your own host; the phone reads
-  its JSON output over your own SSH connection. Any on-device Gemma inference
-  never leaves the phone either — no cloud API, ever.
-- **The phone decides risk, not the host.** A suggestion's own claimed risk
-  is display-only — `CheckActionCatalog` independently classifies every
-  suggestion id against its own allowlist before deciding whether to run it,
-  so a compromised or buggy check.sh can't talk its way past the gate.
-- **Least-privilege by construction.** A dedicated `stackward-agent` identity
-  per host (SSH-key-only, Android Keystore key — biometric-bound on devices
-  that support it) with no `sudo` at all (key rotation and revoke edit the agent's own
-  `authorized_keys`) — no `docker` group by default.
-- **You're always present.** The product rule ([PRD invariant
-  2](PRD.md#1-summary)) is that no SSH session starts without you in the app
-  confirming with biometric — no unattended access to your hosts.
+- **Local-first, private.** check.sh runs on your own host; the phone reads its JSON
+  over your own SSH connection. Nothing else is sent anywhere.
+- **Read-only by construction.** The app has no code path that runs anything the host
+  tells it to. `advice` text is shown for you to read; there is no Apply button, no catalog
+  and no `sudo` helper. See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+- **Least privilege.** A dedicated `stackward-agent` user per host (SSH-key-only; Android
+  Keystore key, biometric-bound on devices that support it), no `sudo`, no `docker` group by
+  default. Key rotation and revoke edit the agent's own `authorized_keys`.
+- **You're always present.** No SSH session starts without you in the app
+  ([PRD invariant 2](PRD.md#1-summary)); there are no scheduled checks or notifications.
+- **Honest about blind spots.** If the journal, Docker or systemd could not be read, the
+  host row says so; unreachable and stale hosts are shown as such, never green.
 
 ## Features
 
-- **Dashboard** — every configured host at a glance, colored by worst issue
-  severity found; tap one to see its issues and suggestions.
+- **Dashboard** — every host at a glance (clean / issues / unreachable / stale / never checked),
+  with the age of its last check, a per-host refresh and **Check all hosts**.
+- **Host detail** — issues with copyable `advice`, the blind spots of the last check, the last
+  error with Retry.
 - **Guided key install** — create `stackward-agent` on the host (`sudo adduser
-  stackward-agent`), then enter IP + one-time password; the app installs its
-  SSH key (ssh-copy-id style) and wipes the password.
-- **Risk-gated suggestions** — safe runs immediately and is logged; risky
-  shows the literal command and requires a fresh biometric confirmation;
-  scary/unrecognized actions are never executed, just shown as a manual
-  workaround.
-- **On-device summarization (optional)** — summarize a host's current issues
-  in plain English via an imported Gemma model; degrades to the structured
-  list with no model imported or if inference fails.
-- **Jump-host support** — reach LAN-only infra via `ProxyJump`-style tunneling
-  with per-hop host-key pinning (TOFU).
-- **Hardening** — audit-log export, key rotation, one-tap panic revoke
-  (clears per-host check.sh state too).
-
-<details>
-<summary>Also present: the pre-pivot log-reading/tiered-action system</summary>
-
-Before the Lookout pivot, Stackward had a broader design where an on-device
-Gemma model read raw journal/Docker/Proxmox logs directly and proposed
-individual shell commands, gated by a three-tier permission engine
-(read-only / one-time elevation / boundary change). That code
-(`PermissionEngine`, `LogSummarizer`, the Logs screen's journal/Docker tabs)
-still exists and still works — reachable from the dashboard's toolbar — but
-it's no longer the primary flow. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-for how the two fit together.
-
-</details>
+  stackward-agent`), then enter IP + one-time password; the app installs its SSH key
+  (ssh-copy-id style), installs `check.sh` into `~/.stackward/` and wipes the password.
+  The script is refreshed automatically when the app ships a newer version.
+- **Jump-host support** — reach LAN-only hosts via `ProxyJump`-style tunneling with per-hop
+  host-key pinning (TOFU), plus optional port knocking.
+- **Hardening** — audit-log export, key rotation, one-tap panic revoke (wipes local state and
+  empties the agent's `authorized_keys`).
 
 ## Status
 
-**"Lookout" is implemented: read-only triage via a host-side check script,
-model optional, risk-based action gating.** See [STRATEGY.md](STRATEGY.md)
-for the thesis and [PRD.md](PRD.md) for the full spec.
+Read-only health check for Linux hosts; see [PRD.md](PRD.md) for the spec and
+[docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) for the v1 release gate.
 
 | Area | Scope | State |
 |------|-------|-------|
-| Check script | `~/.stackward/check.sh`: disk/memory/failed-service/SSH-config/listening-port/journal-error/Docker-exited detection, JSON output | ✅ Implemented |
-| Bootstrap | In-app onboarding installs the bundled `~/.stackward/check.sh` (home dir only, no root) and refreshes it when its `version` is older; `scripts/bootstrap_linux.sh` (admin-run) can also install it plus journal/Docker read access | ✅ Implemented (device verification pending) |
-| Dashboard | Multi-host list (`dev.stackward.ui.dashboard`), per-host detail, last-checked age, on-demand "Check now" | ✅ Implemented |
-| Risk-gated actions | `CheckActionCatalog`/`CheckSuggestionGate`: phone decides risk, never trusts the host's self-reported label; safe auto-runs, risky needs biometric, scary/unknown are manual-only | ✅ Implemented |
-| Gemma summary | Host detail screen reuses the existing `LogSummarizer` pipeline; degrades the same way the Logs screen does (no model / inference failure / success) | ✅ Implemented |
-| Biometric-bound SSH signing | Keystore key requires biometric per use; the signing path doesn't yet drive a per-use prompt | ❌ Needs on-device verification ([G2](PRD.md#11-spec-ahead-of-code-open-work-as-of-2026-11-12)) |
+| Check script | `~/.stackward/check.sh`: disk (real filesystems only), memory, failed units, SSH password auth, listening ports, journal errors, exited Docker containers; `advice` per issue; `coverage` for journal/docker/systemd; versioned | ✅ Implemented, fixture-tested (`scripts/tests/check_sh_test.sh`) |
+| Install | App installs and refreshes `check.sh` (home dir only, no root); `scripts/bootstrap_linux.sh` (admin-run) can also grant journal/Docker read access | ✅ Implemented, ⚠️ not yet run on a real host |
+| Dashboard | Health states, staleness, persisted failures, Check all, host detail | ✅ Implemented |
+| Hardening | Key rotation, panic revoke, audit export, TOFU pinning, jump host | ✅ Implemented, ⚠️ not device-verified |
+| Biometric-bound SSH signing | Keystore key requires biometric per use; the signing path may not drive a per-use prompt | ❌ Needs on-device verification ([#85](https://github.com/alexseymer/Stackward/issues/85)) |
 
-Verified: `:app:testDebugUnitTest`, `:app:assembleDebug`, `:app:lintDebug` all
-green in CI; two review passes (`/simplify` for reuse/efficiency,
-`/code-review` for correctness) both ran clean after fixing what they found.
-**Not yet dogfooded** against real infrastructure or a physical device — see
-[docs/PHASES.md](docs/PHASES.md) for the build history (the pre-pivot
-`PermissionEngine`, `AgentKeyManager` and host-key TOFU pinning are all still
-in use) and what dogfooding still needs to cover. The first thing to check on
-a real phone is whether SSH key signing works (gap G2).
+CI runs unit tests, lint, shellcheck, the check.sh fixture suite, the check.sh copy-sync guard and
+CodeQL. **Nothing has been verified on a physical device or against a real host yet.** The first
+thing to check on a real phone is whether SSH key signing works. Open work: the
+[tracking issue](https://github.com/alexseymer/Stackward/issues/96).
 
 Latest build: see [Releases](https://github.com/alexseymer/Stackward/releases/latest).
 Install it with `adb install -r app-dogfood.apk` — Chrome sideloading often
 fails on Pixels in 2026; see [docs/INSTALL.md](docs/INSTALL.md).
-
-See [docs/MODEL_SETUP.md](docs/MODEL_SETUP.md) for importing an on-device model.
 
 ## Build locally
 
@@ -146,9 +112,8 @@ export ANDROID_HOME=~/Android/Sdk
 ./gradlew :app:lintDebug            # Android lint
 ```
 
-Open the project in Android Studio for emulator/device testing. On-device LLM
-inference requires a **physical device** (emulators are not reliable for it) — see
-[docs/MODEL_SETUP.md](docs/MODEL_SETUP.md).
+Open the project in Android Studio for emulator/device testing. Biometric key use needs a
+**physical device**.
 
 ### Cutting a phone build
 
@@ -168,32 +133,12 @@ Release builds never include these values.
 
 ## Security model, in short
 
-**Invariants:** check.sh runs on your host, not the phone; the phone reads
-its output and decides risk itself — it never trusts what a suggestion
-claims about its own risk; nothing leaves the device except over your own SSH
-(no cloud, no telemetry); and no SSH session should start without you present
-(the app has no background checks or notifications).
-
-- **Safe:** read-only (tail logs, list failed units) — runs immediately, logged.
-- **Risky:** needs root the agent user doesn't have by default (e.g. vacuuming
-  the journal) — literal command shown, fresh biometric confirmation required,
-  executed via a narrow single-purpose sudoers helper, never a broad grant.
-- **Scary / unrecognized:** never executed — shown as a manual workaround
-  instead (e.g. disabling SSH password auth, because changing it over the
-  connection you're using can lock you out).
-
-The shipped action catalog has four entries: `tail_journal` and
-`list_failed_services` (safe), `cleanup_old_logs` (risky), and
-`disable_ssh_password_auth` (scary). See [PRD §5.2](PRD.md#52-read-only-guarantee) (the catalog is slated for removal).
-
-The dedicated `stackward-agent` identity has no standing `sudo` beyond a
-handful of named helper scripts, each independently re-validating its own
-input rather than trusting the phone. See [PRD.md § 5](PRD.md#5-core-concepts)
-for details.
-
-The pre-pivot Logs screen's tiered permission engine (routine / one-time
-elevation / boundary change, gating individual Gemma-proposed shell commands)
-still exists alongside this — see the collapsed section above.
+**Invariants:** nothing leaves the device except over your own SSH (no cloud, no telemetry);
+no SSH session starts without you present (no background checks, no notifications); the app
+changes nothing on hosts except its own `~/.stackward/` files and the agent's `authorized_keys`;
+the agent user needs no `sudo`. Text from a host (messages, advice, unit names) is shown, never
+executed. Details and residual risks: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) and
+[PRD §5.2](PRD.md#52-read-only-guarantee).
 
 ## Repo layout
 
@@ -206,7 +151,7 @@ docs/USER_STORIES.md    Per-story criteria & dogfood checklist
 docs/ARCHITECTURE.md    System design
 docs/PHASES.md          Build history and current focus
 docs/INSTALL.md         Installing a build on a Pixel (ADB), lost-phone revoke
-docs/MODEL_SETUP.md     On-device model import
+docs/THREAT_MODEL.md    Assets, trust boundaries, threats and proof
 scripts/                check.sh, admin bootstrap scripts (reviewed before running), release tooling
 mcp-servers/            Dev-only MCP server for iterating on check.sh
 .github/workflows/      CI, CodeQL, and the manual Release APK workflow
