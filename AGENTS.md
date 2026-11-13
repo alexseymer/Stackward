@@ -1,8 +1,8 @@
 # Stackward — Agent Guide
 
 Stackward is a **single-module Android app** (`:app`, Kotlin + Jetpack Compose,
-applicationId `dev.stackward`). It is an on-device LLM agent for monitoring/managing
-self-hosted infra (Linux/Proxmox/Docker) over SSH + the Proxmox REST API. There is
+applicationId `dev.stackward`). It is a read-only health check for the user's own Linux
+hosts, run from the phone over SSH. There is
 no backend, database, docker-compose, or web/dev server — the "product" is the client
 APK plus the user's own external infrastructure. See `README.md`, `PRD.md`, and
 `docs/`.
@@ -27,16 +27,10 @@ anymore.
    SSH, `check.sh` installed by onboarding, biometric-bound key use). Treat
    those rows as open work. Don't "fix" the PRD back to match the code there.
 3. **`docs/PHASES.md`, `docs/ARCHITECTURE.md`, `docs/USER_STORIES.md`,
-   the README "Status" table** — now describe the **current** architecture
-   (check.sh + dashboard + risk-gated actions) as primary, with the
-   pre-pivot Tier 1/2/3 + CapabilityPack system kept as a clearly-marked
-   "legacy" subsystem — it's still real, functional code
-   (`PermissionEngine`, `AgentKeyManager`, host-key TOFU pinning, the Logs
-   screen's Gemma summarization), reused by the new direction at the
-   connection/credential layer and for the optional AI summary, just no
-   longer the primary flow. Trust these docs' current-state claims; if a
-   change here makes them wrong, update them in the same commit rather
-   than letting them drift again.
+   the README "Status" table** — still describe the pre-narrowing scope
+   (actions, Gemma, Proxmox) in places; PRD §11 R5 tracks bringing them in
+   line. Where they disagree with the PRD, the PRD wins. Update them in the
+   same commit when a change makes a claim wrong.
 4. **`scripts/check.sh`** — detects disk/memory/service/security/log
    issues on a host and returns JSON (`issues[]`, each with a text-only
    `advice`, plus `coverage` saying which sources were readable). Today it reaches hosts only via the admin-run
