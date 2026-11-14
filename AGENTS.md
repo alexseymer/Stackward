@@ -46,6 +46,15 @@ anymore.
    no code path may execute it, and no `sudo` helper exists for running
    commands. Don't reintroduce an action catalog, Apply UI or sudoers helper.
 
+## Core principle: the Linux way
+
+Read [`docs/PRINCIPLES.md`](docs/PRINCIPLES.md) before designing anything. In short: do one thing well (the question
+"is anything wrong on my hosts?", nothing else), small composable programs, **text as the interface** (`check.sh` is
+a standalone filter printing JSON; the app only consumes it), shell on the host, no captive UI, small is beautiful
+(removing beats adding), and release early and often with open, reviewable decisions. New host-side behavior is a
+`check.sh` change with a fixture test, not new app logic. A change that conflicts with the principles needs a written
+reason in its PR.
+
 ## MCP servers
 
 `.mcp.json` at the repo root registers **stackward-devhost**

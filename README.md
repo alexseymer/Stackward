@@ -48,6 +48,10 @@ lists where the spec is deliberately ahead of the code),
 
 ## Why Stackward
 
+Built the Linux way ([docs/PRINCIPLES.md](docs/PRINCIPLES.md)): one job done well, small programs that work together
+(`check.sh` is a standalone filter — run `bash scripts/check.sh | jq` on any host with no app), text as the interface,
+and development in the open with frequent releases.
+
 - **Local-first, private.** check.sh runs on your own host; the phone reads its JSON
   over your own SSH connection. Nothing else is sent anywhere.
 - **Read-only by construction.** The app has no code path that runs anything the host
@@ -151,6 +155,7 @@ docs/USER_STORIES.md    Per-story criteria & dogfood checklist
 docs/ARCHITECTURE.md    System design
 docs/PHASES.md          Build history and current focus
 docs/INSTALL.md         Installing a build on a Pixel (ADB), lost-phone revoke
+docs/PRINCIPLES.md      The Linux principle: design and process rules
 docs/THREAT_MODEL.md    Assets, trust boundaries, threats and proof
 scripts/                check.sh, admin bootstrap scripts (reviewed before running), release tooling
 mcp-servers/            Dev-only MCP server for iterating on check.sh

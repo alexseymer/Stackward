@@ -40,6 +40,11 @@ now — and changes nothing on those hosts.
    check reads is readable by an ordinary account (plus, optionally, membership of
    the `systemd-journal` group and a read ACL on Docker logs).
 
+**Core principle — the Linux way** ([docs/PRINCIPLES.md](docs/PRINCIPLES.md)): small, focused programs that
+work together and talk in plain text, built in the open and released early and often. `check.sh` is a standalone
+filter (text in the environment, JSON on stdout); the app is one consumer of it. Where a change conflicts with
+this, it needs a written reason.
+
 ## 2. Goals
 
 - **One-time setup:** connect once with a password or private key; the app
