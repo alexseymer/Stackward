@@ -57,7 +57,7 @@ class AgentKeyManager(
             throw IllegalStateException("Keypair already exists for alias: $alias")
         }
 
-        if (canUseKeystoreEd25519()) {
+        if (canUseKeystoreEd25519() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             try {
                 return generateKeystoreKeypair(alias)
             } catch (error: Exception) {
@@ -161,6 +161,7 @@ class AgentKeyManager(
         else -> null
     }
 
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private fun generateKeystoreKeypair(alias: String): KeyPair {
         val spec = KeyGenParameterSpec.Builder(
             alias,
