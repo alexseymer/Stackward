@@ -45,7 +45,7 @@ Status: **Mitigated** = enforced in code with a test or a directly checkable pro
 | T11 | Other apps or backups read stored data | `allowBackup="false"`; all stores use `EncryptedSharedPreferences` (AES-256) with a Keystore master key; the only exported component is the launcher activity. | Manifest | **Partly**: a rooted device or an unlocked-phone attacker with debugging access is out of scope; the software key (T6) is as strong as that master key |
 | T12 | Audit/result data survives a wipe | `PanicRevokeService.wipeLocalState` clears keys, profiles, pins, health, settings, results and the audit log. | Not tested (needs Context) | **Partly** |
 | T13 | Lock-screen exposure of host state | The app posts no notifications (removed in #119). | Manifest has no `POST_NOTIFICATIONS` | **Mitigated** by absence |
-| T14 | Malicious update of the app itself | Android only accepts an update signed with the installed app's key. Since #125 the release key is not in the repo: it lives in GitHub secrets (and the maintainer's backup) and the release script refuses debug-signed builds. | `scripts/release_apk.sh` signature check | **Mitigated**; the key's secrecy now rests on repository-secret access control |
+| T14 | Malicious update of the app itself | Android only accepts an update signed with the installed app's key. Since #125 the release key is not in the repo and not on GitHub: CI builds unsigned, the maintainer signs locally (`scripts/sign_release.sh`), and the release script refuses debug-signed builds. | `scripts/sign_release.sh` verifies the signature | **Mitigated**; the key's secrecy rests on the maintainer's machine and backup |
 | T15 | Compromised dependency or CI action | Dependabot PRs, CodeQL, shellcheck, `submit-gradle` dependency graph. Dependency versions are pinned in Gradle; Actions are referenced by tag, not by commit SHA. | CI | **Partly**: not reviewed in depth |
 | T16 | Model download tampering | There is no model. | Code removed in #117 | **Mitigated** by absence |
 
@@ -63,7 +63,7 @@ workflow headers, the manifest.
 Findings filed:
 
 - **#124** (fixed in #126): rotation and panic revoke relied on sudo helpers that contradicted PRD invariant 4 and hard-coded the user name.
-- **#125** (fixed): release APKs were signed with a committed keystore (T14); the key is now a repository secret.
+- **#125** (fixed): release APKs were signed with a committed keystore (T14); the key is kept only on the maintainer's machine (CI builds unsigned).
 - **#85 / #95** (already open): per-use biometric signing may never prompt on Android 13+, and the silent software-key fallback (T6).
 
 Not yet reviewed: `SshConnectionManager` authentication and retry paths in depth (it retries a failed command

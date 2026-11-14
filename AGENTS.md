@@ -140,10 +140,11 @@ This script (on the `builds` branch only — never `main`):
    `adb install -r`** (Chrome sideload often fails with "App not installed" under
    Android 2026 developer verification — see `docs/INSTALL.md`)
 
-Release APKs are signed with a release key that is **not** in the repo: the Release APK workflow reads it from
-the secrets `DOGFOOD_KEYSTORE_BASE64`, `DOGFOOD_STORE_PASSWORD`, `DOGFOOD_KEY_ALIAS`, `DOGFOOD_KEY_PASSWORD`
-(create them once with `scripts/create_release_keystore.sh`). The release script refuses to publish without the
-key or with a debug-signed APK; CI/test builds use the throwaway debug key and are never published.
+The CI workflow only **builds** (UNSIGNED_BUILD, debug-signed, uploaded as the `unsigned-apk` artifact); it never signs or
+publishes. The maintainer signs and publishes on their own machine with `scripts/sign_release.sh`, using the key in
+`~/.stackward-release/` (made once by `scripts/create_release_keystore.sh`). The release key is never in the repo or
+in GitHub secrets. `release_apk.sh` run locally (with `keystore.properties`/`DOGFOOD_*`) signs and publishes in one go;
+it refuses debug-signed or key-less releases.
 
 Use `DRY_RUN=1 ./scripts/release_apk.sh` to preview the version bump without
 building or publishing. Optional `SOURCE_REF=origin/<branch>` builds from another ref.
