@@ -236,7 +236,7 @@ The full threat model (assets, trust boundaries, per-threat mitigation and proof
 | Operator connects as root / passwordless sudo | Elevation detected at onboarding; explicit acknowledgment, recorded in the audit log |
 | Lost or stolen phone | Key needs biometric for every use and is invalidated by biometric re-enrollment; no unattended key use (invariant 2); panic revoke and clearing `authorized_keys` on the host |
 | Installed `check.sh` drifts from the app's version | App replaces it when its bundled version is newer; `scripts/verify_check_sh_sync.sh` guards copies in the repo |
-| Biometric fatigue when checking many hosts | Accepted for v1 (one confirmation per host per check); see open question Q1 |
+| Biometric fatigue when checking many hosts | One confirmation unlocks the key for 60 s, so "Check all" asks once (Q1) |
 
 ## 9. Status
 
@@ -277,11 +277,10 @@ yet; the first priority is to find out whether SSH signing works on one (G2).
 | R4 ✅ | Dashboard honesty: unreachable and stale states, "check all" | `ui/dashboard/` — **done** (#121) |
 | R5 ✅ | Docs: after R1/R2, update `docs/ARCHITECTURE.md`, `docs/PHASES.md`, `docs/USER_STORIES.md`, `docs/ACCEPTANCE.md` and the README so they describe only what ships | docs — **done** (this docs pass) |
 
-**Open questions**
+**Decided 2026-11-14**
 
-- **Q1** — Checking many hosts means one biometric confirmation per host.
-  Acceptable for v1, or is a batched "check all" worth a different key design?
-- **Q2** — Devices that can't create a biometric-bound Keystore key (below
-  Android 13 or no strong biometric) fall back to a software key, which can't
-  enforce invariant 2. Refuse onboarding on such devices, or allow it with an
-  explicit warning?
+- **Q1 → one confirmation for all hosts.** A strong-biometric prompt (or the key password) unlocks the key for
+  60 s (`AgentKeyManager.UNLOCK_WINDOW_MS`); "Check all hosts" asks once. Single checks ask once per window too.
+- **Q2 → password.** Phones that cannot make a biometric-bound Keystore key (below Android 13, or no strong
+  biometric) keep the Ed25519 key sealed under a user password (min. 10 characters, PBKDF2-SHA256 + AES-GCM) and
+  enter it per check session. No unprotected fallback exists. There is no password recovery: re-onboard.
