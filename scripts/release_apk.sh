@@ -12,7 +12,11 @@
 #   SOURCE_REF   Git ref to build from (default: origin/main)
 #   DRY_RUN=1    Print planned actions without mutating git or creating a release
 #
-# Signing: needs the release key (never in the repo): DOGFOOD_STORE_FILE / _STORE_PASSWORD / _KEY_ALIAS /
+# UNSIGNED_BUILD=1 (used by the CI workflow): build and push `builds`, but do NOT publish — the APK and its release
+# notes are left in release-out/ and are signed and published locally by scripts/sign_release.sh, so the release
+# key never leaves the maintainer's machine.
+#
+# Signing (local mode): needs the release key (never in the repo): DOGFOOD_STORE_FILE / _STORE_PASSWORD / _KEY_ALIAS /
 # _KEY_PASSWORD in the environment, or app/../keystore.properties. Create one with scripts/create_release_keystore.sh.
 # Without it the script refuses to publish (a debug-signed APK must never be released).
 #
@@ -51,7 +55,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cd "${REPO_ROOT}"
 
-if [[ -z "${DRY_RUN:-}" && -z "${DOGFOOD_STORE_FILE:-}" && ! -f keystore.properties ]]; then
+if [[ -z "${UNSIGNED_BUILD:-}" && -z "${DRY_RUN:-}" && -z "${DOGFOOD_STORE_FILE:-}" && ! -f keystore.properties ]]; then
   echo "error: no release keystore (set DOGFOOD_STORE_FILE and the DOGFOOD_* secrets, or create keystore.properties)." >&2
   echo "       Create one with scripts/create_release_keystore.sh. Releases are never signed with the debug key." >&2
   exit 1
@@ -102,7 +106,7 @@ verify_apk_signed() {
   }
   echo "${verify_output}"
 
-  if "${apksigner}" verify --print-certs "${APK_PATH}" 2>&1 | grep -qi 'CN=Android Debug'; then
+  if [[ -z "${UNSIGNED_BUILD:-}" ]] && "${apksigner}" verify --print-certs "${APK_PATH}" 2>&1 | grep -qi 'CN=Android Debug'; then
     die "APK is signed with the debug key — provide the release keystore (scripts/create_release_keystore.sh)"
   fi
 
@@ -313,6 +317,16 @@ If ADB prints an error code, that is the real reason — Chrome's \"App not inst
 
   echo "==> Pushing ${BUILDS_BRANCH}"
   git push --force-with-lease -u origin "${BUILDS_BRANCH}"
+
+  if [[ -n "${UNSIGNED_BUILD:-}" ]]; then
+    mkdir -p release-out
+    cp "${APK_PATH}" "release-out/${APK_ASSET_NAME}"
+    printf '%s\n' "${TAG}" > release-out/TAG
+    printf '%s\n' "${BUILD_TYPE}" > release-out/BUILD_TYPE
+    printf '%s\n' "${summary}" > release-out/SUMMARY
+    echo "==> Unsigned build ready: release-out/${APK_ASSET_NAME} (${TAG}). Sign and publish it with scripts/sign_release.sh"
+    return 0
+  fi
 
   echo "==> Creating GitHub release ${TAG}"
   gh release create "${TAG}" \

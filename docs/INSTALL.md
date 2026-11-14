@@ -20,8 +20,8 @@ without losing app data.
 
 > **One-time change (#125):** builds up to v0.5.12 were signed with a key that was public in the
 > repository. Releases after the switch use a new, private key, so Android refuses to update over
-> the old install: run `adb uninstall dev.stackward.dogfood` once, then install. (Setup of the key:
-> `scripts/create_release_keystore.sh`, once, by the maintainer.)
+> the old install: run `adb uninstall dev.stackward.dogfood` once, then install. (Maintainer: create the key once with
+> `scripts/create_release_keystore.sh`; after each CI build run `scripts/sign_release.sh`.)
 
 ## Install with wireless ADB (no cable)
 
