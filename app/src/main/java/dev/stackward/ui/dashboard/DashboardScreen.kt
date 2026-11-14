@@ -30,6 +30,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,6 +41,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.stackward.R
 import dev.stackward.check.HostHealth
+import dev.stackward.ui.security.BiometricGate
+import dev.stackward.util.findFragmentActivity
 import dev.stackward.check.IssueSeverity
 
 private val StatusGreen = Color(0xFF2E7D32)
@@ -70,6 +73,8 @@ fun DashboardScreen(
     onOpenSettings: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val gate = remember(context) { BiometricGate(context.findFragmentActivity()) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -78,7 +83,7 @@ fun DashboardScreen(
                     if (uiState.isCheckingAll) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
                     } else if (uiState.hosts.isNotEmpty()) {
-                        IconButton(onClick = viewModel::checkAll) {
+                        IconButton(onClick = { viewModel.checkAll(gate) }) {
                             Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.cd_check_all))
                         }
                     }
@@ -103,6 +108,16 @@ fun DashboardScreen(
             }
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
+                uiState.notice?.let { notice ->
+                    item {
+                        Text(
+                            notice,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
+                }
                 uiState.batchResult?.let { batch ->
                     item {
                         Text(
@@ -117,7 +132,7 @@ fun DashboardScreen(
                     HostRow(
                         host = host,
                         onClick = { onOpenHost(host.profile.id) },
-                        onCheckNow = { viewModel.checkNow(host.profile.id) },
+                        onCheckNow = { viewModel.checkNow(host.profile.id, gate) },
                     )
                 }
             }

@@ -14,6 +14,7 @@ GUARDED=(
     app/src/main/java/dev/stackward/ui/dashboard/UiText.kt
     app/src/main/java/dev/stackward/ui/settings/SettingsScreen.kt
     app/src/main/java/dev/stackward/ui/OnboardingScreen.kt
+    app/src/main/java/dev/stackward/ui/security/PasswordDialog.kt
 )
 
 status=0

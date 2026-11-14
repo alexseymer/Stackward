@@ -4,26 +4,23 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import dev.stackward.R
+import dev.stackward.security.UserPresenceGate
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
- * Gates Tier 2 approvals behind a fresh biometric prompt.
+ * Strong-biometric prompt. Fails closed: when no strong biometric is available it returns false
+ * (it never "passes" silently). Keystore keys accept only a strong biometric, so no device-credential fallback.
  */
 class BiometricGate(
     private val activity: FragmentActivity,
-) {
+) : UserPresenceGate {
 
-    suspend fun authenticate(
-        title: String = "Confirm action",
-        subtitle: String = "Biometric confirmation required",
-    ): Boolean {
-        val authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG or
-            BiometricManager.Authenticators.DEVICE_CREDENTIAL
-
-        val canAuth = BiometricManager.from(activity).canAuthenticate(authenticators)
-        if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
-            return true
+    override suspend fun authenticate(title: String, subtitle: String): Boolean {
+        val authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG
+        if (BiometricManager.from(activity).canAuthenticate(authenticators) != BiometricManager.BIOMETRIC_SUCCESS) {
+            return false
         }
 
         return suspendCancellableCoroutine { continuation ->
@@ -41,7 +38,7 @@ class BiometricGate(
                     }
 
                     override fun onAuthenticationFailed() {
-                        // Keep prompt open until success/cancel
+                        // Keep the prompt open until success or cancel.
                     }
                 },
             )
@@ -50,6 +47,7 @@ class BiometricGate(
                 .setTitle(title)
                 .setSubtitle(subtitle)
                 .setAllowedAuthenticators(authenticators)
+                .setNegativeButtonText(activity.getString(R.string.action_cancel))
                 .build()
 
             continuation.invokeOnCancellation { prompt.cancelAuthentication() }

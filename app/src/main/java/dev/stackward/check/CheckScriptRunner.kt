@@ -11,6 +11,9 @@ fun interface RemoteCommandExecutor {
 sealed class CheckRunResult {
     data class Success(val result: CheckResult) : CheckRunResult()
     data class Failure(val message: String) : CheckRunResult()
+
+    /** The key needs a fresh fingerprint/password; the host itself was not reached, so this is not a host failure. */
+    data object Locked : CheckRunResult()
 }
 
 /**
@@ -25,9 +28,11 @@ class CheckScriptRunner(
 
     suspend fun run(profile: ServerProfile): CheckRunResult {
         val first = runOnce(profile)
+        if (first is CheckRunResult.Locked) return first
         val needsInstall = when (first) {
             is CheckRunResult.Success -> first.result.scriptVersion < bundle.version
             is CheckRunResult.Failure -> first.message.contains("No such file", ignoreCase = true)
+            is CheckRunResult.Locked -> false
         }
         if (!needsInstall) return first
 
@@ -53,6 +58,8 @@ class CheckScriptRunner(
         return try {
             val output = executor.execute(profile, COMMAND)
             CheckRunResult.Success(CheckScriptParser.parse(output))
+        } catch (_: dev.stackward.crypto.KeyLockedException) {
+            CheckRunResult.Locked
         } catch (error: CheckScriptParseException) {
             CheckRunResult.Failure(error.message ?: "check.sh returned malformed JSON")
         } catch (error: Exception) {

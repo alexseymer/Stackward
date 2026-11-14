@@ -55,6 +55,8 @@ class SshConnectionManager(
                 )
                 connectionHealth.recordSuccess(profile.id)
                 return@withContext result.outputOrThrow()
+            } catch (error: dev.stackward.crypto.KeyLockedException) {
+                throw error // needs the user, not a retry
             } catch (error: Exception) {
                 lastError = error
                 Log.w(TAG, "SSH attempt ${attempt + 1}/$maxAttempts failed for ${profile.host}", error)

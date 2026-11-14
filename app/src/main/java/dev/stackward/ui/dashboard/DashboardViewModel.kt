@@ -3,7 +3,9 @@ package dev.stackward.ui.dashboard
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.stackward.R
 import dev.stackward.StackwardApplication
+import dev.stackward.ui.security.BiometricGate
 import dev.stackward.check.CheckRunResult
 import dev.stackward.check.HostHealth
 import dev.stackward.check.HostHealthMapper
@@ -36,6 +38,8 @@ data class DashboardUiState(
     val hosts: List<HostSummary> = emptyList(),
     val isCheckingAll: Boolean = false,
     val batchResult: BatchResult? = null,
+    /** Shown above the list, e.g. when the unlock was cancelled. */
+    val notice: String? = null,
 )
 
 /** Outcome of the last "Check all hosts". */
@@ -44,6 +48,14 @@ data class BatchResult(val total: Int, val failed: Int)
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
 
     private val container = (application as StackwardApplication).container
+
+    private fun str(@androidx.annotation.StringRes id: Int): String = getApplication<Application>().getString(id)
+
+    private suspend fun unlock(gate: BiometricGate): Boolean {
+        val ok = container.appUnlock.ensureUnlocked(gate, str(R.string.unlock_title), str(R.string.unlock_subtitle))
+        _uiState.update { it.copy(notice = if (ok) null else str(R.string.unlock_cancelled)) }
+        return ok
+    }
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
@@ -58,8 +70,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun checkNow(profileId: String) {
-        viewModelScope.launch { runCheck(profileId) }
+    fun checkNow(profileId: String, gate: BiometricGate) {
+        viewModelScope.launch {
+            if (unlock(gate)) runCheck(profileId, gate)
+        }
     }
 
     /**
@@ -67,12 +81,14 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
      * purpose: each host is its own SSH session (PRD Q1 is still open on whether one
      * biometric confirmation could cover the batch).
      */
-    fun checkAll() {
+    fun checkAll(gate: BiometricGate) {
         if (_uiState.value.isCheckingAll) return
         viewModelScope.launch {
+            // ONE fingerprint (or password) opens the key for the whole batch (PRD Q1).
+            if (!unlock(gate)) return@launch
             _uiState.update { it.copy(isCheckingAll = true, batchResult = null) }
             val ids = _uiState.value.hosts.map { it.profile.id }
-            val failed = ids.filterNot { runCheck(it) }
+            val failed = ids.filterNot { runCheck(it, gate) }
             _uiState.update {
                 it.copy(
                     isCheckingAll = false,
@@ -83,10 +99,19 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     /** Runs one check and updates that host's row. Returns true when the check completed. */
-    private suspend fun runCheck(profileId: String): Boolean {
+    private suspend fun runCheck(profileId: String, gate: BiometricGate): Boolean {
         val profile = _uiState.value.hosts.find { it.profile.id == profileId }?.profile ?: return false
         updateHost(profileId) { it.copy(isChecking = true, error = null) }
+        // If the unlock window ran out mid-batch this asks again; otherwise it is a no-op.
+        if (!container.appUnlock.ensureUnlocked(gate, str(R.string.unlock_title), str(R.string.unlock_subtitle))) {
+            updateHost(profileId) { it.copy(isChecking = false, error = str(R.string.unlock_cancelled)) }
+            return false
+        }
         return when (val outcome = container.checkScriptRunner.run(profile)) {
+            is CheckRunResult.Locked -> {
+                updateHost(profileId) { it.copy(isChecking = false, error = str(R.string.unlock_cancelled)) }
+                false
+            }
             is CheckRunResult.Success -> {
                 container.checkResultStore.save(profileId, outcome.result)
                 updateHost(profileId) {

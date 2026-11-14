@@ -169,4 +169,20 @@
     <string name="bio_rotate_subtitle">Biometrische Bestätigung zum Erneuern der Zugangsdaten erforderlich</string>
     <string name="bio_panic_title">Notfall-Sperrung</string>
     <string name="bio_panic_subtitle">Entfernt den Serverzugang und löscht lokale Zugangsdaten</string>
+
+    <!-- Unlock -->
+    <string name="unlock_title">Hosts prüfen</string>
+    <string name="unlock_subtitle">Bestätige, damit die App deinen SSH-Schlüssel nutzen darf</string>
+    <string name="unlock_cancelled">Nicht entsperrt – es wurde nichts geprüft</string>
+    <string name="pw_unlock_title">SSH-Schlüssel entsperren</string>
+    <string name="pw_unlock_body">Gib das Schlüssel-Passwort ein, um deine Hosts zu prüfen.</string>
+    <string name="pw_create_title">SSH-Schlüssel mit Passwort schützen</string>
+    <string name="pw_create_body">Dieses Telefon hat keine starke Fingerabdruck- oder Gesichtserkennung, daher wird der Schlüssel mit einem Passwort verschlüsselt gespeichert. Du gibst es einmal pro Prüfvorgang ein. Es gibt keine Wiederherstellung: Wenn du es vergisst, richte deine Hosts neu ein.</string>
+    <string name="pw_field">Passwort</string>
+    <string name="pw_repeat">Passwort wiederholen</string>
+    <string name="pw_wrong">Falsches Passwort</string>
+    <string name="pw_too_short">Mindestens %1$d Zeichen</string>
+    <string name="pw_mismatch">Passwörter stimmen nicht überein</string>
+    <string name="pw_confirm_unlock">Entsperren</string>
+    <string name="pw_confirm_create">Passwort festlegen</string>
 </resources>

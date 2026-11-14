@@ -24,12 +24,15 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.stackward.R
 import dev.stackward.check.CheckIssue
+import dev.stackward.ui.security.BiometricGate
+import dev.stackward.util.findFragmentActivity
 import dev.stackward.check.coverageGapList
 import java.text.DateFormat
 import java.util.Date
@@ -41,6 +44,8 @@ fun HostDetailScreen(
     onBack: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val gate = remember(context) { BiometricGate(context.findFragmentActivity()) }
 
     Scaffold(
         topBar = {
@@ -55,7 +60,7 @@ fun HostDetailScreen(
                     if (uiState.isChecking) {
                         CircularProgressIndicator(modifier = Modifier.padding(end = 16.dp))
                     } else {
-                        IconButton(onClick = viewModel::checkNow) {
+                        IconButton(onClick = { viewModel.checkNow(gate) }) {
                             Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.cd_check_now))
                         }
                     }
@@ -83,7 +88,7 @@ fun HostDetailScreen(
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(top = 8.dp),
                 )
-                OutlinedButton(onClick = viewModel::checkNow, enabled = !uiState.isChecking) {
+                OutlinedButton(onClick = { viewModel.checkNow(gate) }, enabled = !uiState.isChecking) {
                     Text(stringResource(R.string.action_retry))
                 }
             }
