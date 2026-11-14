@@ -96,7 +96,7 @@ thing that is wrong.
 | **FAIL-3** | **Key rejected.** *Given* the host removed the app's key, *when* I check, *then* … | A clear "authentication failed" state with the next step. No retry storm. | ⚠️ | ⬜ |
 | **FAIL-4** | **`check.sh` missing or broken.** *Given* the script is deleted, or prints invalid JSON, *then* … | A specific message ("not installed", "invalid output") and the remedy. No crash. | ✅ (missing script triggers install; invalid output reported — #122) | ⬜ |
 | **FAIL-5** | **Biometric cancelled or unavailable.** *When* I cancel the prompt, or the biometric is removed from the phone, *then* … | Nothing runs; the message explains what happened; the app stays usable. | ❌ ([#85](https://github.com/alexseymer/Stackward/issues/85), [#95](https://github.com/alexseymer/Stackward/issues/95)) | ⬜ |
-| **FAIL-6** | **Phone without a biometric-bound key.** *Given* the second phone, *when* I onboard, *then* … | Behaves per the decision recorded for [#95](https://github.com/alexseymer/Stackward/issues/95): refused, or warned and still gated. Never a silent weaker mode. | ❌ ([#95](https://github.com/alexseymer/Stackward/issues/95)) | ⬜ |
+| **FAIL-6** | **Phone without a biometric-bound key.** *Given* the second phone, *when* I onboard, *then* … | The key is created sealed under a password (min. 10 characters); every check session asks for it; a wrong password is rejected and 5 wrong attempts stop. Never a silent weaker mode. | ❌ ([#95](https://github.com/alexseymer/Stackward/issues/95)) | ⬜ |
 
 ## 6. Security and recovery
 
