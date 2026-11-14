@@ -48,10 +48,25 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Restore release signing key
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.DOGFOOD_KEYSTORE_BASE64 }}
+        run: |
+          if [[ -z "${KEYSTORE_B64}" ]]; then
+            echo "::error::Repository secret DOGFOOD_KEYSTORE_BASE64 is missing. Run scripts/create_release_keystore.sh once (see docs/INSTALL.md)."
+            exit 1
+          fi
+          printf '%s' "${KEYSTORE_B64}" | base64 -d > "${RUNNER_TEMP}/release.keystore"
+          echo "DOGFOOD_STORE_FILE=${RUNNER_TEMP}/release.keystore" >> "$GITHUB_ENV"
+
       - name: Cut release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          DOGFOOD_STORE_PASSWORD: ${{ secrets.DOGFOOD_STORE_PASSWORD }}
+          DOGFOOD_KEY_ALIAS: ${{ secrets.DOGFOOD_KEY_ALIAS }}
+          DOGFOOD_KEY_PASSWORD: ${{ secrets.DOGFOOD_KEY_PASSWORD }}
           BUILD_TYPE: ${{ inputs.build_type }}
           DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
         run: ./scripts/release_apk.sh | tee release.log
