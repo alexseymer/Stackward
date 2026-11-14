@@ -12,6 +12,10 @@
 #   SOURCE_REF   Git ref to build from (default: origin/main)
 #   DRY_RUN=1    Print planned actions without mutating git or creating a release
 #
+# Signing: needs the release key (never in the repo): DOGFOOD_STORE_FILE / _STORE_PASSWORD / _KEY_ALIAS /
+# _KEY_PASSWORD in the environment, or app/../keystore.properties. Create one with scripts/create_release_keystore.sh.
+# Without it the script refuses to publish (a debug-signed APK must never be released).
+#
 # Agent trigger phrase: "cut a new build" (runs this script end-to-end).
 # Install probe: BUILD_TYPE=smoke ./scripts/release_apk.sh
 #
@@ -46,6 +50,12 @@ esac
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cd "${REPO_ROOT}"
+
+if [[ -z "${DRY_RUN:-}" && -z "${DOGFOOD_STORE_FILE:-}" && ! -f keystore.properties ]]; then
+  echo "error: no release keystore (set DOGFOOD_STORE_FILE and the DOGFOOD_* secrets, or create keystore.properties)." >&2
+  echo "       Create one with scripts/create_release_keystore.sh. Releases are never signed with the debug key." >&2
+  exit 1
+fi
 
 die() {
   echo "error: $*" >&2
@@ -91,6 +101,10 @@ verify_apk_signed() {
     die "APK failed signature verification — release aborted"
   }
   echo "${verify_output}"
+
+  if "${apksigner}" verify --print-certs "${APK_PATH}" 2>&1 | grep -qi 'CN=Android Debug'; then
+    die "APK is signed with the debug key — provide the release keystore (scripts/create_release_keystore.sh)"
+  fi
 
   if ! grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' <<<"${verify_output}"; then
     die "APK must include v2 signing (required for targetSdk 35 sideload installs)"
@@ -295,8 +309,6 @@ Install with ADB (most reliable on Pixel in 2026):
 If ADB prints an error code, that is the real reason — Chrome's \"App not installed\" hides it."
 
   git add "${BUILD_FILE}"
-  # Also commit keystore if it changed (SHA256 regen).
-  git add -A -- app/dogfood.keystore 2>/dev/null || true
   git commit -m "chore: bump version to ${TAG}"
 
   echo "==> Pushing ${BUILDS_BRANCH}"

@@ -71,20 +71,26 @@ android {
     }
 
     signingConfigs {
-        create("dogfood") {
-            storeFile = file(signingProp("dogfood.storeFile", "DOGFOOD_STORE_FILE", "dogfood.keystore"))
-            storePassword = signingProp("dogfood.storePassword", "DOGFOOD_STORE_PASSWORD", "dogfood")
-            keyAlias = signingProp("dogfood.keyAlias", "DOGFOOD_KEY_ALIAS", "dogfood")
-            keyPassword = signingProp("dogfood.keyPassword", "DOGFOOD_KEY_PASSWORD", "dogfood")
-            enableV1Signing = true
-            enableV2Signing = true
-            enableV3Signing = false
+        // The release key is never in the repo (#125). It comes from keystore.properties (local) or the
+        // DOGFOOD_* environment variables (the Release APK workflow sets them from GitHub secrets).
+        // Without it, CI/test builds fall back to the throwaway debug key and are never published.
+        if (signingProp("dogfood.storeFile", "DOGFOOD_STORE_FILE", "").isNotEmpty()) {
+            create("dogfood") {
+                storeFile = file(signingProp("dogfood.storeFile", "DOGFOOD_STORE_FILE", ""))
+                storePassword = signingProp("dogfood.storePassword", "DOGFOOD_STORE_PASSWORD", "")
+                keyAlias = signingProp("dogfood.keyAlias", "DOGFOOD_KEY_ALIAS", "")
+                keyPassword = signingProp("dogfood.keyPassword", "DOGFOOD_KEY_PASSWORD", "")
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = false
+            }
         }
     }
 
+    val releaseSigning = signingConfigs.findByName("dogfood") ?: signingConfigs.getByName("debug")
+
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("dogfood")
             val devPrefill = localBool("stackward.dev.prefill")
             buildConfigField("boolean", "DEV_PREFILL", devPrefill.toString())
             if (devPrefill) {
@@ -135,7 +141,7 @@ android {
         }
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("dogfood")
+            signingConfig = releaseSigning
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -151,7 +157,7 @@ android {
                 abiFilters += "arm64-v8a"
             }
             matchingFallbacks += listOf("release")
-            signingConfig = signingConfigs.getByName("dogfood")
+            signingConfig = releaseSigning
         }
         // Tiny install-probe APK (no native libs) to diagnose sideload failures.
         create("smoke") {
@@ -160,7 +166,7 @@ android {
             versionNameSuffix = "-smoke"
             isDebuggable = false
             matchingFallbacks += listOf("release")
-            signingConfig = signingConfigs.getByName("dogfood")
+            signingConfig = releaseSigning
         }
     }
 

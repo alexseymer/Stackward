@@ -93,6 +93,7 @@ jobs:
             scripts/verify_check_sh_sync.sh \
             scripts/check.sh \
             scripts/check_ui_strings.sh \
+            scripts/create_release_keystore.sh \
             scripts/tests/check_sh_test.sh
 
       - name: Verify localized screens use string resources

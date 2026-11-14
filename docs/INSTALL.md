@@ -15,8 +15,13 @@ Download `app-dogfood.apk` from the
 **on the computer you'll run `adb` from**, and check the SHA256 in the release
 notes. Releases are cut by `scripts/release_apk.sh` or the manual **Release
 APK** workflow (see [AGENTS.md](../AGENTS.md)). Successive dogfood builds are
-signed with the same committed key, so `adb install -r` upgrades in place
+signed with the same release key, so `adb install -r` upgrades in place
 without losing app data.
+
+> **One-time change (#125):** builds up to v0.5.12 were signed with a key that was public in the
+> repository. Releases after the switch use a new, private key, so Android refuses to update over
+> the old install: run `adb uninstall dev.stackward.dogfood` once, then install. (Setup of the key:
+> `scripts/create_release_keystore.sh`, once, by the maintainer.)
 
 ## Install with wireless ADB (no cable)
 
