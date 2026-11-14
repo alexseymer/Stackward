@@ -23,7 +23,7 @@ class KeyRotationService(
     private val auditLog: AuditLogRepository,
 ) {
 
-    suspend fun rotate(profile: ServerProfile): KeyRotationResult {
+    suspend fun rotate(profile: ServerProfile, newKeyPassword: CharArray? = null): KeyRotationResult {
         val activeAlias = securitySettings.getActiveKeyAlias()
         val inactiveAlias = securitySettings.getInactiveKeyAlias()
 
@@ -37,7 +37,7 @@ class KeyRotationService(
         if (keyManager.hasKeypair(inactiveAlias)) {
             keyManager.deleteKeypair(inactiveAlias)
         }
-        keyManager.generateKeypair(inactiveAlias, replaceExisting = false)
+        keyManager.generateKeypair(inactiveAlias, replaceExisting = false, password = newKeyPassword)
 
         val newPublicLine = keyManager.getPublicKeyOpenSSH(inactiveAlias)
 

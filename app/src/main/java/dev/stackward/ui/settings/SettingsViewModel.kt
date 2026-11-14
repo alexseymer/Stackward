@@ -93,8 +93,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
         viewModelScope.launch {
             _uiState.update { it.copy(isBusy = true, showRotateConfirm = false, error = null) }
+            // A password-sealed key (phones without a strong biometric) needs a password for its successor.
+            val newKeyPassword = if (container.keyManager.needsPasswordForNewKey()) {
+                container.appUnlock.askNewPassword() ?: run {
+                    _uiState.update { it.copy(isBusy = false, error = str(R.string.unlock_cancelled)) }
+                    return@launch
+                }
+            } else {
+                null
+            }
             runCatching {
-                container.keyRotationService.rotate(profile)
+                try {
+                    container.keyRotationService.rotate(profile, newKeyPassword)
+                } finally {
+                    newKeyPassword?.fill('\u0000')
+                }
             }.onSuccess { result ->
                 _uiState.update {
                     it.copy(
@@ -191,7 +204,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun launchRotateWithBiometric(biometricGate: dev.stackward.ui.security.BiometricGate) {
         viewModelScope.launch {
-            val authed = biometricGate.authenticate(
+            val authed = container.appUnlock.ensureUnlocked(biometricGate,
                 title = str(R.string.bio_rotate_title),
                 subtitle = str(R.string.bio_rotate_subtitle),
             )
@@ -209,7 +222,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         onExportPrompt: () -> Unit,
     ) {
         viewModelScope.launch {
-            val authed = biometricGate.authenticate(
+            val authed = container.appUnlock.ensureUnlocked(biometricGate,
                 title = str(R.string.bio_panic_title),
                 subtitle = str(R.string.bio_panic_subtitle),
             )

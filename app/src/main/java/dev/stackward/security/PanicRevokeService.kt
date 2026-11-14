@@ -70,6 +70,7 @@ class PanicRevokeService(
             checkResultStore.clear(profile.id)
         }
 
+        keyManager.lock()
         keyManager.deleteKeypair(AgentKeyManager.KEY_ALIAS)
         keyManager.deleteKeypair(AgentKeyManager.KEY_ALIAS_ALT)
         profileRepository.clearAll()

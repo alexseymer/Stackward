@@ -3,7 +3,9 @@ package dev.stackward.ui.dashboard
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.stackward.R
 import dev.stackward.StackwardApplication
+import dev.stackward.ui.security.BiometricGate
 import dev.stackward.check.CheckResult
 import dev.stackward.check.CheckRunResult
 import dev.stackward.onboarding.ServerProfile
@@ -49,9 +51,14 @@ class HostDetailViewModel(application: Application) : AndroidViewModel(applicati
         return if (checkedAt == null || failedAt >= checkedAt) store.getLastFailureMessage(profile.id) else null
     }
 
-    fun checkNow() {
+    fun checkNow(gate: BiometricGate) {
         val profile = _uiState.value.profile ?: return
         viewModelScope.launch {
+            val app = getApplication<Application>()
+            if (!container.appUnlock.ensureUnlocked(gate, app.getString(R.string.unlock_title), app.getString(R.string.unlock_subtitle))) {
+                _uiState.update { it.copy(error = app.getString(R.string.unlock_cancelled)) }
+                return@launch
+            }
             _uiState.update { it.copy(isChecking = true, error = null) }
             when (val outcome = container.checkScriptRunner.run(profile)) {
                 is CheckRunResult.Success -> {
@@ -63,6 +70,9 @@ class HostDetailViewModel(application: Application) : AndroidViewModel(applicati
                             lastCheckedAt = container.checkResultStore.getLastCheckedAt(profile.id),
                         )
                     }
+                }
+                is CheckRunResult.Locked -> {
+                    _uiState.update { it.copy(isChecking = false, error = app.getString(R.string.unlock_cancelled)) }
                 }
                 is CheckRunResult.Failure -> {
                     container.checkResultStore.saveFailure(profile.id, outcome.message)

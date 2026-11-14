@@ -11,6 +11,7 @@ import dev.stackward.crypto.AgentKeyManager
 import dev.stackward.onboarding.OnboardingFlow
 import dev.stackward.onboarding.ServerProfileRepository
 import dev.stackward.permissions.AuditLogRepository
+import dev.stackward.security.AppUnlock
 import dev.stackward.security.KeyRotationService
 import dev.stackward.security.PanicRevokeService
 import dev.stackward.security.SecuritySettingsRepository
@@ -21,6 +22,7 @@ class AppContainer(context: Context) {
 
     val keyManager = AgentKeyManager(appContext)
     val securitySettings = SecuritySettingsRepository(appContext)
+    val appUnlock = AppUnlock(keyManager) { securitySettings.getActiveKeyAlias() }
     val pinStore = HostKeyPinStore(appContext)
     val connectionHealth = ConnectionHealthRepository(appContext)
     val profileRepository = ServerProfileRepository(appContext)

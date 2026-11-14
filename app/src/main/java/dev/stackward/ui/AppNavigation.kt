@@ -7,6 +7,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import dev.stackward.StackwardApplication
+import dev.stackward.ui.security.UnlockPasswordHost
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.stackward.ui.dashboard.DashboardScreen
 import dev.stackward.ui.dashboard.DashboardViewModel
@@ -28,6 +31,7 @@ private sealed class AppDestination : java.io.Serializable {
 
 @Composable
 fun StackwardApp() {
+    UnlockPasswordHost((LocalContext.current.applicationContext as StackwardApplication).container.appUnlock)
     var destination by rememberSaveable { mutableStateOf<AppDestination?>(null) }
     val onboardingViewModel: OnboardingViewModel = viewModel()
     val dashboardViewModel: DashboardViewModel = viewModel()

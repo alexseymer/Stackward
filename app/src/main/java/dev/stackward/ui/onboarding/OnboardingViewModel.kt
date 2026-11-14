@@ -284,8 +284,21 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
             _uiState.update { it.copy(isGeneratingKey = true, error = null) }
             Log.i(TAG, "generateSshKey: start")
             try {
+                // Phones that cannot make a biometric-bound key get a password-sealed key (PRD Q2).
+                val password = if (keyManager.needsPasswordForNewKey()) {
+                    container.appUnlock.askNewPassword() ?: run {
+                        _uiState.update { it.copy(isGeneratingKey = false, message = str(R.string.unlock_cancelled)) }
+                        return@launch
+                    }
+                } else {
+                    null
+                }
                 val publicKey = withContext(Dispatchers.IO) {
-                    keyManager.generateKeypair()
+                    try {
+                        keyManager.generateKeypair(password = password)
+                    } finally {
+                        password?.fill('\u0000')
+                    }
                     keyManager.getPublicKeyOpenSSH()
                 }
                 Log.i(TAG, "generateSshKey: ok hardware=${keyManager.usesHardwareKeystore()}")
@@ -419,7 +432,7 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun startSetup() {
+    fun startSetup(gate: BiometricGate) {
         val state = _uiState.value
         if (!state.canStartSetup) {
             Log.w(TAG, "startSetup: blocked canStart=false step=${state.step}")
@@ -427,6 +440,11 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
         }
 
         viewModelScope.launch {
+            // The new key must be authorized before the verify step signs with it.
+            if (!container.appUnlock.ensureUnlocked(gate, str(R.string.unlock_title), str(R.string.unlock_subtitle))) {
+                _uiState.update { it.copy(error = str(R.string.unlock_cancelled)) }
+                return@launch
+            }
             _uiState.update {
                 it.copy(
                     isProvisioning = true,

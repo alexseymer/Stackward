@@ -150,7 +150,7 @@ fun OnboardingScreen(
                 ProvisionStep.CONFIRM -> ConfirmContent(
                     uiState = uiState,
                     onBack = viewModel::backToInput,
-                    onInstall = viewModel::startSetup,
+                    onInstall = { viewModel.startSetup(biometricGate) },
                     onElevatedPrivilegeAcknowledgedChange = viewModel::onElevatedPrivilegeAcknowledgedChange,
                 )
                 ProvisionStep.INPUT -> InputContent(

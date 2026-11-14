@@ -174,4 +174,20 @@
     <string name="bio_rotate_subtitle">Biometric required to rotate credentials</string>
     <string name="bio_panic_title">Emergency revoke</string>
     <string name="bio_panic_subtitle">This removes server access and wipes local credentials</string>
+
+    <!-- Unlock -->
+    <string name="unlock_title">Check hosts</string>
+    <string name="unlock_subtitle">Confirm to let the app use your SSH key</string>
+    <string name="unlock_cancelled">Not unlocked — nothing was checked</string>
+    <string name="pw_unlock_title">Unlock SSH key</string>
+    <string name="pw_unlock_body">Enter the key password to check your hosts.</string>
+    <string name="pw_create_title">Protect the SSH key with a password</string>
+    <string name="pw_create_body">This phone has no strong fingerprint or face unlock, so the key is stored encrypted under a password. You enter it once per check session. There is no recovery: if you forget it, set your hosts up again.</string>
+    <string name="pw_field">Password</string>
+    <string name="pw_repeat">Repeat password</string>
+    <string name="pw_wrong">Wrong password</string>
+    <string name="pw_too_short">At least %1$d characters</string>
+    <string name="pw_mismatch">Passwords do not match</string>
+    <string name="pw_confirm_unlock">Unlock</string>
+    <string name="pw_confirm_create">Set password</string>
 </resources>
