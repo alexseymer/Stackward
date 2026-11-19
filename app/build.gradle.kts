@@ -235,7 +235,7 @@ dependencies {
     // SSH — Phase 1 (full BC replaces Android's stripped provider for X25519/Ed25519)
     implementation("com.hierynomus:sshj:0.41.2")
     implementation("org.bouncycastle:bcprov-jdk18on:1.87")
-    implementation("org.bouncycastle:bcpkix-jdk18on:1.86")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.87")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20260814")
