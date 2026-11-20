@@ -5,6 +5,13 @@ Resolve or dismiss intentionally; do not delete history without reason.
 
 ## Open
 
+_None._
+
+<!-- new entries from monitoring-adb-logs appear above -->
+
+## Resolved / ignored
+<!-- move entries here when fixed or confirmed noise -->
+
 ### [2026-08-08 13:10] W — Keystore Ed25519 falls back to software key
 - **Signature:** `AgentKeyManager|Keystore Ed25519 failed, using software key|InvalidAlgorithmParameterException|biometric must be enrolled`
 - **First seen:** `08-08 13:10:05.389`
@@ -19,7 +26,7 @@ Resolve or dismiss intentionally; do not delete history without reason.
   	at dev.stackward.crypto.AgentKeyManager.generateKeypair(AgentKeyManager.kt:42)
   	at dev.stackward.ui.onboarding.OnboardingViewModel$generateSshKey$1$publicKey$1.invokeSuspend(OnboardingViewModel.kt:292)
   ```
-- **Status:** open
+- **Status:** resolved 2026-11-20 — #131 removed the silent software-key fallback; without a strong biometric the key is sealed under a user password (PRD Q2). Re-check on a device under ACCEPTANCE FAIL-6.
 
 ### [2026-08-08 13:10] E — Proxmox bootstrap failed (shell-escape + invalid priv)
 - **Signature:** `Stackward|startBootstrap: failed|SshException|Proxmox bootstrap failed|privs invalid privilege VM.Monitor`
@@ -37,9 +44,4 @@ Resolve or dismiss intentionally; do not delete history without reason.
   	at dev.stackward.onboarding.OnboardingFlow.start(OnboardingFlow.kt:152)
   	at dev.stackward.ui.onboarding.OnboardingViewModel$startBootstrap$1$result$1.invokeSuspend(OnboardingViewModel.kt:474)
   ```
-- **Status:** open
-
-<!-- new entries from monitoring-adb-logs appear above -->
-
-## Resolved / ignored
-<!-- move entries here when fixed or confirmed noise -->
+- **Status:** obsolete 2026-11-20 — the Proxmox bootstrap and `BootstrapRunner` were removed (#117, PRD D8).
