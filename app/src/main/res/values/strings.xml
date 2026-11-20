@@ -152,6 +152,9 @@
     <string name="onb_done_jump">Jump host: %1$s</string>
     <string name="onb_done_hostkey">Host key: %1$s</string>
     <string name="onb_done_jumpkey">Jump key: %1$s</string>
+    <string name="onb_verification">Verification:</string>
+    <string name="msg_ssh_password_missing">SSH password missing</string>
+    <string name="msg_ssh_key_missing">SSH private key missing</string>
     <string name="action_back">Back</string>
 
     <!-- ViewModel messages -->

@@ -644,7 +644,7 @@ private fun SuccessContent(
                 )
             }
             uiState.verificationOutput?.let { output ->
-                Text("Verification:", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.onb_verification), style = MaterialTheme.typography.labelMedium)
                 Text(output, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
             }
 
