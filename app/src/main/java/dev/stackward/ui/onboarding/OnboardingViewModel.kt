@@ -533,7 +533,7 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
             BootstrapAuthMethod.PASSWORD -> BootstrapLogin(
                 method = BootstrapAuthMethod.PASSWORD,
                 password = secretVault.get(SessionSecretVault.Slot.SSH_PASSWORD)
-                    ?: throw IllegalStateException("SSH password missing"),
+                    ?: throw IllegalStateException(str(R.string.msg_ssh_password_missing)),
             )
             BootstrapAuthMethod.PRIVATE_KEY -> {
                 val pem = secretVault.get(SessionSecretVault.Slot.PRIVATE_KEY_PEM)
@@ -551,7 +551,7 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                         useAgentKey = true,
                     )
                 } else {
-                    throw IllegalStateException("SSH private key missing")
+                    throw IllegalStateException(str(R.string.msg_ssh_key_missing))
                 }
             }
         }

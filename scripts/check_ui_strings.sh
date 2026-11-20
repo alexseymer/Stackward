@@ -19,7 +19,10 @@ GUARDED=(
 
 status=0
 for file in "${GUARDED[@]}"; do
-    if grep -nE '(Text\(|text = |contentDescription = )"[A-Za-z][^"]* ' "${file}"; then
+    # Prose with a space, or a single word starting with a letter (e.g. Text("Verification:")).
+    # Placeholder examples (placeholder = { Text("bastion.example.com") }) are data and allowed.
+    if grep -nE '(Text\(|text = |contentDescription = )"[A-Za-z][^"]* ' "${file}" \
+        || grep -nE 'Text\("[A-Za-z][^"]*"' "${file}" | grep -v 'placeholder' ; then
         echo "ERROR: hard-coded UI string in ${file} (use stringResource / strings.xml)" >&2
         status=1
     fi
