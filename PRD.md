@@ -268,12 +268,12 @@ yet; the first priority is to find out whether SSH signing works on one (G2).
 | **D8 (2026-11-12) Linux hosts only** | Proxmox and Docker hosts are checked as plain Linux hosts. Proxmox- and Docker-specific checks are future work and need a privilege design first. |
 | Considered, not chosen (2026-11-12) | A tool-calling model with a server-side API, voice control and iOS (issue #103). Different architecture, with a server component to build and secure; revisit only after v1 proves the core job. |
 
-## 11. Spec ahead of code (status as of 2026-11-13)
+## 11. Spec ahead of code (status as of 2026-11-20)
 
 | # | Gap | Where |
 |---|---|---|
 | G1 ✅ | Remove background SSH: per-host "Auto 4h" polling (`CheckWorker`, `PollingMode`), critical notifications (`CheckNotifier`, `POST_NOTIFICATIONS`), and the hourly `LogDigestWorker` | `check/`, `logs/`, `ui/dashboard/`, manifest — **done** (#119) |
-| G2 ⚠️ | Bind each SSH signature to a biometric prompt. The Keystore key requires per-use authentication, but `BiometricGate` authenticates without a `CryptoObject`, so signing likely fails on Android 13+ devices with a strong biometric enrolled. **Verify on a device first.** | `crypto/AgentKeyManager`, `ui/security/BiometricGate`, `connection/` |
+| G2 ⚠️ | Bind SSH signing to the user's presence. **Built** (#131): the Keystore key needs a strong biometric and stays usable for a 60 s unlock window (Q1); phones without one use a password-sealed key (Q2). **Not yet verified on a device** (ACCEPTANCE INV-2b, FAIL-5, FAIL-6; #85). | `crypto/AgentKeyManager`, `security/AppUnlock`, `ui/security/BiometricGate` |
 | G3 ✅ | Onboarding installs `check.sh` (bundled as an app asset) and refreshes it when the bundled version is newer; extend `scripts/verify_check_sh_sync.sh` to cover the bundled copy | `onboarding/OnboardingFlow` — **done** (#122) |
 | G4 ✅ | Delete the stale bundled `assets/scripts/bootstrap_linux.sh` and the unused `BootstrapRunner` | `app/src/main/assets/scripts/`, `onboarding/` — **done** (#117) |
 | R1 ✅ | **Remove the older subsystems (D6, D7, D8):** Logs and Analyzer screens, `logs/`, `inference/` (incl. the MediaPipe dependency and model download), `proxmox/`, `permissions/` tiering (`PermissionEngine`, `CapabilityPack`, `Tier1Rules`), related Settings and navigation | `ui/`, `logs/`, `inference/`, `proxmox/`, `permissions/`, `build.gradle.kts` — **done** (#117) |

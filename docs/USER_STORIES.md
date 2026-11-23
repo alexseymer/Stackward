@@ -335,34 +335,12 @@ Legacy `gemma-agent` references have been removed; use the canonical names above
 
 ## Dogfood exit checklist
 
-Minimum stories that must pass on **Pixel 8 + live Linux/Proxmox/Docker host**
-before calling v1 production-ready. Lookout stories first — they're the
-primary flow; legacy stories are secondary since that subsystem already
-shipped a dogfood round before the pivot.
+Superseded by the v1 release gate in [ACCEPTANCE.md §10](ACCEPTANCE.md#10-v1-release-gate). The
+earlier checklist listed actions, the Gemma summary, Proxmox and the legacy Logs screen, all removed
+in v1 (PRD D5–D8). Record device runs in the ACCEPTANCE sign-off log.
 
-**First, on the phone (blocks everything else):**
-- [ ] **G4 / gap G2** — A manual "Check now" on a real host actually completes over SSH with the per-use biometric Keystore key on Android 13+ (and see what happens on a device without one). If this fails, fix it before anything below.
-
-**Lookout (primary):**
-- [ ] **G1/G2** — Dashboard shows real hosts; host detail shows real issues/suggestions
-- [ ] **H1** — Safe suggestion runs and is logged
-- [ ] **H2** — Risky suggestion (`cleanup_old_logs`) succeeds end-to-end against a real host, not just in code review
-- [ ] **H3** — Scary suggestion shown as manual workaround, never executes
-- [ ] **G3** — *(after D2 is built)* A host onboarded through the app can be checked without ever running the admin script
-- [ ] **I3** — Panic revoke wipes everything local; while auto-polling still exists, it also stops the scheduled `CheckWorker` job (verify in `adb shell dumpsys jobscheduler` or WorkManager's own inspection)
-- ~~**I1** Auto-4h polling fires on schedule · **I2** critical issue produces a notification~~ — N/A: these features are being removed (PRD D1); instead confirm after G1 that nothing connects to a host in the background
-- [ ] **J1/J2** — Gemma summary works with a model imported; degrades cleanly without one
-
-**Legacy (secondary — re-verify nothing regressed):**
-- [ ] **A2** — Full onboarding still works from the dashboard's "+" button
-- [ ] **D2** — Legacy Tier 2 service restart end-to-end via the Logs screen
-- [ ] **E1** — Panic revoke tested on a throwaway host
-
-**Stretch (v1.1):** A6 host-type override, E6 re-pin UI, F3 docker-group
-in-app toggle, additional RISKY actions in the check.sh catalog (restart a
-service, reboot, package updates — each needs a matching
-`stackward-check-action` case and a design for validating any parameter; see
-[PRD §5.2](../PRD.md#52-read-only-guarantee)).
+**Stretch (v1.1):** A6 host-type override, E6 re-pin UI (ACCEPTANCE ONB-6), F3 docker-group in-app
+toggle.
 
 ---
 

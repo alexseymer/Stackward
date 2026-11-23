@@ -28,7 +28,7 @@ A scenario is **accepted** when Verified is ✅. Re-verify it after any change t
 code it covers (the sign-off log shows the build it was last verified on).
 
 Scenario IDs are stable: `INV` (product invariants), `ONB` (onboarding), `CHK`
-(running a check), `ACT` (actions), `FAIL` (failure handling), `SEC` (recovery and
+(running a check), `ACT` (actions, removed in v1), `FAIL` (failure handling), `SEC` (recovery and
 security), `Q` (quality). Open issues reference them.
 
 ## 2. Test setup
@@ -36,7 +36,7 @@ security), `Q` (quality). Open issues reference them.
 | Item | Requirement |
 |---|---|
 | **Primary phone** | Android 13+ with a strong biometric (fingerprint or face) enrolled, so the biometric-bound Keystore key is used. Record the model and Android version. |
-| **Second phone** | Android 9–12 **or** a phone with no enrolled biometric, to exercise the fallback ([#95](https://github.com/alexseymer/Stackward/issues/95)). |
+| **Second phone** | Android 9–12 **or** a phone with no enrolled strong biometric, to exercise the password-sealed key (PRD Q2, [#95](https://github.com/alexseymer/Stackward/issues/95)). |
 | **Low-end phone** | Optional: a lower-mid-range device to check that CHK-3 (latency) still holds. The README states the minimum tested Android version. |
 | **Host A** | A fresh Debian/Ubuntu VM with only OpenSSH, systemd and a new `stackward-agent` user. **No** admin script run. |
 | **Host B** | Host A plus `scripts/bootstrap_linux.sh` run as root (journal access, Docker ACL; no sudo rules are installed). |
@@ -51,9 +51,9 @@ promises the app makes; most of them are currently untested.
 
 | ID | Scenario | Pass criteria | Built | Verified |
 |---|---|---|---|---|
-| **INV-1** | **Nothing leaves the device.** *Given* the phone is behind the observer, *when* I onboard, run checks, run check all, and rotate the key, *then* … | The only destinations contacted are the test hosts/bastion (and DNS for their names). No analytics, no cloud endpoints. Model download is the only exception and is tested separately in INV-1b. | ✅ (no model download, no network code besides SSH) | ⬜ |
+| **INV-1** | **Nothing leaves the device.** *Given* the phone is behind the observer, *when* I onboard, run checks, run check all, and rotate the key, *then* … | The only destinations contacted are the test hosts/bastion (and DNS for their names). No analytics, no cloud endpoints. | ✅ (no model download, no network code besides SSH) | ⬜ |
 | **INV-2** | **No SSH without me present.** *Given* auto-polling was enabled in an older build and I upgrade, *when* the app is closed and the phone locked for 24 h, *then* … | Zero `stackward-agent` logins in the hosts' `auth.log` for the whole period; `adb shell dumpsys jobscheduler` lists no Stackward jobs; no notification posted. | ⚠️ (workers removed in #119 and old jobs cancelled once on upgrade; device ⬜) | ⬜ |
-| **INV-2b** | **Every session follows a biometric prompt.** *When* I tap "Check now", run an action, or run "Check all", *then* … | A biometric prompt appears before each SSH connection; cancelling it opens no connection (no `auth.log` entry); logcat shows the prompt before the connect. | ❌ ([#85](https://github.com/alexseymer/Stackward/issues/85)) | ⬜ |
+| **INV-2b** | **Every session follows a biometric prompt.** *When* I tap "Check now" or "Check all", *then* … | A strong-biometric prompt appears before the first SSH connection; one prompt covers "Check all" and any check within the 60 s unlock window (PRD Q1); after the window, the next check prompts again. Cancelling opens no connection (no `auth.log` entry); logcat shows the prompt before the connect. | ⚠️ (60 s unlock window — #131; device ⬜, [#85](https://github.com/alexseymer/Stackward/issues/85)) | ⬜ |
 | **INV-3** | **Read-only.** *Given* a host with auditd (or `strace -f` on `sshd` children) recording commands and file changes, *when* I onboard, run several checks, rotate the key and use panic revoke, *then* … | The only commands executed are `bash ~/.stackward/check.sh`, the onboarding/login-probe steps, and the key install/rotation/revoke steps. No file changes beyond `~/.stackward/check.sh` and `authorized_keys`. A `check.sh` edited to print a command as `advice`, or to claim anything else, causes nothing to run on the host. | ✅ (no code path executes host text; no sudo helpers — #118, #126) | ⬜ |
 
 ## 4. Core flow
@@ -95,8 +95,8 @@ thing that is wrong.
 | **FAIL-2** | **Stale result.** *Given* a host last checked more than 24 h ago, *then* … | The row visibly says the result is stale, with its age. | ✅ (24 h staleness — #121) | ⬜ |
 | **FAIL-3** | **Key rejected.** *Given* the host removed the app's key, *when* I check, *then* … | A clear "authentication failed" state with the next step. No retry storm. | ⚠️ | ⬜ |
 | **FAIL-4** | **`check.sh` missing or broken.** *Given* the script is deleted, or prints invalid JSON, *then* … | A specific message ("not installed", "invalid output") and the remedy. No crash. | ✅ (missing script triggers install; invalid output reported — #122) | ⬜ |
-| **FAIL-5** | **Biometric cancelled or unavailable.** *When* I cancel the prompt, or the biometric is removed from the phone, *then* … | Nothing runs; the message explains what happened; the app stays usable. | ❌ ([#85](https://github.com/alexseymer/Stackward/issues/85), [#95](https://github.com/alexseymer/Stackward/issues/95)) | ⬜ |
-| **FAIL-6** | **Phone without a biometric-bound key.** *Given* the second phone, *when* I onboard, *then* … | The key is created sealed under a password (min. 10 characters); every check session asks for it; a wrong password is rejected and 5 wrong attempts stop. Never a silent weaker mode. | ❌ ([#95](https://github.com/alexseymer/Stackward/issues/95)) | ⬜ |
+| **FAIL-5** | **Biometric cancelled or unavailable.** *When* I cancel the prompt, or the biometric is removed from the phone, *then* … | Nothing runs; the message explains what happened; the app stays usable. | ✅ (#131; device ⬜) | ⬜ |
+| **FAIL-6** | **Phone without a biometric-bound key.** *Given* the second phone, *when* I onboard, *then* … | The key is created sealed under a password (min. 10 characters); every check session asks for it; a wrong password is rejected and 5 wrong attempts stop. Never a silent weaker mode. | ✅ (`PasswordKeyCrypto`, `AppUnlock.MAX_PASSWORD_ATTEMPTS` — #131; device ⬜) | ⬜ |
 
 ## 6. Security and recovery
 
@@ -145,14 +145,12 @@ its reason written in the sign-off log.
 
 ## 11. Where the open work is tracked
 
+Open issues that still need a device run before they can close:
+
 | Issue | Scenarios it must satisfy |
 |---|---|
-| [#85](https://github.com/alexseymer/Stackward/issues/85) SSH signing never prompts | INV-2b, FAIL-5, CHK-3 |
-| [#86](https://github.com/alexseymer/Stackward/issues/86) Remove background SSH | INV-2 |
-| [#87](https://github.com/alexseymer/Stackward/issues/87) Onboarding installs `check.sh` | ONB-1 |
-| [#88](https://github.com/alexseymer/Stackward/issues/88) Blind spots reported as all clear | CHK-5 |
-| [#89](https://github.com/alexseymer/Stackward/issues/89) `check.sh` correctness | CHK-1, CHK-6 |
-| [#90](https://github.com/alexseymer/Stackward/issues/90) Unreachable and stale hosts | FAIL-1, FAIL-2, CHK-4 |
-| [#93](https://github.com/alexseymer/Stackward/issues/93) Test gaps | supports INV-3, SEC-1 |
-| [#95](https://github.com/alexseymer/Stackward/issues/95) No biometric-bound key | FAIL-5, FAIL-6 |
-| [#100](https://github.com/alexseymer/Stackward/issues/100) Localization and accessibility | Q-4 |
+| [#85](https://github.com/alexseymer/Stackward/issues/85) Biometric unlock before SSH (built in #131) | INV-2b, FAIL-5, FAIL-6, CHK-3 |
+| [#100](https://github.com/alexseymer/Stackward/issues/100) Localization and accessibility (TalkBack, 200% font) | Q-4 |
+
+Closed, code built, scenarios still unverified: #86 (INV-2), #87 (ONB-1), #88 (CHK-5), #89 (CHK-1, CHK-6),
+#90 (FAIL-1, FAIL-2, CHK-4), #93 (supports INV-3, SEC-1), #95 (FAIL-5, FAIL-6).
